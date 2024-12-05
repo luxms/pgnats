@@ -1,7 +1,6 @@
 ::pgrx::pg_module_magic!();
 
-pub static mut NATS_CONNECT: Option<nats::Connection> = None;
-
+mod config;
 mod init;
 mod funcs;
 mod tests;

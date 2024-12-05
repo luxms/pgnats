@@ -1,36 +1,29 @@
-// ::pgrx::pg_module_magic!();
-
 use pgrx::prelude::*;
 
-use crate::NATS_CONNECT;
+use crate::config::get_nats_connection;
 
 pub fn get_message(message_text: String) -> String {
   return format!("PGNATS: {}", message_text);
 }
+
 
 #[pg_extern]
 pub fn hello_pgnats() -> &'static str {
     "Hello, pgnats!"
 }
 
+
 #[pg_extern]
 fn nats_publish(publish_text: String) {
-  
-  unsafe {
-    let exc = NATS_CONNECT.clone()
-                          .expect(&get_message("NATS Connection not valid!".to_string()))
-                          .publish("luxmsbi.cdc.audit.events", publish_text)
-                          .err();
+  get_nats_connection()
+    .unwrap()
+    .publish("luxmsbi.cdc.audit.events", publish_text)
+    .expect(&get_message("Exception on publishing message at NATS!".to_owned()));
+}
 
-    if exc.is_none() {
-      ereport!(PgLogLevel::INFO, PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION, 
-            get_message("Successful publish message at NATS.".to_string())
-        );
-    }
-    else {
-      ereport!(PgLogLevel::ERROR, PgSqlErrorCode::ERRCODE_CONNECTION_EXCEPTION, 
-            get_message(format!("Exception on publishing message at NATS: {}", exc.expect("can't read exception")))
-        );
-    }
-  } 
+
+#[pg_extern]
+fn nats_init() {
+  // Auto run at first call any function at extencion
+  // initialize_configuration();
 }
