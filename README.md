@@ -1,6 +1,8 @@
 # pgnats
+
 PostgreSQL расширение для совершения побликации сообщений в NATS
 
+**WIP, Not usable yet!**
 
 ## Install
 ```sh
@@ -51,3 +53,4 @@ CONFIG_PORT: int = "порт NATS сервиса"
 
 ### tests.rs
 Функции тестирования
+
