@@ -21,7 +21,6 @@ pg17 = ["pgrx/pg17", "pgrx-tests/pg17" ]
 pg_test = []
 
 [dependencies]
-async-nats = "0.38.0"
 nats = "0.25.0"
 pgrx = "0.12.6"
 regex = "1.11.1"
