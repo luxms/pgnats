@@ -28,7 +28,16 @@ Select set_config('nats.host', 'DEFAULT');
 Select reset_config('nats.host');
 
 -- Публикация в NATS
-Select nats_publish()
+Select nats_publish('publish_text', 'sub.ject')
+
+-- Публикация с помощью jetstream (sync)
+Select nats_publish_stream('publish_text', 'sub.ject')
+```
+При публикации с помощью `jetstream` создается стрим с именем субъекта без последнего блока. Спецсимволы (`.^?`) заменяются на `_`.
+
+Например:
+```
+luxmsbi.cdc.audit.events: luxmsbi_cdc_audit
 ```
 
 ## Source
