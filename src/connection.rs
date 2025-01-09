@@ -62,7 +62,7 @@ impl NatsConnection {
   pub fn invalidate(&self) {
     self.catch_panic(std::panic::catch_unwind(|| {
       if *self.valid.read().unwrap() || (*self.connection.read().unwrap()).clone().is_some() {
-        ereport!(PgLogLevel::INFO, PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION, 
+        ereport!(PgLogLevel::INFO, PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
           get_message(format!("Disconnect from NATS service"))
         );
         (*self.connection.read().unwrap()).clone().unwrap().close();
@@ -71,7 +71,7 @@ impl NatsConnection {
       *self.valid.write().unwrap() = false;
     }));
   }
-  
+
 
   fn get_connection(&self) -> Connection {
     if !*self.valid.read().unwrap() {
@@ -87,7 +87,7 @@ impl NatsConnection {
     return (*self.jetstream.read().unwrap()).clone().unwrap();
   }
 
-  
+
   fn force_unlock(&self) {
     if self.connection.is_poisoned() {
       self.connection.clear_poison();
@@ -161,10 +161,9 @@ impl NatsConnection {
 
   fn get_stream_name_by_subject(subject: String) -> String {
     return Regex::new(r"[.^?>*]").unwrap().replace_all(
-      Regex::new(r"\.[^.]*$").unwrap().replace(subject.as_str(), "").as_ref(), 
+      Regex::new(r"\.[^.]*$").unwrap().replace(subject.as_str(), "").as_ref(),
       "_",
     ).as_ref().to_owned();
   }
 
 }
-

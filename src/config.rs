@@ -20,23 +20,23 @@ pub static GUC_PORT: GucSetting<i32> = GucSetting::<i32>::new(4222);
 pub fn initialize_configuration() {
   // initialization of postgres userdef configs
   GucRegistry::define_string_guc(
-    CONFIG_HOST, 
-    "address of rust service", 
-    "address of rust service", 
-    &GUC_HOST, 
-    GucContext::Userset, 
+    CONFIG_HOST,
+    "address of rust service",
+    "address of rust service",
+    &GUC_HOST,
+    GucContext::Userset,
     GucFlags::default(),
   );
   GucRegistry::define_int_guc(
-    CONFIG_PORT, 
-    "port of rust service", 
+    CONFIG_PORT,
     "port of rust service",
-    &GUC_PORT, 
+    "port of rust service",
+    &GUC_PORT,
     0, 999999,
-    GucContext::Userset, 
+    GucContext::Userset,
     GucFlags::default(),
   );
-  ereport!(PgLogLevel::INFO, PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION, 
+  ereport!(PgLogLevel::INFO, PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
     get_message(format!("initialize_configuration success!"))
   );
 }
@@ -46,8 +46,8 @@ pub fn initialize_configuration() {
 fn get_config(config_name: String) -> Option<String> {
   let name: Result<Option<String>, spi::SpiError> = Spi::connect(|client| {
       return client.select(
-        &format!("SELECT current_setting('{0}', true);", config_name), 
-        None, 
+        &format!("SELECT current_setting('{0}', true);", config_name),
+        None,
         None
       )?.first().get_one()
   });
