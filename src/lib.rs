@@ -1,6 +1,7 @@
 ::pgrx::pg_module_magic!();
 
 mod config;
+mod connection;
 mod init;
 mod funcs;
 mod tests;

@@ -1,5 +1,3 @@
-// ::pgrx::pg_module_magic!();
-
 use pgrx::prelude::*;
 use crate::config::initialize_configuration;
 

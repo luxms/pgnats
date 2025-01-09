@@ -1,6 +1,6 @@
 use pgrx::prelude::*;
 
-use crate::config::{get_nats_connection, get_nats_stream, touch_stream_subject};
+use crate::connection::NATS_CONNECTION;
 
 pub fn get_message(message_text: String) -> String {
   return format!("PGNATS: {}", message_text);
@@ -15,21 +15,13 @@ pub fn hello_pgnats() -> &'static str {
 
 #[pg_extern]
 fn nats_publish(publish_text: String, subject: String) {
-  get_nats_connection()
-    .unwrap()
-    .publish(subject.as_str(), publish_text)
-    .expect(&get_message("Exception on publishing message at NATS!".to_owned()));
+  NATS_CONNECTION.publish(publish_text, subject);
 }
 
 
 #[pg_extern]
 fn nats_publish_stream(publish_text: String, subject: String) {
-  unsafe {
-    touch_stream_subject(subject.clone());
-  }
-  let stream = get_nats_stream().unwrap();
-  stream.publish(subject.as_str(), publish_text)
-    .expect(&get_message("Exception on publishing message at NATS!".to_owned()));
+  NATS_CONNECTION.publish_stream(publish_text, subject);
 }
 
 
