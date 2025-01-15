@@ -4,11 +4,12 @@ use pgrx::guc::*;
 use pgrx::prelude::*;
 
 use crate::connection::NATS_CONNECTION;
+use crate::funcs::do_panic_with_message;
 use crate::funcs::get_message;
 
 // configs names
-static CONFIG_HOST: &str = "nats.host";
-static CONFIG_PORT: &str = "nats.port";
+const CONFIG_HOST: &str = "nats.host";
+const CONFIG_PORT: &str = "nats.port";
 
 // configs values
 pub static GUC_HOST: GucSetting<Option<&'static CStr>> =
@@ -30,15 +31,15 @@ pub fn initialize_configuration() {
     "port of rust service",
     "port of rust service",
     &GUC_PORT,
-    0,
-    999999,
+    1024,
+    0xFFFF,
     GucContext::Userset,
     GucFlags::default(),
   );
   ereport!(
     PgLogLevel::INFO,
     PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-    get_message(format!("initialize_configuration success!"))
+    get_message("initialize_configuration success!")
   );
 }
 
@@ -59,10 +60,12 @@ fn get_config(config_name: &str) -> Option<String> {
 
 #[pg_extern]
 fn set_config(config_name: &str, config_value: &str) {
-  Spi::run(&format!("SET {} = {}", config_name, config_value)).expect(&get_message(format!(
-    "Set configuration failed: <{}> -> <{}>",
-    config_name, config_value
-  )));
+  Spi::run(&format!("SET {} = {}", config_name, config_value)).unwrap_or_else(|_| {
+    do_panic_with_message(format!(
+      "Set configuration failed: <{}> -> <{}>",
+      config_name, config_value
+    ))
+  });
 
   if config_name.to_lowercase().contains("nats.") {
     NATS_CONNECTION.invalidate();

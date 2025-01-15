@@ -12,6 +12,7 @@ use nats::Connection;
 
 use crate::config::{GUC_HOST, GUC_PORT};
 use crate::errors::PgNatsError;
+use crate::funcs::do_panic_with_message;
 use crate::funcs::get_message;
 
 pub static NATS_CONNECTION: NatsConnection = NatsConnection {
@@ -35,7 +36,7 @@ impl NatsConnection {
     self
       .get_connection()?
       .publish(subject.as_ref(), message)
-      .map_err(|err| PgNatsError::PublishIo(err))?;
+      .map_err(PgNatsError::PublishIo)?;
 
     Ok(())
   }
@@ -46,11 +47,11 @@ impl NatsConnection {
     subject: impl AsRef<str>,
   ) -> Result<(), PgNatsError> {
     let subject = subject.as_ref();
-    self.touch_stream_subject(subject)?;
-    let _ = self
-      .get_jetstream()?
+
+    let _ask = self
+      .touch_stream_subject(subject)?
       .publish_with_options(subject, message, &NatsConnection::get_publish_options())
-      .map_err(|err| PgNatsError::PublishIo(err))?;
+      .map_err(PgNatsError::PublishIo)?;
 
     Ok(())
   }
@@ -60,7 +61,7 @@ impl NatsConnection {
       ereport!(
         PgLogLevel::INFO,
         PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-        get_message(format!("Disconnect from NATS service"))
+        get_message("Disconnect from NATS service")
       );
 
       conn.close();
@@ -74,9 +75,9 @@ impl NatsConnection {
       self.initialize_connection()?;
     }
 
-    Ok(self.connection.read().clone().expect(&get_message(
-      "Invariant error: connection must be created before then",
-    )))
+    Ok(self.connection.read().clone().unwrap_or_else(|| {
+      do_panic_with_message("Invariant error: connection must be created before then")
+    }))
   }
 
   fn get_jetstream(&self) -> Result<JetStream, PgNatsError> {
@@ -84,9 +85,9 @@ impl NatsConnection {
       self.initialize_connection()?;
     }
 
-    Ok(self.jetstream.read().clone().expect(&get_message(
-      "Invariant error: jetstream must be created before then",
-    )))
+    Ok(self.jetstream.read().clone().unwrap_or_else(|| {
+      do_panic_with_message("Invariant error: jetstream must be created before then")
+    }))
   }
 
   fn initialize_connection(&self) -> Result<(), PgNatsError> {
@@ -116,25 +117,29 @@ impl NatsConnection {
   /// Touch stream by subject
   /// if stream for subject not exists, creat it
   /// if stream for subject exists, but not contains current subject, add subject to config
-  fn touch_stream_subject(&self, subject: impl ToString) -> Result<(), PgNatsError> {
+  fn touch_stream_subject(&self, subject: impl ToString) -> Result<JetStream, PgNatsError> {
     let subject = subject.to_string();
     let stream_name = NatsConnection::get_stream_name_by_subject(&subject);
+
     let jetstream = self.get_jetstream()?;
     let info = jetstream.stream_info(&stream_name);
+
     if let Ok(info) = info {
       // if stream exists
       let mut subjects = info.config.subjects;
       if !subjects.contains(&subject) {
         // if not contains current subject
         subjects.push(subject);
+
         let cfg = nats::jetstream::StreamConfig {
           name: stream_name,
           subjects: subjects,
           ..Default::default()
         };
-        let _ = jetstream
+
+        let _stream_info = jetstream
           .update_stream(&cfg)
-          .expect(&get_message(format!("stream update failed!")));
+          .map_err(PgNatsError::UpdateStream)?;
       }
     } else {
       // if stream not exists
@@ -143,12 +148,13 @@ impl NatsConnection {
         subjects: vec![subject],
         ..Default::default()
       };
-      let _ = jetstream
+
+      let _stream_info = jetstream
         .add_stream(cfg)
-        .expect(&get_message(format!("stream creating failed!")));
+        .map_err(PgNatsError::UpdateStream)?;
     }
 
-    Ok(())
+    Ok(jetstream)
   }
 
   fn get_publish_options() -> PublishOptions {

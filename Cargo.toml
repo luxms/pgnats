@@ -34,6 +34,9 @@ pgrx-tests = "0.12.6"
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(pgrx_embed)'] }
 unused_results = { level = "warn" }
 
+[lints.clippy]
+redundant_field_names = "allow"
+
 [profile.dev]
 panic = "unwind"
 

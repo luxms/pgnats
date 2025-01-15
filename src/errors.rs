@@ -11,4 +11,7 @@ pub enum PgNatsError {
     port: u16,
     io_error: std::io::Error,
   },
+
+  #[error("update stream info: {0}")]
+  UpdateStream(std::io::Error),
 }
