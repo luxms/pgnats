@@ -2,6 +2,7 @@
 
 mod config;
 mod connection;
+mod errors;
 mod funcs;
 mod init;
 mod tests;
