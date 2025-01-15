@@ -2,6 +2,7 @@ use parking_lot::RwLock;
 use regex::Regex;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use pgrx::prelude::*;
@@ -20,6 +21,11 @@ pub static NATS_CONNECTION: NatsConnection = NatsConnection {
   jetstream: RwLock::new(None),
   valid: AtomicBool::new(false),
 };
+
+static REGEX_STREAM_NAME_LAST_PART: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r"\.[^.]*$").unwrap());
+
+static REGEX_SPECIAL_SYM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[.^?>*]").unwrap());
 
 pub struct NatsConnection {
   connection: RwLock<Option<Connection>>,
@@ -165,16 +171,11 @@ impl NatsConnection {
   }
 
   fn get_stream_name_by_subject(subject: &str) -> String {
-    Regex::new(r"[.^?>*]")
-      .unwrap()
+    REGEX_SPECIAL_SYM
       .replace_all(
-        Regex::new(r"\.[^.]*$")
-          .unwrap()
-          .replace(subject, "")
-          .as_ref(),
+        REGEX_STREAM_NAME_LAST_PART.replace(subject, "").as_ref(),
         "_",
       )
-      .as_ref()
-      .to_owned()
+      .to_string()
   }
 }
