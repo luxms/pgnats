@@ -17,7 +17,7 @@ fn nats_publish(publish_text: String, subject: String) -> Result<(), PgNatsError
 }
 
 #[pg_extern]
-fn nats_publish_stream(publish_text: String, subject: String) -> Result<(), PgNatsError>  {
+fn nats_publish_stream(publish_text: String, subject: String) -> Result<(), PgNatsError> {
   NATS_CONNECTION.publish_stream(publish_text, subject)
 }
 

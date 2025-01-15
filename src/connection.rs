@@ -1,5 +1,7 @@
+use parking_lot::RwLock;
 use regex::Regex;
-use std::sync::RwLock;
+use std::sync::atomic;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use pgrx::prelude::*;
@@ -13,15 +15,15 @@ use crate::errors::PgNatsError;
 use crate::funcs::get_message;
 
 pub static NATS_CONNECTION: NatsConnection = NatsConnection {
-  connection: RwLock::<Option<Connection>>::new(None),
-  jetstream: RwLock::<Option<JetStream>>::new(None),
-  valid: RwLock::<bool>::new(false),
+  connection: RwLock::new(None),
+  jetstream: RwLock::new(None),
+  valid: AtomicBool::new(false),
 };
 
 pub struct NatsConnection {
   connection: RwLock<Option<Connection>>,
   jetstream: RwLock<Option<JetStream>>,
-  valid: RwLock<bool>,
+  valid: AtomicBool,
 }
 
 impl NatsConnection {
@@ -49,36 +51,36 @@ impl NatsConnection {
   }
 
   pub fn invalidate(&self) {
-    if *self.valid.read().unwrap() || (*self.connection.read().unwrap()).clone().is_some() {
+    if self.valid.load(atomic::Ordering::Relaxed) || (*self.connection.read()).clone().is_some() {
       ereport!(
         PgLogLevel::INFO,
         PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
         get_message(format!("Disconnect from NATS service"))
       );
-      (*self.connection.read().unwrap()).clone().unwrap().close();
+      (*self.connection.read()).clone().unwrap().close();
     }
-    *self.connection.write().unwrap() = None;
-    *self.valid.write().unwrap() = false;
+    *self.connection.write() = None;
+    self.valid.store(false, atomic::Ordering::Relaxed);
   }
 
   fn get_connection(&self) -> Result<Connection, PgNatsError> {
-    if !*self.valid.read().unwrap() {
+    if !self.valid.load(atomic::Ordering::Relaxed) {
       self.initialize_connection()?;
     }
-    return Ok((*self.connection.read().unwrap()).clone().unwrap());
+    return Ok((*self.connection.read()).clone().unwrap());
   }
 
   fn get_jetstream(&self) -> Result<JetStream, PgNatsError> {
-    if !*self.valid.read().unwrap() {
+    if !self.valid.load(atomic::Ordering::Relaxed) {
       self.initialize_connection()?;
     }
-    return Ok((*self.jetstream.read().unwrap()).clone().unwrap());
+    return Ok((*self.jetstream.read()).clone().unwrap());
   }
 
   fn initialize_connection(&self) -> Result<(), PgNatsError> {
     self.invalidate();
-    let mut nats_connection = self.connection.write().unwrap();
-    let mut nats_jetstream = self.jetstream.write().unwrap();
+    let mut nats_connection = self.connection.write();
+    let mut nats_jetstream = self.jetstream.write();
 
     let host = GUC_HOST.get().unwrap().to_str().unwrap();
     let port = GUC_PORT.get();
@@ -91,7 +93,7 @@ impl NatsConnection {
       })?,
     );
     *nats_jetstream = Some(nats::jetstream::new((*nats_connection).clone().unwrap()));
-    *self.valid.write().unwrap() = true;
+    self.valid.store(true, atomic::Ordering::Relaxed);
 
     Ok(())
   }
