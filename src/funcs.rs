@@ -6,24 +6,20 @@ pub fn get_message(message_text: String) -> String {
   return format!("PGNATS: {}", message_text);
 }
 
-
 #[pg_extern]
 pub fn hello_pgnats() -> &'static str {
-    "Hello, pgnats!"
+  "Hello, pgnats!"
 }
-
 
 #[pg_extern]
 fn nats_publish(publish_text: String, subject: String) {
   NATS_CONNECTION.publish(publish_text, subject);
 }
 
-
 #[pg_extern]
 fn nats_publish_stream(publish_text: String, subject: String) {
   NATS_CONNECTION.publish_stream(publish_text, subject);
 }
-
 
 #[pg_extern]
 fn nats_init() {

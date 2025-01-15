@@ -1,24 +1,22 @@
+use regex::Regex;
+use std::any::Any;
 use std::sync::RwLock;
 use std::time::Duration;
-use std::any::Any;
-use regex::Regex;
 
 use pgrx::prelude::*;
 
-use nats::Connection;
 use nats::jetstream::JetStream;
 use nats::jetstream::PublishOptions;
+use nats::Connection;
 
-use crate::config::{ GUC_HOST, GUC_PORT };
+use crate::config::{GUC_HOST, GUC_PORT};
 use crate::funcs::get_message;
-
 
 pub static NATS_CONNECTION: NatsConnection = NatsConnection {
   connection: RwLock::<Option<Connection>>::new(None),
   jetstream: RwLock::<Option<JetStream>>::new(None),
   valid: RwLock::<bool>::new(false),
 };
-
 
 pub struct NatsConnection {
   connection: RwLock<Option<Connection>>,
@@ -27,7 +25,6 @@ pub struct NatsConnection {
 }
 
 impl NatsConnection {
-
   fn catch_panic(&self, result: Result<(), Box<dyn Any + Send>>) {
     match result {
       Ok(_) => {}
@@ -40,29 +37,37 @@ impl NatsConnection {
 
   pub fn publish(&self, message: String, subject: String) {
     self.catch_panic(std::panic::catch_unwind(|| {
-      self.get_connection()
-        .publish(
-          subject.as_str(),
-          message.clone(),
-        ).expect(&get_message("Exception on publishing message at NATS!".to_owned()));
+      self
+        .get_connection()
+        .publish(subject.as_str(), message.clone())
+        .expect(&get_message(
+          "Exception on publishing message at NATS!".to_owned(),
+        ));
     }));
   }
 
   pub fn publish_stream(&self, message: String, subject: String) {
     self.catch_panic(std::panic::catch_unwind(|| {
       self.touch_stream_subject(subject.clone());
-      self.get_jetstream().publish_with_options(
-        subject.as_str(),
-        message,
-        &NatsConnection::get_publish_options(),
-      ).expect(&get_message("Exception on publishing message at NATS!".to_owned()));
+      self
+        .get_jetstream()
+        .publish_with_options(
+          subject.as_str(),
+          message,
+          &NatsConnection::get_publish_options(),
+        )
+        .expect(&get_message(
+          "Exception on publishing message at NATS!".to_owned(),
+        ));
     }));
   }
 
   pub fn invalidate(&self) {
     self.catch_panic(std::panic::catch_unwind(|| {
       if *self.valid.read().unwrap() || (*self.connection.read().unwrap()).clone().is_some() {
-        ereport!(PgLogLevel::INFO, PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
+        ereport!(
+          PgLogLevel::INFO,
+          PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
           get_message(format!("Disconnect from NATS service"))
         );
         (*self.connection.read().unwrap()).clone().unwrap().close();
@@ -71,7 +76,6 @@ impl NatsConnection {
       *self.valid.write().unwrap() = false;
     }));
   }
-
 
   fn get_connection(&self) -> Connection {
     if !*self.valid.read().unwrap() {
@@ -86,7 +90,6 @@ impl NatsConnection {
     }
     return (*self.jetstream.read().unwrap()).clone().unwrap();
   }
-
 
   fn force_unlock(&self) {
     if self.connection.is_poisoned() {
@@ -109,13 +112,14 @@ impl NatsConnection {
     let port = GUC_PORT.get();
 
     *nats_connection = Some(
-      nats::connect(format!("{0}:{1}", host, port))
-        .expect(&get_message(format!("NATS connection failed: {}:{}", host, port)))
+      nats::connect(format!("{0}:{1}", host, port)).expect(&get_message(format!(
+        "NATS connection failed: {}:{}",
+        host, port
+      ))),
     );
     *nats_jetstream = Some(nats::jetstream::new((*nats_connection).clone().unwrap()));
     *self.valid.write().unwrap() = true;
   }
-
 
   /// Touch stream by subject
   /// if stream for subject not exists, creat it
@@ -134,22 +138,24 @@ impl NatsConnection {
           subjects: subjects,
           ..Default::default()
         };
-        self.get_jetstream().update_stream(&cfg)
+        self
+          .get_jetstream()
+          .update_stream(&cfg)
           .expect(&get_message(format!("stream update failed!")));
       }
-    }
-    else {
+    } else {
       // if stream not exists
       let cfg = nats::jetstream::StreamConfig {
         name: stream_name.clone(),
         subjects: vec![subject],
         ..Default::default()
       };
-      self.get_jetstream().add_stream(cfg)
+      self
+        .get_jetstream()
+        .add_stream(cfg)
         .expect(&get_message(format!("stream creating failed!")));
     }
   }
-
 
   fn get_publish_options() -> PublishOptions {
     return PublishOptions {
@@ -158,12 +164,17 @@ impl NatsConnection {
     };
   }
 
-
   fn get_stream_name_by_subject(subject: String) -> String {
-    return Regex::new(r"[.^?>*]").unwrap().replace_all(
-      Regex::new(r"\.[^.]*$").unwrap().replace(subject.as_str(), "").as_ref(),
-      "_",
-    ).as_ref().to_owned();
+    return Regex::new(r"[.^?>*]")
+      .unwrap()
+      .replace_all(
+        Regex::new(r"\.[^.]*$")
+          .unwrap()
+          .replace(subject.as_str(), "")
+          .as_ref(),
+        "_",
+      )
+      .as_ref()
+      .to_owned();
   }
-
 }
