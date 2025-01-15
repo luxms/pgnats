@@ -13,8 +13,7 @@ use nats::Connection;
 
 use crate::config::{GUC_HOST, GUC_PORT};
 use crate::errors::PgNatsError;
-use crate::funcs::do_panic_with_message;
-use crate::funcs::get_message;
+use crate::utils::{do_panic_with_message, format_message};
 
 pub static NATS_CONNECTION: NatsConnection = NatsConnection {
   connection: RwLock::new(None),
@@ -67,7 +66,7 @@ impl NatsConnection {
       ereport!(
         PgLogLevel::INFO,
         PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-        get_message("Disconnect from NATS service")
+        format_message("Disconnect from NATS service")
       );
 
       conn.close();
