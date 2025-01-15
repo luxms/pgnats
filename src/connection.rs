@@ -27,24 +27,29 @@ pub struct NatsConnection {
 }
 
 impl NatsConnection {
-  pub fn publish(&self, message: String, subject: String) -> Result<(), PgNatsError> {
+  pub fn publish(
+    &self,
+    message: impl AsRef<[u8]>,
+    subject: impl AsRef<str>,
+  ) -> Result<(), PgNatsError> {
     self
       .get_connection()?
-      .publish(subject.as_str(), message.clone())
+      .publish(subject.as_ref(), message)
       .map_err(|err| PgNatsError::PublishIo(err))?;
 
     Ok(())
   }
 
-  pub fn publish_stream(&self, message: String, subject: String) -> Result<(), PgNatsError> {
-    self.touch_stream_subject(subject.clone())?;
+  pub fn publish_stream(
+    &self,
+    message: impl AsRef<[u8]>,
+    subject: impl AsRef<str>,
+  ) -> Result<(), PgNatsError> {
+    let subject = subject.as_ref();
+    self.touch_stream_subject(subject)?;
     let _ = self
       .get_jetstream()?
-      .publish_with_options(
-        subject.as_str(),
-        message,
-        &NatsConnection::get_publish_options(),
-      )
+      .publish_with_options(subject, message, &NatsConnection::get_publish_options())
       .map_err(|err| PgNatsError::PublishIo(err))?;
 
     Ok(())
@@ -69,13 +74,9 @@ impl NatsConnection {
       self.initialize_connection()?;
     }
 
-    Ok(
-      self
-        .connection
-        .read()
-        .clone()
-        .expect("Invariant error: connection must be created before then"),
-    )
+    Ok(self.connection.read().clone().expect(&get_message(
+      "Invariant error: connection must be created before then",
+    )))
   }
 
   fn get_jetstream(&self) -> Result<JetStream, PgNatsError> {
@@ -83,13 +84,9 @@ impl NatsConnection {
       self.initialize_connection()?;
     }
 
-    Ok(
-      self
-        .jetstream
-        .read()
-        .clone()
-        .expect("Invariant error: jetstream must be created before then"),
-    )
+    Ok(self.jetstream.read().clone().expect(&get_message(
+      "Invariant error: jetstream must be created before then",
+    )))
   }
 
   fn initialize_connection(&self) -> Result<(), PgNatsError> {
@@ -119,34 +116,34 @@ impl NatsConnection {
   /// Touch stream by subject
   /// if stream for subject not exists, creat it
   /// if stream for subject exists, but not contains current subject, add subject to config
-  fn touch_stream_subject(&self, subject: String) -> Result<(), PgNatsError> {
-    let stream_name = NatsConnection::get_stream_name_by_subject(subject.clone());
-    let info = self.get_jetstream()?.stream_info(stream_name.clone());
-    if info.is_ok() {
+  fn touch_stream_subject(&self, subject: impl ToString) -> Result<(), PgNatsError> {
+    let subject = subject.to_string();
+    let stream_name = NatsConnection::get_stream_name_by_subject(&subject);
+    let jetstream = self.get_jetstream()?;
+    let info = jetstream.stream_info(&stream_name);
+    if let Ok(info) = info {
       // if stream exists
-      let mut subjects = info.ok().unwrap().config.subjects.clone();
+      let mut subjects = info.config.subjects;
       if !subjects.contains(&subject) {
         // if not contains current subject
         subjects.push(subject);
         let cfg = nats::jetstream::StreamConfig {
-          name: stream_name.clone(),
+          name: stream_name,
           subjects: subjects,
           ..Default::default()
         };
-        let _ = self
-          .get_jetstream()?
+        let _ = jetstream
           .update_stream(&cfg)
           .expect(&get_message(format!("stream update failed!")));
       }
     } else {
       // if stream not exists
       let cfg = nats::jetstream::StreamConfig {
-        name: stream_name.clone(),
+        name: stream_name,
         subjects: vec![subject],
         ..Default::default()
       };
-      let _ = self
-        .get_jetstream()?
+      let _ = jetstream
         .add_stream(cfg)
         .expect(&get_message(format!("stream creating failed!")));
     }
@@ -155,23 +152,23 @@ impl NatsConnection {
   }
 
   fn get_publish_options() -> PublishOptions {
-    return PublishOptions {
+    PublishOptions {
       timeout: Some(Duration::new(5, 0)),
       ..Default::default()
-    };
+    }
   }
 
-  fn get_stream_name_by_subject(subject: String) -> String {
-    return Regex::new(r"[.^?>*]")
+  fn get_stream_name_by_subject(subject: &str) -> String {
+    Regex::new(r"[.^?>*]")
       .unwrap()
       .replace_all(
         Regex::new(r"\.[^.]*$")
           .unwrap()
-          .replace(subject.as_str(), "")
+          .replace(subject, "")
           .as_ref(),
         "_",
       )
       .as_ref()
-      .to_owned();
+      .to_owned()
   }
 }

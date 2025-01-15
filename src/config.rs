@@ -43,40 +43,41 @@ pub fn initialize_configuration() {
 }
 
 #[pg_extern]
-fn get_config(config_name: String) -> Option<String> {
-  let name: Result<Option<String>, spi::SpiError> = Spi::connect(|client| {
-    return client
+fn get_config(config_name: &str) -> Option<String> {
+  Spi::connect(|client| {
+    client
       .select(
         &format!("SELECT current_setting('{0}', true);", config_name),
         None,
         None,
       )?
       .first()
-      .get_one();
-  });
-  return name.ok()?;
+      .get_one()
+  })
+  .ok()?
 }
 
 #[pg_extern]
-fn set_config(config_name: String, config_value: String) {
+fn set_config(config_name: &str, config_value: &str) {
   Spi::run(&format!("SET {} = {}", config_name, config_value)).expect(&get_message(format!(
     "Set configuration failed: <{}> -> <{}>",
     config_name, config_value
   )));
+
   if config_name.to_lowercase().contains("nats.") {
     NATS_CONNECTION.invalidate();
   }
 }
 
 #[pg_extern]
-fn set_config_string(config_name: String, config_value: String) {
+fn set_config_string(config_name: &str, config_value: &str) {
   set_config(
     config_name,
-    format!("'{}'", config_value.replace("'", "''")),
+    &format!("'{}'", config_value.replace("'", "''")),
   );
 }
 
 #[pg_extern]
-fn reset_config(config_name: String) {
-  set_config(config_name, "DEFAULT".to_owned());
+fn reset_config(config_name: &str) {
+  set_config(config_name, "DEFAULT");
 }
