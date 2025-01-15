@@ -51,15 +51,16 @@ impl NatsConnection {
   }
 
   pub fn invalidate(&self) {
-    if self.valid.load(atomic::Ordering::Relaxed) || (*self.connection.read()).clone().is_some() {
+    if let Some(conn) = self.connection.write().take() {
       ereport!(
         PgLogLevel::INFO,
         PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
         get_message(format!("Disconnect from NATS service"))
       );
-      (*self.connection.read()).clone().unwrap().close();
+
+      conn.close();
     }
-    *self.connection.write() = None;
+
     self.valid.store(false, atomic::Ordering::Relaxed);
   }
 
@@ -67,14 +68,28 @@ impl NatsConnection {
     if !self.valid.load(atomic::Ordering::Relaxed) {
       self.initialize_connection()?;
     }
-    return Ok((*self.connection.read()).clone().unwrap());
+
+    Ok(
+      self
+        .connection
+        .read()
+        .clone()
+        .expect("Invariant error: connection must be created before then"),
+    )
   }
 
   fn get_jetstream(&self) -> Result<JetStream, PgNatsError> {
     if !self.valid.load(atomic::Ordering::Relaxed) {
       self.initialize_connection()?;
     }
-    return Ok((*self.jetstream.read()).clone().unwrap());
+
+    Ok(
+      self
+        .jetstream
+        .read()
+        .clone()
+        .expect("Invariant error: jetstream must be created before then"),
+    )
   }
 
   fn initialize_connection(&self) -> Result<(), PgNatsError> {
@@ -82,17 +97,20 @@ impl NatsConnection {
     let mut nats_connection = self.connection.write();
     let mut nats_jetstream = self.jetstream.write();
 
-    let host = GUC_HOST.get().unwrap().to_str().unwrap();
+    let host = GUC_HOST.get().unwrap_or_default().to_string_lossy();
     let port = GUC_PORT.get();
 
-    *nats_connection = Some(
+    let connection =
       nats::connect(format!("{0}:{1}", host, port)).map_err(|err| PgNatsError::Connection {
         host: host.to_string(),
         port: port as u16,
         io_error: err,
-      })?,
-    );
-    *nats_jetstream = Some(nats::jetstream::new((*nats_connection).clone().unwrap()));
+      })?;
+
+    let jetstream = nats::jetstream::new(connection.clone());
+
+    *nats_connection = Some(connection);
+    *nats_jetstream = Some(jetstream);
     self.valid.store(true, atomic::Ordering::Relaxed);
 
     Ok(())
