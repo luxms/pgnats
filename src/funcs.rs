@@ -1,6 +1,6 @@
 use pgrx::prelude::*;
 
-use crate::{connection::NATS_CONNECTION, errors::PgNatsError};
+use crate::connection::NATS_CONNECTION;
 
 pub fn get_message(message_text: impl AsRef<str>) -> String {
   return format!("PGNATS: {}", message_text.as_ref());
@@ -12,13 +12,15 @@ pub fn hello_pgnats() -> &'static str {
 }
 
 #[pg_extern]
-fn nats_publish(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
+fn nats_publish(publish_text: &str, subject: &str) -> Result<(), String> {
   NATS_CONNECTION.publish(publish_text, subject)
+    .map_err(|err| get_message(err.to_string()))
 }
 
 #[pg_extern]
-fn nats_publish_stream(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
+fn nats_publish_stream(publish_text: &str, subject: &str) -> Result<(), String> {
   NATS_CONNECTION.publish_stream(publish_text, subject)
+  .map_err(|err| get_message(err.to_string()))
 }
 
 #[pg_extern]
