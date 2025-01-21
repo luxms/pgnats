@@ -2,9 +2,12 @@
 
 mod config;
 mod connection;
-mod funcs;
+mod errors;
 mod init;
 mod tests;
+mod utils;
+
+pub mod api;
 
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.

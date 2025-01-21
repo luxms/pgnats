@@ -22,11 +22,20 @@ pg_test = []
 
 [dependencies]
 nats = "0.25.0"
+parking_lot = "0.12.3"
 pgrx = "0.12.6"
 regex = "1.11.1"
+thiserror = "2.0.11"
 
 [dev-dependencies]
 pgrx-tests = "0.12.6"
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(pgrx_embed)'] }
+unused_results = { level = "warn" }
+
+[lints.clippy]
+redundant_field_names = "allow"
 
 [profile.dev]
 panic = "unwind"

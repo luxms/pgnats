@@ -1,6 +1,8 @@
+use parking_lot::RwLock;
 use regex::Regex;
-use std::any::Any;
-use std::sync::RwLock;
+use std::sync::atomic;
+use std::sync::atomic::AtomicBool;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use pgrx::prelude::*;
@@ -10,171 +12,169 @@ use nats::jetstream::PublishOptions;
 use nats::Connection;
 
 use crate::config::{GUC_HOST, GUC_PORT};
-use crate::funcs::get_message;
+use crate::errors::PgNatsError;
+use crate::utils::{do_panic_with_message, format_message};
 
 pub static NATS_CONNECTION: NatsConnection = NatsConnection {
-  connection: RwLock::<Option<Connection>>::new(None),
-  jetstream: RwLock::<Option<JetStream>>::new(None),
-  valid: RwLock::<bool>::new(false),
+  connection: RwLock::new(None),
+  jetstream: RwLock::new(None),
+  valid: AtomicBool::new(false),
 };
+
+static REGEX_STREAM_NAME_LAST_PART: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r"\.[^.]*$").unwrap());
+
+static REGEX_SPECIAL_SYM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[.^?>*]").unwrap());
 
 pub struct NatsConnection {
   connection: RwLock<Option<Connection>>,
   jetstream: RwLock<Option<JetStream>>,
-  valid: RwLock<bool>,
+  valid: AtomicBool,
 }
 
 impl NatsConnection {
-  fn catch_panic(&self, result: Result<(), Box<dyn Any + Send>>) {
-    match result {
-      Ok(_) => {}
-      Err(panic) => {
-        self.force_unlock();
-        std::panic::resume_unwind(panic);
-      }
-    }
+  pub fn publish(
+    &self,
+    message: impl AsRef<[u8]>,
+    subject: impl AsRef<str>,
+  ) -> Result<(), PgNatsError> {
+    self
+      .get_connection()?
+      .publish(subject.as_ref(), message)
+      .map_err(PgNatsError::PublishIo)?;
+
+    Ok(())
   }
 
-  pub fn publish(&self, message: String, subject: String) {
-    self.catch_panic(std::panic::catch_unwind(|| {
-      self
-        .get_connection()
-        .publish(subject.as_str(), message.clone())
-        .expect(&get_message(
-          "Exception on publishing message at NATS!".to_owned(),
-        ));
-    }));
-  }
+  pub fn publish_stream(
+    &self,
+    message: impl AsRef<[u8]>,
+    subject: impl AsRef<str>,
+  ) -> Result<(), PgNatsError> {
+    let subject = subject.as_ref();
 
-  pub fn publish_stream(&self, message: String, subject: String) {
-    self.catch_panic(std::panic::catch_unwind(|| {
-      self.touch_stream_subject(subject.clone());
-      self
-        .get_jetstream()
-        .publish_with_options(
-          subject.as_str(),
-          message,
-          &NatsConnection::get_publish_options(),
-        )
-        .expect(&get_message(
-          "Exception on publishing message at NATS!".to_owned(),
-        ));
-    }));
+    let _ask = self
+      .touch_stream_subject(subject)?
+      .publish_with_options(subject, message, &NatsConnection::get_publish_options())
+      .map_err(PgNatsError::PublishIo)?;
+
+    Ok(())
   }
 
   pub fn invalidate(&self) {
-    self.catch_panic(std::panic::catch_unwind(|| {
-      if *self.valid.read().unwrap() || (*self.connection.read().unwrap()).clone().is_some() {
-        ereport!(
-          PgLogLevel::INFO,
-          PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-          get_message(format!("Disconnect from NATS service"))
-        );
-        (*self.connection.read().unwrap()).clone().unwrap().close();
-      }
-      *self.connection.write().unwrap() = None;
-      *self.valid.write().unwrap() = false;
-    }));
+    if let Some(conn) = self.connection.write().take() {
+      ereport!(
+        PgLogLevel::INFO,
+        PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
+        format_message("Disconnect from NATS service")
+      );
+
+      conn.close();
+    }
+
+    self.valid.store(false, atomic::Ordering::Relaxed);
   }
 
-  fn get_connection(&self) -> Connection {
-    if !*self.valid.read().unwrap() {
-      self.initialize_connection();
+  fn get_connection(&self) -> Result<Connection, PgNatsError> {
+    if !self.valid.load(atomic::Ordering::Relaxed) {
+      self.initialize_connection()?;
     }
-    return (*self.connection.read().unwrap()).clone().unwrap();
+
+    Ok(self.connection.read().clone().unwrap_or_else(|| {
+      do_panic_with_message("Invariant error: connection must be created before then")
+    }))
   }
 
-  fn get_jetstream(&self) -> JetStream {
-    if !*self.valid.read().unwrap() {
-      self.initialize_connection();
+  fn get_jetstream(&self) -> Result<JetStream, PgNatsError> {
+    if !self.valid.load(atomic::Ordering::Relaxed) {
+      self.initialize_connection()?;
     }
-    return (*self.jetstream.read().unwrap()).clone().unwrap();
+
+    Ok(self.jetstream.read().clone().unwrap_or_else(|| {
+      do_panic_with_message("Invariant error: jetstream must be created before then")
+    }))
   }
 
-  fn force_unlock(&self) {
-    if self.connection.is_poisoned() {
-      self.connection.clear_poison();
-    }
-    if self.jetstream.is_poisoned() {
-      self.jetstream.clear_poison();
-    }
-    if self.valid.is_poisoned() {
-      self.valid.clear_poison();
-    }
-  }
-
-  fn initialize_connection(&self) {
+  fn initialize_connection(&self) -> Result<(), PgNatsError> {
     self.invalidate();
-    let mut nats_connection = self.connection.write().unwrap();
-    let mut nats_jetstream = self.jetstream.write().unwrap();
+    let mut nats_connection = self.connection.write();
+    let mut nats_jetstream = self.jetstream.write();
 
-    let host = GUC_HOST.get().unwrap().to_str().unwrap();
+    let host = GUC_HOST.get().unwrap_or_default().to_string_lossy();
     let port = GUC_PORT.get();
 
-    *nats_connection = Some(
-      nats::connect(format!("{0}:{1}", host, port)).expect(&get_message(format!(
-        "NATS connection failed: {}:{}",
-        host, port
-      ))),
-    );
-    *nats_jetstream = Some(nats::jetstream::new((*nats_connection).clone().unwrap()));
-    *self.valid.write().unwrap() = true;
+    let connection =
+      nats::connect(format!("{0}:{1}", host, port)).map_err(|err| PgNatsError::Connection {
+        host: host.to_string(),
+        port: port as u16,
+        io_error: err,
+      })?;
+
+    let jetstream = nats::jetstream::new(connection.clone());
+
+    *nats_connection = Some(connection);
+    *nats_jetstream = Some(jetstream);
+    self.valid.store(true, atomic::Ordering::Relaxed);
+
+    Ok(())
   }
 
   /// Touch stream by subject
   /// if stream for subject not exists, creat it
   /// if stream for subject exists, but not contains current subject, add subject to config
-  fn touch_stream_subject(&self, subject: String) {
-    let stream_name = NatsConnection::get_stream_name_by_subject(subject.clone());
-    let info = self.get_jetstream().stream_info(stream_name.clone());
-    if info.is_ok() {
+  fn touch_stream_subject(&self, subject: impl ToString) -> Result<JetStream, PgNatsError> {
+    let subject = subject.to_string();
+    let stream_name = NatsConnection::get_stream_name_by_subject(&subject);
+
+    let jetstream = self.get_jetstream()?;
+    let info = jetstream.stream_info(&stream_name);
+
+    if let Ok(info) = info {
       // if stream exists
-      let mut subjects = info.ok().unwrap().config.subjects.clone();
+      let mut subjects = info.config.subjects;
       if !subjects.contains(&subject) {
         // if not contains current subject
         subjects.push(subject);
+
         let cfg = nats::jetstream::StreamConfig {
-          name: stream_name.clone(),
+          name: stream_name,
           subjects: subjects,
           ..Default::default()
         };
-        self
-          .get_jetstream()
+
+        let _stream_info = jetstream
           .update_stream(&cfg)
-          .expect(&get_message(format!("stream update failed!")));
+          .map_err(PgNatsError::UpdateStream)?;
       }
     } else {
       // if stream not exists
       let cfg = nats::jetstream::StreamConfig {
-        name: stream_name.clone(),
+        name: stream_name,
         subjects: vec![subject],
         ..Default::default()
       };
-      self
-        .get_jetstream()
+
+      let _stream_info = jetstream
         .add_stream(cfg)
-        .expect(&get_message(format!("stream creating failed!")));
+        .map_err(PgNatsError::UpdateStream)?;
     }
+
+    Ok(jetstream)
   }
 
   fn get_publish_options() -> PublishOptions {
-    return PublishOptions {
+    PublishOptions {
       timeout: Some(Duration::new(5, 0)),
       ..Default::default()
-    };
+    }
   }
 
-  fn get_stream_name_by_subject(subject: String) -> String {
-    return Regex::new(r"[.^?>*]")
-      .unwrap()
+  fn get_stream_name_by_subject(subject: &str) -> String {
+    REGEX_SPECIAL_SYM
       .replace_all(
-        Regex::new(r"\.[^.]*$")
-          .unwrap()
-          .replace(subject.as_str(), "")
-          .as_ref(),
+        REGEX_STREAM_NAME_LAST_PART.replace(subject, "").as_ref(),
         "_",
       )
-      .as_ref()
-      .to_owned();
+      .to_string()
   }
 }
