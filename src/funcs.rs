@@ -1,26 +1,25 @@
 use pgrx::prelude::*;
 
-use crate::config::get_nats_connection;
+use crate::connection::NATS_CONNECTION;
 
 pub fn get_message(message_text: String) -> String {
   return format!("PGNATS: {}", message_text);
 }
 
-
 #[pg_extern]
 pub fn hello_pgnats() -> &'static str {
-    "Hello, pgnats!"
+  "Hello, pgnats!"
 }
-
 
 #[pg_extern]
-fn nats_publish(publish_text: String) {
-  get_nats_connection()
-    .unwrap()
-    .publish("luxmsbi.cdc.audit.events", publish_text)
-    .expect(&get_message("Exception on publishing message at NATS!".to_owned()));
+fn nats_publish(publish_text: String, subject: String) {
+  NATS_CONNECTION.publish(publish_text, subject);
 }
 
+#[pg_extern]
+fn nats_publish_stream(publish_text: String, subject: String) {
+  NATS_CONNECTION.publish_stream(publish_text, subject);
+}
 
 #[pg_extern]
 fn nats_init() {

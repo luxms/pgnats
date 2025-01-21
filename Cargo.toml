@@ -23,6 +23,7 @@ pg_test = []
 [dependencies]
 nats = "0.25.0"
 pgrx = "0.12.6"
+regex = "1.11.1"
 
 [dev-dependencies]
 pgrx-tests = "0.12.6"
