@@ -35,15 +35,9 @@ impl NatsConnection {
     let message: Vec<u8> = message.into();
     let connection = self.get_connection().await?;
 
-    connection
-      .publish(subject, message.into())
-      .await
-      .map_err(|e| PgNatsError::PublishIoError(e.to_string()))?;
+    connection.publish(subject, message.into()).await?;
 
-    connection
-      .flush()
-      .await
-      .map_err(|_| PgNatsError::FlushError)?;
+    connection.flush().await?;
 
     Ok(())
   }
@@ -60,15 +54,9 @@ impl NatsConnection {
       .touch_stream_subject(subject.clone())
       .await?
       .publish(subject, message.into())
-      .await
-      .map_err(|e| PgNatsError::PublishIoError(e.to_string()))?;
+      .await?;
 
-    self
-      .get_connection()
-      .await?
-      .flush()
-      .await
-      .map_err(|_| PgNatsError::FlushError)?;
+    self.get_connection().await?.flush().await?;
 
     Ok(())
   }
@@ -154,11 +142,8 @@ impl NatsConnection {
 
     if let Ok(mut info) = info {
       // if stream exists
-      let info = info
-        .info()
-        .await
-        .map_err(|_| PgNatsError::StreamInfoError)?;
-      
+      let info = info.info().await?;
+
       let mut subjects = info.config.subjects.clone();
       if !subjects.contains(&subject) {
         // if not contains current subject
@@ -170,10 +155,7 @@ impl NatsConnection {
           ..Default::default()
         };
 
-        let _stream_info = jetstream
-          .update_stream(&cfg)
-          .await
-          .map_err(|e| PgNatsError::UpdateStreamError(e.to_string()))?;
+        let _stream_info = jetstream.update_stream(&cfg).await?;
       }
     } else {
       // if stream not exists
@@ -183,10 +165,7 @@ impl NatsConnection {
         ..Default::default()
       };
 
-      let _stream_info = jetstream
-        .create_stream(cfg)
-        .await
-        .map_err(|e| PgNatsError::UpdateStreamError(e.to_string()))?;
+      let _stream_info = jetstream.create_stream(cfg).await?;
     }
 
     Ok(jetstream)
