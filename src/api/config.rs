@@ -1,6 +1,6 @@
 use pgrx::prelude::*;
 
-use crate::{connection::NATS_CONNECTION, utils::do_panic_with_message};
+use crate::{ctx::CTX, utils::do_panic_with_message};
 
 #[pg_extern]
 fn get_config(config_name: &str) -> Option<String> {
@@ -27,7 +27,7 @@ fn set_config(config_name: &str, config_value: &str) {
   });
 
   if config_name.to_lowercase().contains("nats.") {
-    NATS_CONNECTION.invalidate();
+    CTX.rt().block_on(CTX.nats().invalidate());
   }
 }
 

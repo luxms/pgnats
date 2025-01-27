@@ -1,83 +1,103 @@
+use async_nats::jetstream::Context;
+use async_nats::Client;
 use parking_lot::RwLock;
 use regex::Regex;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use std::sync::LazyLock;
-use std::time::Duration;
 
 use pgrx::prelude::*;
-
-use nats::jetstream::JetStream;
-use nats::jetstream::PublishOptions;
-use nats::Connection;
 
 use crate::config::{GUC_HOST, GUC_PORT};
 use crate::errors::PgNatsError;
 use crate::utils::{do_panic_with_message, format_message};
 
-pub static NATS_CONNECTION: NatsConnection = NatsConnection {
-  connection: RwLock::new(None),
-  jetstream: RwLock::new(None),
-  valid: AtomicBool::new(false),
-};
-
 static REGEX_STREAM_NAME_LAST_PART: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r"\.[^.]*$").unwrap());
+  LazyLock::new(|| Regex::new(r"\.[^.]*$").expect("Wrong regex"));
 
-static REGEX_SPECIAL_SYM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[.^?>*]").unwrap());
+static REGEX_SPECIAL_SYM: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r"[.^?>*]").expect("Wrong regex"));
 
+#[derive(Default)]
 pub struct NatsConnection {
-  connection: RwLock<Option<Connection>>,
-  jetstream: RwLock<Option<JetStream>>,
+  connection: RwLock<Option<Client>>,
+  jetstream: RwLock<Option<Context>>,
   valid: AtomicBool,
 }
 
 impl NatsConnection {
-  pub fn publish(
+  pub async fn publish(
     &self,
-    message: impl AsRef<[u8]>,
-    subject: impl AsRef<str>,
+    message: impl Into<Vec<u8>>,
+    subject: impl ToString,
   ) -> Result<(), PgNatsError> {
-    self
-      .get_connection()?
-      .publish(subject.as_ref(), message)
-      .map_err(PgNatsError::PublishIo)?;
+    let subject = subject.to_string();
+    let message: Vec<u8> = message.into();
+    let connection = self.get_connection().await?;
+
+    connection
+      .publish(subject, message.into())
+      .await
+      .map_err(|e| PgNatsError::PublishIoError(e.to_string()))?;
+
+    connection
+      .flush()
+      .await
+      .map_err(|_| PgNatsError::FlushError)?;
 
     Ok(())
   }
 
-  pub fn publish_stream(
+  pub async fn publish_stream(
     &self,
-    message: impl AsRef<[u8]>,
-    subject: impl AsRef<str>,
+    message: impl Into<Vec<u8>>,
+    subject: impl ToString,
   ) -> Result<(), PgNatsError> {
-    let subject = subject.as_ref();
+    let subject = subject.to_string();
+    let message: Vec<u8> = message.into();
 
     let _ask = self
-      .touch_stream_subject(subject)?
-      .publish_with_options(subject, message, &NatsConnection::get_publish_options())
-      .map_err(PgNatsError::PublishIo)?;
+      .touch_stream_subject(subject.clone())
+      .await?
+      .publish(subject, message.into())
+      .await
+      .map_err(|e| PgNatsError::PublishIoError(e.to_string()))?;
+
+    self
+      .get_connection()
+      .await?
+      .flush()
+      .await
+      .map_err(|_| PgNatsError::FlushError)?;
 
     Ok(())
   }
 
-  pub fn invalidate(&self) {
-    if let Some(conn) = self.connection.write().take() {
+  pub async fn invalidate(&self) {
+    let connection = { self.connection.write().take() };
+
+    if let Some(conn) = connection {
       ereport!(
         PgLogLevel::INFO,
         PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
         format_message("Disconnect from NATS service")
       );
 
-      conn.close();
+      if let Err(e) = conn.drain().await {
+        ereport!(
+          PgLogLevel::WARNING,
+          PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
+          format_message(format!("Failed to close connection {e}"))
+        );
+      }
     }
 
     self.valid.store(false, atomic::Ordering::Relaxed);
   }
 
-  fn get_connection(&self) -> Result<Connection, PgNatsError> {
+  async fn get_connection(&self) -> Result<Client, PgNatsError> {
     if !self.valid.load(atomic::Ordering::Relaxed) {
-      self.initialize_connection()?;
+      self.initialize_connection().await?;
     }
 
     Ok(self.connection.read().clone().unwrap_or_else(|| {
@@ -85,9 +105,9 @@ impl NatsConnection {
     }))
   }
 
-  fn get_jetstream(&self) -> Result<JetStream, PgNatsError> {
+  async fn get_jetstream(&self) -> Result<Context, PgNatsError> {
     if !self.valid.load(atomic::Ordering::Relaxed) {
-      self.initialize_connection()?;
+      self.initialize_connection().await?;
     }
 
     Ok(self.jetstream.read().clone().unwrap_or_else(|| {
@@ -95,22 +115,25 @@ impl NatsConnection {
     }))
   }
 
-  fn initialize_connection(&self) -> Result<(), PgNatsError> {
-    self.invalidate();
-    let mut nats_connection = self.connection.write();
-    let mut nats_jetstream = self.jetstream.write();
+  async fn initialize_connection(&self) -> Result<(), PgNatsError> {
+    self.invalidate().await;
 
     let host = GUC_HOST.get().unwrap_or_default().to_string_lossy();
     let port = GUC_PORT.get();
 
-    let connection =
-      nats::connect(format!("{0}:{1}", host, port)).map_err(|err| PgNatsError::Connection {
+    let connection = async_nats::connect(format!("{0}:{1}", host, port))
+      .await
+      .map_err(|err| PgNatsError::ConnectionError {
         host: host.to_string(),
         port: port as u16,
-        io_error: err,
+        io_error: err.to_string(),
       })?;
 
-    let jetstream = nats::jetstream::new(connection.clone());
+    let mut jetstream = async_nats::jetstream::new(connection.clone());
+    jetstream.set_timeout(std::time::Duration::from_secs(5));
+
+    let mut nats_connection = self.connection.write();
+    let mut nats_jetstream = self.jetstream.write();
 
     *nats_connection = Some(connection);
     *nats_jetstream = Some(jetstream);
@@ -122,21 +145,26 @@ impl NatsConnection {
   /// Touch stream by subject
   /// if stream for subject not exists, creat it
   /// if stream for subject exists, but not contains current subject, add subject to config
-  fn touch_stream_subject(&self, subject: impl ToString) -> Result<JetStream, PgNatsError> {
+  async fn touch_stream_subject(&self, subject: impl ToString) -> Result<Context, PgNatsError> {
     let subject = subject.to_string();
     let stream_name = NatsConnection::get_stream_name_by_subject(&subject);
 
-    let jetstream = self.get_jetstream()?;
-    let info = jetstream.stream_info(&stream_name);
+    let jetstream = self.get_jetstream().await?;
+    let info = jetstream.get_stream(&stream_name).await;
 
-    if let Ok(info) = info {
+    if let Ok(mut info) = info {
       // if stream exists
-      let mut subjects = info.config.subjects;
+      let info = info
+        .info()
+        .await
+        .map_err(|_| PgNatsError::StreamInfoError)?;
+      
+      let mut subjects = info.config.subjects.clone();
       if !subjects.contains(&subject) {
         // if not contains current subject
         subjects.push(subject);
 
-        let cfg = nats::jetstream::StreamConfig {
+        let cfg = async_nats::jetstream::stream::Config {
           name: stream_name,
           subjects: subjects,
           ..Default::default()
@@ -144,29 +172,24 @@ impl NatsConnection {
 
         let _stream_info = jetstream
           .update_stream(&cfg)
-          .map_err(PgNatsError::UpdateStream)?;
+          .await
+          .map_err(|e| PgNatsError::UpdateStreamError(e.to_string()))?;
       }
     } else {
       // if stream not exists
-      let cfg = nats::jetstream::StreamConfig {
+      let cfg = async_nats::jetstream::stream::Config {
         name: stream_name,
         subjects: vec![subject],
         ..Default::default()
       };
 
       let _stream_info = jetstream
-        .add_stream(cfg)
-        .map_err(PgNatsError::UpdateStream)?;
+        .create_stream(cfg)
+        .await
+        .map_err(|e| PgNatsError::UpdateStreamError(e.to_string()))?;
     }
 
     Ok(jetstream)
-  }
-
-  fn get_publish_options() -> PublishOptions {
-    PublishOptions {
-      timeout: Some(Duration::new(5, 0)),
-      ..Default::default()
-    }
   }
 
   fn get_stream_name_by_subject(subject: &str) -> String {

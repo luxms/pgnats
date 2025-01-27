@@ -2,6 +2,7 @@
 
 mod config;
 mod connection;
+mod ctx;
 mod errors;
 mod init;
 mod tests;
