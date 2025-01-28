@@ -111,10 +111,10 @@ impl NatsConnection {
 
     let connection = async_nats::connect(format!("{0}:{1}", host, port))
       .await
-      .map_err(|err| PgNatsError::ConnectionError {
+      .map_err(|io_error| PgNatsError::Connection {
         host: host.to_string(),
         port: port as u16,
-        io_error: err.to_string(),
+        io_error,
       })?;
 
     let mut jetstream = async_nats::jetstream::new(connection.clone());
