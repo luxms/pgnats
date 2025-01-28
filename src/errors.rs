@@ -28,4 +28,16 @@ pub enum PgNatsError {
 
   #[error("failed to get stream info {0}")]
   StreamInfo(#[from] Error<jetstream::context::RequestErrorKind>),
+
+  #[error("failed to create bucket {0}")]
+  CreateBucket(#[from] Error<jetstream::context::CreateKeyValueErrorKind>),
+
+  #[error("failed to put value in bucket {0}")]
+  PutValue(#[from] Error<jetstream::kv::PutErrorKind>),
+
+  #[error("failed to get value in bucket {0}")]
+  GetValue(#[from] Error<jetstream::kv::EntryErrorKind>),
+
+  #[error("failed to delete value in bucket {0}")]
+  DeleteValue(#[from] Error<jetstream::kv::DeleteErrorKind>),
 }
