@@ -21,11 +21,12 @@ pg17 = ["pgrx/pg17", "pgrx-tests/pg17" ]
 pg_test = []
 
 [dependencies]
-nats = "0.25.0"
+async-nats = "0.38.0"
 parking_lot = "0.12.3"
 pgrx = "0.12.6"
 regex = "1.11.1"
 thiserror = "2.0.11"
+tokio = "1.43.0"
 
 [dev-dependencies]
 pgrx-tests = "0.12.6"
