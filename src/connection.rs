@@ -11,7 +11,7 @@ use pgrx::prelude::*;
 
 use crate::config::{GUC_BUCKET_NAME, GUC_HOST, GUC_PORT};
 use crate::errors::PgNatsError;
-use crate::utils::{do_panic_with_message, format_message};
+use crate::utils::{do_panic_with_message, format_message, FromBytes};
 
 static REGEX_STREAM_NAME_LAST_PART: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"\.[^.]*$").expect("Wrong regex"));
@@ -102,12 +102,18 @@ impl NatsConnection {
     Ok(())
   }
 
-  pub async fn get_value(&self, key: impl Into<String>) -> Result<Option<Vec<u8>>, PgNatsError> {
+  pub async fn get_value<T: FromBytes>(
+    &self,
+    key: impl Into<String>,
+  ) -> Result<Option<T>, PgNatsError> {
     let bucket = self.get_bucket().await?;
 
-    let data = bucket.get(key).await?.map(|d| d.to_vec());
-
-    Ok(data)
+    bucket
+      .get(key)
+      .await?
+      .map(|d| d.to_vec())
+      .map(T::from_bytes)
+      .transpose()
   }
 
   pub async fn delete_value(&self, key: impl AsRef<str>) -> Result<(), PgNatsError> {

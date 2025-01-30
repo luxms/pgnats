@@ -40,4 +40,10 @@ pub enum PgNatsError {
 
   #[error("failed to delete value in bucket {0}")]
   DeleteValue(#[from] Error<jetstream::kv::DeleteErrorKind>),
+
+  #[error("failed to serialize json: {0}")]
+  Serialize(serde_json::Error),
+
+  #[error("failed to deserialize json: {0}")]
+  Deserialize(String),
 }
