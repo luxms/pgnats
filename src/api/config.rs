@@ -1,6 +1,10 @@
 use pgrx::prelude::*;
 
-use crate::{ctx::CTX, utils::do_panic_with_message};
+use crate::{
+  config::{CONFIG_BUCKET_NAME, CONFIG_HOST, CONFIG_PORT},
+  ctx::CTX,
+  utils::do_panic_with_message,
+};
 
 #[pg_extern]
 fn get_config(config_name: &str) -> Option<String> {
@@ -26,8 +30,15 @@ fn set_config(config_name: &str, config_value: &str) {
     ))
   });
 
-  if config_name.to_lowercase().contains("nats.") {
-    CTX.rt().block_on(CTX.nats().invalidate());
+  match config_name {
+    CONFIG_HOST | CONFIG_PORT => {
+      CTX.rt().block_on(async {
+        CTX.nats().invalidate_bucket().await;
+        CTX.nats().invalidate_connection().await;
+      });
+    }
+    CONFIG_BUCKET_NAME => CTX.rt().block_on(CTX.nats().invalidate_bucket()),
+    _ => {}
   }
 }
 
