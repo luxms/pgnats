@@ -3,29 +3,29 @@ use pgrx::pg_extern;
 use crate::{ctx::CTX, errors::PgNatsError};
 
 #[pg_extern]
-fn nats_publish(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
+pub fn nats_publish(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
   CTX.rt().block_on(CTX.nats().publish(publish_text, subject))
 }
 
 #[pg_extern]
-fn nats_publish_stream(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
+pub fn nats_publish_stream(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
   CTX
     .rt()
     .block_on(CTX.nats().publish_stream(publish_text, subject))
 }
 
 #[pg_extern]
-fn nats_put_binary(bucket: String, key: &str, data: &[u8]) -> Result<(), PgNatsError> {
+pub fn nats_put_binary(bucket: String, key: &str, data: &[u8]) -> Result<(), PgNatsError> {
   CTX.rt().block_on(CTX.nats().put_value(bucket, key, data))
 }
 
 #[pg_extern]
-fn nats_put_text(bucket: String, key: &str, data: &str) -> Result<(), PgNatsError> {
+pub fn nats_put_text(bucket: String, key: &str, data: &str) -> Result<(), PgNatsError> {
   CTX.rt().block_on(CTX.nats().put_value(bucket, key, data))
 }
 
 #[pg_extern]
-fn nats_put_jsonb(bucket: String, key: &str, data: pgrx::JsonB) -> Result<(), PgNatsError> {
+pub fn nats_put_jsonb(bucket: String, key: &str, data: pgrx::JsonB) -> Result<(), PgNatsError> {
   CTX.rt().block_on(async {
     let data = serde_json::to_string(&data.0).map_err(PgNatsError::Serialize)?;
 
@@ -34,7 +34,7 @@ fn nats_put_jsonb(bucket: String, key: &str, data: pgrx::JsonB) -> Result<(), Pg
 }
 
 #[pg_extern]
-fn nats_put_json(bucket: String, key: &str, data: pgrx::Json) -> Result<(), PgNatsError> {
+pub fn nats_put_json(bucket: String, key: &str, data: pgrx::Json) -> Result<(), PgNatsError> {
   CTX.rt().block_on(async {
     let data = serde_json::to_string(&data.0).map_err(PgNatsError::Serialize)?;
 
@@ -43,17 +43,17 @@ fn nats_put_json(bucket: String, key: &str, data: pgrx::Json) -> Result<(), PgNa
 }
 
 #[pg_extern]
-fn nats_get_binary(bucket: String, key: &str) -> Result<Option<Vec<u8>>, PgNatsError> {
+pub fn nats_get_binary(bucket: String, key: &str) -> Result<Option<Vec<u8>>, PgNatsError> {
   CTX.rt().block_on(CTX.nats().get_value(bucket, key))
 }
 
 #[pg_extern]
-fn nats_get_text(bucket: String, key: &str) -> Result<Option<String>, PgNatsError> {
+pub fn nats_get_text(bucket: String, key: &str) -> Result<Option<String>, PgNatsError> {
   CTX.rt().block_on(CTX.nats().get_value(bucket, key))
 }
 
 #[pg_extern]
-fn nats_get_json(bucket: String, key: &str) -> Result<Option<pgrx::Json>, PgNatsError> {
+pub fn nats_get_json(bucket: String, key: &str) -> Result<Option<pgrx::Json>, PgNatsError> {
   CTX
     .rt()
     .block_on(CTX.nats().get_value::<serde_json::Value>(bucket, key))
@@ -61,7 +61,7 @@ fn nats_get_json(bucket: String, key: &str) -> Result<Option<pgrx::Json>, PgNats
 }
 
 #[pg_extern]
-fn nats_get_jsonb(bucket: String, key: &str) -> Result<Option<pgrx::JsonB>, PgNatsError> {
+pub fn nats_get_jsonb(bucket: String, key: &str) -> Result<Option<pgrx::JsonB>, PgNatsError> {
   CTX
     .rt()
     .block_on(CTX.nats().get_value::<serde_json::Value>(bucket, key))
@@ -69,6 +69,6 @@ fn nats_get_jsonb(bucket: String, key: &str) -> Result<Option<pgrx::JsonB>, PgNa
 }
 
 #[pg_extern]
-fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
+pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
   CTX.rt().block_on(CTX.nats().delete_value(bucket, key))
 }
