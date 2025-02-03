@@ -1,10 +1,10 @@
-mod config;
 mod nats;
 
 use pgrx::pg_extern;
 
-pub use config::*;
 pub use nats::*;
+
+use crate::ctx::CTX;
 
 #[pg_extern]
 pub fn hello_pgnats() -> &'static str {
@@ -12,7 +12,6 @@ pub fn hello_pgnats() -> &'static str {
 }
 
 #[pg_extern]
-fn nats_init() {
-  // Auto run at first call any function at extencion
-  // initialize_configuration();
+pub fn pgnats_reload_conf() {
+  CTX.rt().block_on(CTX.nats().invalidate_connection());
 }

@@ -38,6 +38,7 @@ pub fn initialize_configuration() {
     GucContext::Userset,
     GucFlags::default(),
   );
+  
 
   GucRegistry::define_string_guc(
     CONFIG_BUCKET_NAME,
