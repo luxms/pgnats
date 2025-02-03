@@ -13,9 +13,9 @@ use crate::utils::{format_message, get_stream_name_by_subject, FromBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
-  connection: RwLock<Option<Client>>,
-  jetstream: RwLock<Option<Context>>,
-  cached_buckets: RwLock<HashMap<String, Store>>,
+  connection: RwLock<Option<Arc<Client>>>,
+  jetstream: RwLock<Option<Arc<Context>>>,
+  cached_buckets: RwLock<HashMap<String, Arc<Store>>>,
 }
 
 impl NatsConnection {
@@ -119,9 +119,9 @@ impl NatsConnection {
     Ok(())
   }
 
-  async fn get_connection(self: &Arc<Self>) -> Result<Client, PgNatsError> {
+  async fn get_connection(self: &Arc<Self>) -> Result<Arc<Client>, PgNatsError> {
     if let Some(client) = &*self.connection.read() {
-      return Ok(client.clone());
+      return Ok(Arc::clone(client));
     }
 
     let (connection, _) = self.initialize_connection().await?;
@@ -129,9 +129,9 @@ impl NatsConnection {
     Ok(connection)
   }
 
-  async fn get_jetstream(self: &Arc<Self>) -> Result<Context, PgNatsError> {
+  async fn get_jetstream(self: &Arc<Self>) -> Result<Arc<Context>, PgNatsError> {
     if let Some(jetstream) = &*self.jetstream.read() {
-      return Ok(jetstream.clone());
+      return Ok(Arc::clone(jetstream));
     }
 
     let (_, jetstream) = self.initialize_connection().await?;
@@ -142,31 +142,35 @@ impl NatsConnection {
   async fn get_or_create_bucket(
     self: &Arc<Self>,
     bucket: impl ToString,
-  ) -> Result<Store, PgNatsError> {
+  ) -> Result<Arc<Store>, PgNatsError> {
     let bucket = bucket.to_string();
 
     {
       let cached = self.cached_buckets.read();
       if let Some(store) = cached.get(&bucket) {
-        return Ok(store.clone());
+        return Ok(Arc::clone(store));
       }
     }
 
     let jetstream = self.get_jetstream().await?;
-    let new_store = jetstream
-      .create_key_value(async_nats::jetstream::kv::Config {
-        bucket: bucket.clone(),
-        ..Default::default()
-      })
-      .await?;
+    let new_store = Arc::new(
+      jetstream
+        .create_key_value(async_nats::jetstream::kv::Config {
+          bucket: bucket.clone(),
+          ..Default::default()
+        })
+        .await?,
+    );
 
     let mut cached = self.cached_buckets.write();
-    let _ = cached.insert(bucket, new_store.clone());
+    let _ = cached.insert(bucket, Arc::clone(&new_store));
 
     Ok(new_store)
   }
 
-  async fn initialize_connection(self: &Arc<Self>) -> Result<(Client, Context), PgNatsError> {
+  async fn initialize_connection(
+    self: &Arc<Self>,
+  ) -> Result<(Arc<Client>, Arc<Context>), PgNatsError> {
     self.invalidate_connection().await;
 
     let host = GUC_HOST.get().unwrap_or_default().to_string_lossy();
@@ -199,8 +203,10 @@ impl NatsConnection {
     let mut nats_connection = self.connection.write();
     let mut nats_jetstream = self.jetstream.write();
 
-    *nats_connection = Some(connection.clone());
-    *nats_jetstream = Some(jetstream.clone());
+    let connection = Arc::new(connection);
+    let jetstream = Arc::new(jetstream);
+    *nats_connection = Some(Arc::clone(&connection));
+    *nats_jetstream = Some(Arc::clone(&jetstream));
 
     Ok((connection, jetstream))
   }
@@ -211,7 +217,7 @@ impl NatsConnection {
   async fn touch_stream_subject(
     self: &Arc<Self>,
     subject: impl ToString,
-  ) -> Result<Context, PgNatsError> {
+  ) -> Result<Arc<Context>, PgNatsError> {
     let subject = subject.to_string();
     let stream_name = get_stream_name_by_subject(&subject);
 
