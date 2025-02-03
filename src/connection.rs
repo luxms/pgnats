@@ -58,6 +58,11 @@ impl NatsConnection {
   pub async fn invalidate_connection(&self) {
     let connection = { self.connection.write().take() };
 
+    {
+      self.cached_buckets.write().clear();
+      let _ = self.jetstream.write().take();
+    }
+
     if let Some(conn) = connection {
       ereport!(
         PgLogLevel::INFO,

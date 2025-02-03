@@ -24,3 +24,11 @@ impl Context {
     &self.rt
   }
 }
+
+impl Drop for Context {
+  fn drop(&mut self) {
+    self
+      .rt
+      .block_on(self.nats_connection.invalidate_connection());
+  }
+}
