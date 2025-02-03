@@ -3,13 +3,14 @@ use async_nats::jetstream::Context;
 use async_nats::Client;
 use parking_lot::RwLock;
 use regex::Regex;
+use std::collections::HashMap;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use std::sync::LazyLock;
 
 use pgrx::prelude::*;
 
-use crate::config::{GUC_BUCKET_NAME, GUC_HOST, GUC_PORT};
+use crate::config::{GUC_HOST, GUC_PORT};
 use crate::errors::PgNatsError;
 use crate::utils::{do_panic_with_message, format_message, FromBytes};
 
@@ -23,7 +24,7 @@ static REGEX_SPECIAL_SYM: LazyLock<Regex> =
 pub struct NatsConnection {
   connection: RwLock<Option<Client>>,
   jetstream: RwLock<Option<Context>>,
-  bucket: RwLock<Option<Store>>,
+  cached_buckets: RwLock<HashMap<String, Store>>,
   valid: AtomicBool,
 }
 
@@ -85,16 +86,13 @@ impl NatsConnection {
     self.valid.store(false, atomic::Ordering::Relaxed);
   }
 
-  pub async fn invalidate_bucket(&self) {
-    let _connection = { self.bucket.write().take() };
-  }
-
   pub async fn put_value(
     &self,
+    bucket: impl ToString,
     key: impl AsRef<str>,
     data: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
-    let bucket = self.get_bucket().await?;
+    let bucket = self.get_or_create_bucket(bucket).await?;
     let data: Vec<u8> = data.into();
 
     let _version = bucket.put(key, data.into()).await?;
@@ -104,9 +102,10 @@ impl NatsConnection {
 
   pub async fn get_value<T: FromBytes>(
     &self,
+    bucket: impl ToString,
     key: impl Into<String>,
   ) -> Result<Option<T>, PgNatsError> {
-    let bucket = self.get_bucket().await?;
+    let bucket = self.get_or_create_bucket(bucket).await?;
 
     bucket
       .get(key)
@@ -116,8 +115,12 @@ impl NatsConnection {
       .transpose()
   }
 
-  pub async fn delete_value(&self, key: impl AsRef<str>) -> Result<(), PgNatsError> {
-    let bucket = self.get_bucket().await?;
+  pub async fn delete_value(
+    &self,
+    bucket: impl ToString,
+    key: impl AsRef<str>,
+  ) -> Result<(), PgNatsError> {
+    let bucket = self.get_or_create_bucket(bucket).await?;
 
     bucket.delete(key).await?;
 
@@ -144,30 +147,28 @@ impl NatsConnection {
     }))
   }
 
-  async fn get_bucket(&self) -> Result<Store, PgNatsError> {
-    let Some(bucket) = &*self.bucket.read() else {
-      return self.initialize_bucket().await;
-    };
+  async fn get_or_create_bucket(&self, bucket: impl ToString) -> Result<Store, PgNatsError> {
+    let bucket = bucket.to_string();
 
-    Ok(bucket.clone())
-  }
+    {
+      let cached = self.cached_buckets.read();
+      if let Some(store) = cached.get(&bucket) {
+        return Ok(store.clone());
+      }
+    }
 
-  async fn initialize_bucket(&self) -> Result<Store, PgNatsError> {
-    self.invalidate_bucket().await;
-
-    let bucket_name = GUC_BUCKET_NAME.get().unwrap_or_default().to_string_lossy();
     let jetstream = self.get_jetstream().await?;
-
-    let bucket = jetstream
+    let new_store = jetstream
       .create_key_value(async_nats::jetstream::kv::Config {
-        bucket: bucket_name.to_string(),
+        bucket: bucket.clone(),
         ..Default::default()
       })
       .await?;
 
-    *self.bucket.write() = Some(bucket.clone());
+    let mut cached = self.cached_buckets.write();
+    let _ = cached.insert(bucket, new_store.clone());
 
-    Ok(bucket)
+    Ok(new_store)
   }
 
   async fn initialize_connection(&self) -> Result<(), PgNatsError> {
