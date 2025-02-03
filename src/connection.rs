@@ -3,21 +3,19 @@ use async_nats::jetstream::Context;
 use async_nats::Client;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
-use std::sync::{atomic, Arc};
+use std::sync::Arc;
 
 use pgrx::prelude::*;
 
 use crate::config::{GUC_HOST, GUC_PORT};
 use crate::errors::PgNatsError;
-use crate::utils::{do_panic_with_message, format_message, get_stream_name_by_subject, FromBytes};
+use crate::utils::{format_message, get_stream_name_by_subject, FromBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
   connection: RwLock<Option<Client>>,
   jetstream: RwLock<Option<Context>>,
   cached_buckets: RwLock<HashMap<String, Store>>,
-  valid: AtomicBool,
 }
 
 impl NatsConnection {
@@ -78,8 +76,6 @@ impl NatsConnection {
         );
       }
     }
-
-    self.valid.store(false, atomic::Ordering::Relaxed);
   }
 
   pub async fn put_value(
@@ -124,23 +120,23 @@ impl NatsConnection {
   }
 
   async fn get_connection(self: &Arc<Self>) -> Result<Client, PgNatsError> {
-    if !self.valid.load(atomic::Ordering::Relaxed) {
-      self.initialize_connection().await?;
+    if let Some(client) = &*self.connection.read() {
+      return Ok(client.clone());
     }
 
-    Ok(self.connection.read().clone().unwrap_or_else(|| {
-      do_panic_with_message("Invariant error: connection must be created before then")
-    }))
+    let (connection, _) = self.initialize_connection().await?;
+
+    Ok(connection)
   }
 
   async fn get_jetstream(self: &Arc<Self>) -> Result<Context, PgNatsError> {
-    if !self.valid.load(atomic::Ordering::Relaxed) {
-      self.initialize_connection().await?;
+    if let Some(jetstream) = &*self.jetstream.read() {
+      return Ok(jetstream.clone());
     }
 
-    Ok(self.jetstream.read().clone().unwrap_or_else(|| {
-      do_panic_with_message("Invariant error: jetstream must be created before then")
-    }))
+    let (_, jetstream) = self.initialize_connection().await?;
+
+    Ok(jetstream)
   }
 
   async fn get_or_create_bucket(
@@ -170,7 +166,7 @@ impl NatsConnection {
     Ok(new_store)
   }
 
-  async fn initialize_connection(self: &Arc<Self>) -> Result<(), PgNatsError> {
+  async fn initialize_connection(self: &Arc<Self>) -> Result<(Client, Context), PgNatsError> {
     self.invalidate_connection().await;
 
     let host = GUC_HOST.get().unwrap_or_default().to_string_lossy();
@@ -203,11 +199,10 @@ impl NatsConnection {
     let mut nats_connection = self.connection.write();
     let mut nats_jetstream = self.jetstream.write();
 
-    *nats_connection = Some(connection);
-    *nats_jetstream = Some(jetstream);
-    self.valid.store(true, atomic::Ordering::Relaxed);
+    *nats_connection = Some(connection.clone());
+    *nats_jetstream = Some(jetstream.clone());
 
-    Ok(())
+    Ok((connection, jetstream))
   }
 
   /// Touch stream by subject
