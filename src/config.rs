@@ -3,6 +3,7 @@ use core::ffi::CStr;
 use pgrx::guc::*;
 use pgrx::prelude::*;
 
+use crate::connection::ConnectionOptions;
 use crate::utils::format_message;
 
 // configs names
@@ -41,4 +42,14 @@ pub fn initialize_configuration() {
     PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
     format_message("initialize_configuration success!")
   );
+}
+
+pub fn fetch_connection_options() -> ConnectionOptions {
+  ConnectionOptions {
+    host: GUC_HOST
+      .get()
+      .map(|host| host.to_string_lossy().to_string())
+      .unwrap_or_default(),
+    port: GUC_PORT.get() as u16,
+  }
 }

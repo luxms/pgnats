@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use pgrx::prelude::*;
 
-use crate::config::{GUC_HOST, GUC_PORT};
+use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
 use crate::utils::{format_message, get_stream_name_by_subject, FromBytes};
 
@@ -16,6 +16,13 @@ pub struct NatsConnection {
   connection: RwLock<Option<Arc<Client>>>,
   jetstream: RwLock<Option<Arc<Context>>>,
   cached_buckets: RwLock<HashMap<String, Arc<Store>>>,
+  current_config: RwLock<Option<ConnectionOptions>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConnectionOptions {
+  pub host: String,
+  pub port: u16,
 }
 
 impl NatsConnection {
@@ -75,6 +82,24 @@ impl NatsConnection {
           format_message(format!("Failed to drain connection {e}"))
         );
       }
+    }
+  }
+
+  pub async fn check_and_invalidate_connection(&self) {
+    let (changed, new_config) = {
+      let config = self.current_config.read();
+      let fetched_config = fetch_connection_options();
+
+      let changed = config.as_ref() != Some(&fetched_config);
+
+      (changed, fetched_config)
+    };
+
+    if changed {
+      self.invalidate_connection().await;
+
+      let mut config = self.current_config.write();
+      *config = Some(new_config);
     }
   }
 
@@ -173,8 +198,11 @@ impl NatsConnection {
   ) -> Result<(Arc<Client>, Arc<Context>), PgNatsError> {
     self.invalidate_connection().await;
 
-    let host = GUC_HOST.get().unwrap_or_default().to_string_lossy();
-    let port = GUC_PORT.get();
+    let config = self
+      .current_config
+      .write()
+      .get_or_insert_with(fetch_connection_options)
+      .clone();
 
     let nats = Arc::clone(self);
     let connection = async_nats::ConnectOptions::new()
@@ -189,11 +217,11 @@ impl NatsConnection {
       })
       .client_capacity(1)
       .max_reconnects(Some(1))
-      .connect(format!("{0}:{1}", host, port))
+      .connect(format!("{0}:{1}", config.host, config.port))
       .await
       .map_err(|io_error| PgNatsError::Connection {
-        host: host.to_string(),
-        port: port as u16,
+        host: config.host.clone(),
+        port: config.port,
         io_error,
       })?;
 

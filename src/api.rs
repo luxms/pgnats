@@ -13,5 +13,7 @@ pub fn hello_pgnats() -> &'static str {
 
 #[pg_extern]
 pub fn pgnats_reload_conf() {
-  CTX.rt().block_on(CTX.nats().invalidate_connection());
+  CTX
+    .rt()
+    .block_on(CTX.nats().check_and_invalidate_connection());
 }
