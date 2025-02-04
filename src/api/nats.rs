@@ -3,15 +3,15 @@ use pgrx::pg_extern;
 use crate::{ctx::CTX, errors::PgNatsError};
 
 #[pg_extern]
-pub fn nats_publish(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
-  CTX.rt().block_on(CTX.nats().publish(publish_text, subject))
+pub fn nats_publish(subject: &str, publish_text: &str) -> Result<(), PgNatsError> {
+  CTX.rt().block_on(CTX.nats().publish(subject, publish_text))
 }
 
 #[pg_extern]
-pub fn nats_publish_stream(publish_text: &str, subject: &str) -> Result<(), PgNatsError> {
+pub fn nats_publish_stream(subject: &str, publish_text: &str) -> Result<(), PgNatsError> {
   CTX
     .rt()
-    .block_on(CTX.nats().publish_stream(publish_text, subject))
+    .block_on(CTX.nats().publish_stream(subject, publish_text))
 }
 
 #[pg_extern]

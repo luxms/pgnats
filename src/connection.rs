@@ -21,8 +21,8 @@ pub struct NatsConnection {
 impl NatsConnection {
   pub async fn publish(
     self: &Arc<Self>,
-    message: impl Into<Vec<u8>>,
     subject: impl ToString,
+    message: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
     let subject = subject.to_string();
     let message: Vec<u8> = message.into();
@@ -36,8 +36,8 @@ impl NatsConnection {
 
   pub async fn publish_stream(
     self: &Arc<Self>,
-    message: impl Into<Vec<u8>>,
     subject: impl ToString,
+    message: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
     let subject = subject.to_string();
     let message: Vec<u8> = message.into();
