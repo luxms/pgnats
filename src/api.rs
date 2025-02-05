@@ -17,3 +17,10 @@ pub fn pgnats_reload_conf() {
     .rt()
     .block_on(CTX.nats().check_and_invalidate_connection());
 }
+
+#[pg_extern]
+pub fn pgnats_reload_conf_force() {
+  CTX
+    .rt()
+    .block_on(CTX.nats().invalidate_connection());
+}
