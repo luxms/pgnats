@@ -66,6 +66,7 @@ impl NatsConnection {
     {
       self.cached_buckets.write().clear();
       let _ = self.jetstream.write().take();
+      let _ = self.current_config.write().take();
     }
 
     if let Some(conn) = connection {
@@ -196,8 +197,6 @@ impl NatsConnection {
   async fn initialize_connection(
     self: &Arc<Self>,
   ) -> Result<(Arc<Client>, Arc<Context>), PgNatsError> {
-    self.invalidate_connection().await;
-
     let config = self
       .current_config
       .write()
