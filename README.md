@@ -22,6 +22,9 @@ Set nats.port = 4222;
 -- Перезагружаем конфигурацию
 Select pgnats_reload_conf();
 
+-- Перезагружаем конфигурацию без проверок на изменения конфигураций
+Select pgnats_reload_conf_force();
+
 -- Публикация в NATS
 Select nats_publish('sub.ject', 'publish_text');
 
