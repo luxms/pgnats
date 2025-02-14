@@ -67,9 +67,20 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
+            ~/.cargo/bin
+            ~/.pgrx
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Install pgrx
+        run: |
+          if ! command -v cargo-pgrx &> /dev/null; then
+            cargo install --locked cargo-pgrx
+          fi
+          if [ ! -d "$HOME/.pgrx" ]; then
+            cargo pgrx init
+          fi
 
       - name: Run Clippy
         run: cargo clippy -- -D warnings
