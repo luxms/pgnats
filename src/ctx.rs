@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use crate::connection::NatsConnection;
 
@@ -11,16 +11,24 @@ pub static CTX: LazyLock<Context> = LazyLock::new(|| Context {
 });
 
 pub struct Context {
-  nats_connection: NatsConnection,
+  nats_connection: Arc<NatsConnection>,
   rt: tokio::runtime::Runtime,
 }
 
 impl Context {
-  pub fn nats(&self) -> &NatsConnection {
-    &self.nats_connection
+  pub fn nats(&self) -> Arc<NatsConnection> {
+    Arc::clone(&self.nats_connection)
   }
 
   pub fn rt(&self) -> &tokio::runtime::Runtime {
     &self.rt
+  }
+}
+
+impl Drop for Context {
+  fn drop(&mut self) {
+    self
+      .rt
+      .block_on(self.nats_connection.invalidate_connection());
   }
 }

@@ -2,52 +2,49 @@ use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
 use async_nats::Client;
 use parking_lot::RwLock;
-use regex::Regex;
-use std::sync::atomic;
-use std::sync::atomic::AtomicBool;
-use std::sync::LazyLock;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use pgrx::prelude::*;
 
-use crate::config::{GUC_BUCKET_NAME, GUC_HOST, GUC_PORT};
+use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
-use crate::utils::{do_panic_with_message, format_message, FromBytes};
-
-static REGEX_STREAM_NAME_LAST_PART: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r"\.[^.]*$").expect("Wrong regex"));
-
-static REGEX_SPECIAL_SYM: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r"[.^?>*]").expect("Wrong regex"));
+use crate::utils::{format_message, get_stream_name_by_subject, FromBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
-  connection: RwLock<Option<Client>>,
-  jetstream: RwLock<Option<Context>>,
-  bucket: RwLock<Option<Store>>,
-  valid: AtomicBool,
+  connection: RwLock<Option<Arc<Client>>>,
+  jetstream: RwLock<Option<Arc<Context>>>,
+  cached_buckets: RwLock<HashMap<String, Arc<Store>>>,
+  current_config: RwLock<Option<ConnectionOptions>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConnectionOptions {
+  pub host: String,
+  pub port: u16,
 }
 
 impl NatsConnection {
   pub async fn publish(
-    &self,
-    message: impl Into<Vec<u8>>,
+    self: &Arc<Self>,
     subject: impl ToString,
+    message: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
     let subject = subject.to_string();
     let message: Vec<u8> = message.into();
     let connection = self.get_connection().await?;
 
     connection.publish(subject, message.into()).await?;
-
     connection.flush().await?;
 
     Ok(())
   }
 
   pub async fn publish_stream(
-    &self,
-    message: impl Into<Vec<u8>>,
+    self: &Arc<Self>,
     subject: impl ToString,
+    message: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
     let subject = subject.to_string();
     let message: Vec<u8> = message.into();
@@ -66,6 +63,12 @@ impl NatsConnection {
   pub async fn invalidate_connection(&self) {
     let connection = { self.connection.write().take() };
 
+    {
+      self.cached_buckets.write().clear();
+      let _ = self.jetstream.write().take();
+      let _ = self.current_config.write().take();
+    }
+
     if let Some(conn) = connection {
       ereport!(
         PgLogLevel::INFO,
@@ -77,24 +80,37 @@ impl NatsConnection {
         ereport!(
           PgLogLevel::WARNING,
           PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-          format_message(format!("Failed to close connection {e}"))
+          format_message(format!("Failed to drain connection {e}"))
         );
       }
     }
-
-    self.valid.store(false, atomic::Ordering::Relaxed);
   }
 
-  pub async fn invalidate_bucket(&self) {
-    let _connection = { self.bucket.write().take() };
+  pub async fn check_and_invalidate_connection(&self) {
+    let (changed, new_config) = {
+      let config = self.current_config.read();
+      let fetched_config = fetch_connection_options();
+
+      let changed = config.as_ref() != Some(&fetched_config);
+
+      (changed, fetched_config)
+    };
+
+    if changed {
+      self.invalidate_connection().await;
+
+      let mut config = self.current_config.write();
+      *config = Some(new_config);
+    }
   }
 
   pub async fn put_value(
-    &self,
+    self: &Arc<Self>,
+    bucket: impl ToString,
     key: impl AsRef<str>,
     data: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
-    let bucket = self.get_bucket().await?;
+    let bucket = self.get_or_create_bucket(bucket).await?;
     let data: Vec<u8> = data.into();
 
     let _version = bucket.put(key, data.into()).await?;
@@ -103,10 +119,11 @@ impl NatsConnection {
   }
 
   pub async fn get_value<T: FromBytes>(
-    &self,
+    self: &Arc<Self>,
+    bucket: impl ToString,
     key: impl Into<String>,
   ) -> Result<Option<T>, PgNatsError> {
-    let bucket = self.get_bucket().await?;
+    let bucket = self.get_or_create_bucket(bucket).await?;
 
     bucket
       .get(key)
@@ -116,71 +133,94 @@ impl NatsConnection {
       .transpose()
   }
 
-  pub async fn delete_value(&self, key: impl AsRef<str>) -> Result<(), PgNatsError> {
-    let bucket = self.get_bucket().await?;
+  pub async fn delete_value(
+    self: &Arc<Self>,
+    bucket: impl ToString,
+    key: impl AsRef<str>,
+  ) -> Result<(), PgNatsError> {
+    let bucket = self.get_or_create_bucket(bucket).await?;
 
     bucket.delete(key).await?;
 
     Ok(())
   }
 
-  async fn get_connection(&self) -> Result<Client, PgNatsError> {
-    if !self.valid.load(atomic::Ordering::Relaxed) {
-      self.initialize_connection().await?;
+  async fn get_connection(self: &Arc<Self>) -> Result<Arc<Client>, PgNatsError> {
+    if let Some(client) = &*self.connection.read() {
+      return Ok(Arc::clone(client));
     }
 
-    Ok(self.connection.read().clone().unwrap_or_else(|| {
-      do_panic_with_message("Invariant error: connection must be created before then")
-    }))
+    let (connection, _) = self.initialize_connection().await?;
+
+    Ok(connection)
   }
 
-  async fn get_jetstream(&self) -> Result<Context, PgNatsError> {
-    if !self.valid.load(atomic::Ordering::Relaxed) {
-      self.initialize_connection().await?;
+  async fn get_jetstream(self: &Arc<Self>) -> Result<Arc<Context>, PgNatsError> {
+    if let Some(jetstream) = &*self.jetstream.read() {
+      return Ok(Arc::clone(jetstream));
     }
 
-    Ok(self.jetstream.read().clone().unwrap_or_else(|| {
-      do_panic_with_message("Invariant error: jetstream must be created before then")
-    }))
+    let (_, jetstream) = self.initialize_connection().await?;
+
+    Ok(jetstream)
   }
 
-  async fn get_bucket(&self) -> Result<Store, PgNatsError> {
-    let Some(bucket) = &*self.bucket.read() else {
-      return self.initialize_bucket().await;
-    };
+  async fn get_or_create_bucket(
+    self: &Arc<Self>,
+    bucket: impl ToString,
+  ) -> Result<Arc<Store>, PgNatsError> {
+    let bucket = bucket.to_string();
 
-    Ok(bucket.clone())
-  }
+    {
+      let cached = self.cached_buckets.read();
+      if let Some(store) = cached.get(&bucket) {
+        return Ok(Arc::clone(store));
+      }
+    }
 
-  async fn initialize_bucket(&self) -> Result<Store, PgNatsError> {
-    self.invalidate_bucket().await;
-
-    let bucket_name = GUC_BUCKET_NAME.get().unwrap_or_default().to_string_lossy();
     let jetstream = self.get_jetstream().await?;
+    let new_store = Arc::new(
+      jetstream
+        .create_key_value(async_nats::jetstream::kv::Config {
+          bucket: bucket.clone(),
+          ..Default::default()
+        })
+        .await?,
+    );
 
-    let bucket = jetstream
-      .create_key_value(async_nats::jetstream::kv::Config {
-        bucket: bucket_name.to_string(),
-        ..Default::default()
-      })
-      .await?;
+    let mut cached = self.cached_buckets.write();
+    let _ = cached.insert(bucket, Arc::clone(&new_store));
 
-    *self.bucket.write() = Some(bucket.clone());
-
-    Ok(bucket)
+    Ok(new_store)
   }
 
-  async fn initialize_connection(&self) -> Result<(), PgNatsError> {
-    self.invalidate_connection().await;
+  async fn initialize_connection(
+    self: &Arc<Self>,
+  ) -> Result<(Arc<Client>, Arc<Context>), PgNatsError> {
+    let config = self
+      .current_config
+      .write()
+      .get_or_insert_with(fetch_connection_options)
+      .clone();
 
-    let host = GUC_HOST.get().unwrap_or_default().to_string_lossy();
-    let port = GUC_PORT.get();
+    let nats = Arc::clone(self);
+    let connection = async_nats::ConnectOptions::new()
+      .event_callback(move |event| {
+        let nats = Arc::clone(&nats);
 
-    let connection = async_nats::connect(format!("{0}:{1}", host, port))
+        async move {
+          if let async_nats::Event::Disconnected = event {
+            nats.handle_disconnect().await;
+          }
+        }
+      })
+      .client_capacity(1)
+      .max_reconnects(Some(1))
+      .connect(format!("{0}:{1}", config.host, config.port))
       .await
       .map_err(|io_error| PgNatsError::Connection {
-        host: host.to_string(),
-        port: port as u16,
+        host: config.host.clone(),
+        port: config.port,
         io_error,
       })?;
 
@@ -190,19 +230,23 @@ impl NatsConnection {
     let mut nats_connection = self.connection.write();
     let mut nats_jetstream = self.jetstream.write();
 
-    *nats_connection = Some(connection);
-    *nats_jetstream = Some(jetstream);
-    self.valid.store(true, atomic::Ordering::Relaxed);
+    let connection = Arc::new(connection);
+    let jetstream = Arc::new(jetstream);
+    *nats_connection = Some(Arc::clone(&connection));
+    *nats_jetstream = Some(Arc::clone(&jetstream));
 
-    Ok(())
+    Ok((connection, jetstream))
   }
 
   /// Touch stream by subject
   /// if stream for subject not exists, creat it
   /// if stream for subject exists, but not contains current subject, add subject to config
-  async fn touch_stream_subject(&self, subject: impl ToString) -> Result<Context, PgNatsError> {
+  async fn touch_stream_subject(
+    self: &Arc<Self>,
+    subject: impl ToString,
+  ) -> Result<Arc<Context>, PgNatsError> {
     let subject = subject.to_string();
-    let stream_name = NatsConnection::get_stream_name_by_subject(&subject);
+    let stream_name = get_stream_name_by_subject(&subject);
 
     let jetstream = self.get_jetstream().await?;
     let info = jetstream.get_stream(&stream_name).await;
@@ -238,12 +282,7 @@ impl NatsConnection {
     Ok(jetstream)
   }
 
-  fn get_stream_name_by_subject(subject: &str) -> String {
-    REGEX_SPECIAL_SYM
-      .replace_all(
-        REGEX_STREAM_NAME_LAST_PART.replace(subject, "").as_ref(),
-        "_",
-      )
-      .to_string()
+  async fn handle_disconnect(&self) {
+    self.invalidate_connection().await;
   }
 }

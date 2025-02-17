@@ -1,6 +1,6 @@
 # pgnats
 
-PostgreSQL расширение для совершения побликации сообщений в NATS
+PostgreSQL расширение для работы с NATS
 
 **WIP, Not usable yet!**
 
@@ -15,25 +15,48 @@ cargo install nats-connect
 ## Usage
 
 ```sql
--- Ручная инициализация настроек (производится автоматически при первом использовании каких-либо функций расширения)
-Select nats_init();
+-- Конфигурируем
+Set nats.host = '127.0.0.1';
+Set nats.port = 4222;
 
--- Просмотр значения настройки:
-Select get_config('nats.host');
+-- Перезагружаем конфигурацию
+Select pgnats_reload_conf();
 
--- Установка значения настройки
-Select set_config('nats.host', '''test.url''');
-Select set_config('nats.port', '1111');
-Select set_config_string('nats.host', 'test.url');
-
-Select set_config('nats.host', 'DEFAULT');
-Select reset_config('nats.host');
+-- Перезагружаем конфигурацию без проверок на изменения конфигураций
+Select pgnats_reload_conf_force();
 
 -- Публикация в NATS
-Select nats_publish('publish_text', 'sub.ject')
+Select nats_publish('sub.ject', 'publish_text');
 
 -- Публикация с помощью jetstream (sync)
-Select nats_publish_stream('publish_text', 'sub.ject')
+Select nats_publish_stream('sub.ject', 'publish_text');
+
+-- Функция сохраняет бинарные данные в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
+Select nats_put_binary('bucket', 'key', 'binary data'::bytea);
+
+-- Функция сохраняет текстовые данные в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
+Select nats_put_text('bucket', 'key', 'text data');
+
+-- Функция сохраняет данные в формате Binary Json в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
+Select nats_put_jsonb('bucket', 'key', '{}'::jsonb);
+
+-- Функция сохраняет данные в формате Json в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
+Select nats_put_json('bucket', 'key', '{}'::json);
+
+-- Извлекает бинарные данные по указанному ключу из указанного бакета 
+Select nats_get_binary('bucket', 'key');
+
+-- Извлекает текстовые данные по указанному ключу из указанного бакета 
+Select nats_get_text('bucket', 'key');
+
+-- Извлекает Binary Json по указанному ключу из указанного бакета 
+Select nats_get_jsonb('bucket', 'key');
+
+-- Извлекает Json по указанному ключу из указанного бакета 
+Select nats_get_json('bucket', 'key');
+
+-- Эта функция удаляет значение, связанное с указанным ключом, из указанного бакета
+Select nats_delete_value('bucket', 'key');
 ```
 
 При публикации с помощью `jetstream` создается стрим с именем субъекта без последнего блока. Спецсимволы (`.^?`) заменяются на `_`.
@@ -54,13 +77,9 @@ luxmsbi.cdc.audit.events: luxmsbi_cdc_audit
 
 Точка входа в расширение, подключение необходимых модулей
 
-### api
+### api.rs
 
 Набор функций, экспортируемых в PostgreSQL
-
-#### api/config.rs
-
-Функции для изменения параметров конфигурации
 
 #### api/nats.rs
 
@@ -70,16 +89,18 @@ luxmsbi.cdc.audit.events: luxmsbi_cdc_audit
 
 Закрытые функции инициализации, настройка параметров по-умолчанию
 
-Настройки:
+Список настроек:
 
-```py
-CONFIG_HOST: str = "адрес NATS сервиса"
-CONFIG_PORT: int = "порт NATS сервиса"
-```
+- `nats.host` - Адрес сервера NATS. По-умолчанию `127.0.0.1`
+- `nats.port` - Порт, на котором работает сервер NATS. По-умолчанию `4222`
 
 ### connection.rs
 
 Внутренние функции для работы с NATS-соединением и NATS-stream
+
+### ctx.rs
+
+Глобальный контекст, в котором хранятся `NatsConnection` и `tokio-runtime`
 
 ### errors.rs
 

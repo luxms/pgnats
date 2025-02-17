@@ -1,11 +1,27 @@
+use regex::Regex;
+use std::sync::LazyLock;
+
 use crate::errors::PgNatsError;
 
+static REGEX_STREAM_NAME_LAST_PART: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r"\.[^.]*$").expect("Wrong regex"));
+
+static REGEX_SPECIAL_SYM: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r"[.^?>*]").expect("Wrong regex"));
+
+pub const MSG_PREFIX: &str = "[PGNATS]";
+
 pub fn format_message(message_text: impl AsRef<str>) -> String {
-  format!("PGNATS: {}", message_text.as_ref())
+  format!("{MSG_PREFIX}: {}", message_text.as_ref())
 }
 
-pub fn do_panic_with_message(message_text: impl AsRef<str>) -> ! {
-  panic!("PGNATS: {}", message_text.as_ref())
+pub fn get_stream_name_by_subject(subject: &str) -> String {
+  REGEX_SPECIAL_SYM
+    .replace_all(
+      REGEX_STREAM_NAME_LAST_PART.replace(subject, "").as_ref(),
+      "_",
+    )
+    .to_string()
 }
 
 pub trait FromBytes: Sized {
