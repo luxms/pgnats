@@ -4,7 +4,7 @@ use crate::{ctx::CTX, errors::PgNatsError};
 
 #[pg_extern]
 pub fn nats_publish(subject: &str, publish_text: &str) -> Result<(), PgNatsError> {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.publish(subject, publish_text))
@@ -13,7 +13,7 @@ pub fn nats_publish(subject: &str, publish_text: &str) -> Result<(), PgNatsError
 
 #[pg_extern]
 pub fn nats_publish_stream(subject: &str, publish_text: &str) -> Result<(), PgNatsError> {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx.local_set.block_on(
       &ctx.rt,
       ctx.nats_connection.publish_stream(subject, publish_text),
@@ -23,7 +23,7 @@ pub fn nats_publish_stream(subject: &str, publish_text: &str) -> Result<(), PgNa
 
 #[pg_extern]
 pub fn nats_put_binary(bucket: String, key: &str, data: &[u8]) -> Result<(), PgNatsError> {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.put_value(bucket, key, data))
@@ -32,7 +32,7 @@ pub fn nats_put_binary(bucket: String, key: &str, data: &[u8]) -> Result<(), PgN
 
 #[pg_extern]
 pub fn nats_put_text(bucket: String, key: &str, data: &str) -> Result<(), PgNatsError> {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.put_value(bucket, key, data))
@@ -42,7 +42,7 @@ pub fn nats_put_text(bucket: String, key: &str, data: &str) -> Result<(), PgNats
 #[pg_extern]
 pub fn nats_put_jsonb(bucket: String, key: &str, data: pgrx::JsonB) -> Result<(), PgNatsError> {
   let data = serde_json::to_string(&data.0).map_err(PgNatsError::Serialize)?;
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.put_value(bucket, key, data))
@@ -52,7 +52,7 @@ pub fn nats_put_jsonb(bucket: String, key: &str, data: pgrx::JsonB) -> Result<()
 #[pg_extern]
 pub fn nats_put_json(bucket: String, key: &str, data: pgrx::Json) -> Result<(), PgNatsError> {
   let data = serde_json::to_string(&data.0).map_err(PgNatsError::Serialize)?;
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.put_value(bucket, key, data))
@@ -61,7 +61,7 @@ pub fn nats_put_json(bucket: String, key: &str, data: pgrx::Json) -> Result<(), 
 
 #[pg_extern]
 pub fn nats_get_binary(bucket: String, key: &str) -> Result<Option<Vec<u8>>, PgNatsError> {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.get_value(bucket, key))
@@ -70,7 +70,7 @@ pub fn nats_get_binary(bucket: String, key: &str) -> Result<Option<Vec<u8>>, PgN
 
 #[pg_extern]
 pub fn nats_get_text(bucket: String, key: &str) -> Result<Option<String>, PgNatsError> {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.get_value(bucket, key))
@@ -80,7 +80,7 @@ pub fn nats_get_text(bucket: String, key: &str) -> Result<Option<String>, PgNats
 #[pg_extern]
 pub fn nats_get_json(bucket: String, key: &str) -> Result<Option<pgrx::Json>, PgNatsError> {
   CTX
-    .with(|ctx| {
+    .with_borrow_mut(|ctx| {
       ctx
         .local_set
         .block_on(&ctx.rt, ctx.nats_connection.get_value(bucket, key))
@@ -91,7 +91,7 @@ pub fn nats_get_json(bucket: String, key: &str) -> Result<Option<pgrx::Json>, Pg
 #[pg_extern]
 pub fn nats_get_jsonb(bucket: String, key: &str) -> Result<Option<pgrx::JsonB>, PgNatsError> {
   CTX
-    .with(|ctx| {
+    .with_borrow_mut(|ctx| {
       ctx
         .local_set
         .block_on(&ctx.rt, ctx.nats_connection.get_value(bucket, key))
@@ -101,7 +101,7 @@ pub fn nats_get_jsonb(bucket: String, key: &str) -> Result<Option<pgrx::JsonB>, 
 
 #[pg_extern]
 pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.delete_value(bucket, key))

@@ -12,7 +12,7 @@ pub extern "C" fn _PG_init() {
 
 #[pg_guard]
 pub extern "C" fn _PG_fini() {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
@@ -20,7 +20,7 @@ pub extern "C" fn _PG_fini() {
 }
 
 unsafe extern "C" fn extension_exit_callback(_: i32, _: pg_sys::Datum) {
-  CTX.with(|ctx| {
+  CTX.with_borrow_mut(|ctx| {
     ctx
       .local_set
       .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());

@@ -200,28 +200,16 @@ mod tests {
     Spi::run(&format!("SET {NATS_PORT_CONF} = {}", host_port)).expect("Failed to set NATS host");
 
     let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
-    assert!(
-      res.is_ok(),
-      "nats_publish occurs error: {:?}",
-      res
-    );
+    assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
     api::pgnats_reload_conf();
 
     let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
-    assert!(
-      res.is_ok(),
-      "nats_publish occurs error: {:?}",
-      res
-    );
+    assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
     Spi::run(&format!("SET {NATS_HOST_CONF} = 'localhost1'")).expect("Failed to set NATS host");
     let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
-    assert!(
-      res.is_ok(),
-      "nats_publish occurs error: {:?}",
-      res
-    );
+    assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
     api::pgnats_reload_conf();
 
@@ -231,12 +219,6 @@ mod tests {
     api::pgnats_reload_conf_force();
 
     let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
-    assert!(
-      res.is_ok(),
-      "nats_publish occurs error: {:?}",
-      res
-    );
+    assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
   }
 }
-
-

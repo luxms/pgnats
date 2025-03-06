@@ -1,9 +1,9 @@
-use std::{cell::LazyCell, sync::Arc};
+use std::cell::RefCell;
 
 use crate::connection::NatsConnection;
 
 thread_local! {
-    pub static CTX: LazyCell<Context> = LazyCell::new(|| Context {
+    pub static CTX: RefCell<Context> = RefCell::new(Context {
         nats_connection: Default::default(),
         rt: tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -14,7 +14,7 @@ thread_local! {
 }
 
 pub struct Context {
-  pub nats_connection: Arc<NatsConnection>,
+  pub nats_connection: NatsConnection,
   pub rt: tokio::runtime::Runtime,
   pub local_set: tokio::task::LocalSet,
 }
