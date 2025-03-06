@@ -16,13 +16,13 @@ include:
     ref: master
     file:
       - 'ci/include/trivy-scan.yml'
-  # need var BI_REPO
-  # stage: deploy
-  - project: 'devops/gitlab-ci'
-    ref: master
-    file: 'ci/include/upload-to-devrepo.yml'
-    rules:
-      - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/'
+#  # need var BI_REPO
+#  # stage: deploy
+#  - project: 'devops/gitlab-ci'
+#    ref: master
+#    file: 'ci/include/upload-to-devrepo.yml'
+#    rules:
+#      - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/'
 
 .check-rpm:
   script:
