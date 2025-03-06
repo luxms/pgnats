@@ -48,6 +48,19 @@ buildRpm:
   stage: build
   image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
   before_script:
+    - |
+      case "${OS_VER}" in
+        "redos7") dnf config-manager --add-repo https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro${PG_VERSION}-redos7_3/
+                  dnf config-manager --add-repo https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro${PG_VERSION}-redos7/
+                  rpm --import https://repo.postgrespro.ru/keys/GPG-KEY-POSTGRESPRO;;
+        "redos8") dnf config-manager --add-repo https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro${PG_VERSION}-redos8/
+                  dnf config-manager --add-repo https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro${PG_VERSION}-redos8/
+                  rpm --import https://repo.postgrespro.ru/keys/GPG-KEY-POSTGRESPRO;;
+        "rocky8") dnf -y module enable postgresql:${PG_VERSION};;
+        "rocky9") dnf -y module enable postgresql:${PG_VERSION};;
+      esac
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - source $HOME/.cargo/env
     - !reference [ .gen-trivy-scan-script, script ]
   script:
     - dnf builddep -y ./${CI_PROJECT_NAME}.spec -D "version ${VERSION}" -D "pg_ver ${PG_VERSION}"
