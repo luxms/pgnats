@@ -13,12 +13,16 @@ pub extern "C" fn _PG_init() {
 #[pg_guard]
 pub extern "C" fn _PG_fini() {
   CTX.with(|ctx| {
-    ctx.rt().block_on(ctx.nats().invalidate_connection());
+    ctx
+      .local_set
+      .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
   });
 }
 
 unsafe extern "C" fn extension_exit_callback(_: i32, _: pg_sys::Datum) {
   CTX.with(|ctx| {
-    ctx.rt().block_on(ctx.nats().invalidate_connection());
+    ctx
+      .local_set
+      .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
   });
 }

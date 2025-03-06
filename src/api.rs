@@ -14,15 +14,18 @@ pub fn hello_pgnats() -> &'static str {
 #[pg_extern]
 pub fn pgnats_reload_conf() {
   CTX.with(|ctx| {
-    ctx
-      .rt()
-      .block_on(ctx.nats().check_and_invalidate_connection());
+    ctx.local_set.block_on(
+      &ctx.rt,
+      ctx.nats_connection.check_and_invalidate_connection(),
+    );
   });
 }
 
 #[pg_extern]
 pub fn pgnats_reload_conf_force() {
   CTX.with(|ctx| {
-    ctx.rt().block_on(ctx.nats().invalidate_connection());
+    ctx
+      .local_set
+      .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
   });
 }

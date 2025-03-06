@@ -9,28 +9,20 @@ thread_local! {
         .enable_all()
         .build()
         .expect("Failed to initialize Tokio runtime"),
+        local_set: tokio::task::LocalSet::new(),
     })
 }
 
 pub struct Context {
-  nats_connection: Arc<NatsConnection>,
-  rt: tokio::runtime::Runtime,
-}
-
-impl Context {
-  pub fn nats(&self) -> Arc<NatsConnection> {
-    Arc::clone(&self.nats_connection)
-  }
-
-  pub fn rt(&self) -> &tokio::runtime::Runtime {
-    &self.rt
-  }
+  pub nats_connection: Arc<NatsConnection>,
+  pub rt: tokio::runtime::Runtime,
+  pub local_set: tokio::task::LocalSet,
 }
 
 impl Drop for Context {
   fn drop(&mut self) {
     self
-      .rt
-      .block_on(self.nats_connection.invalidate_connection());
+      .local_set
+      .block_on(&self.rt, self.nats_connection.invalidate_connection());
   }
 }
