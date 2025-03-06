@@ -1,0 +1,79 @@
+default:
+  image: ${HARBOR_HOST}/build/rocky9:base
+  tags:
+    - luxmsbi-build
+
+variables:
+  BI_REPO: "thirdparty"
+  FF_ENABLE_JOB_CLEANUP: "true"
+
+stages:
+  - build
+
+include:
+  # trivy-scan
+  - project: 'devops/gitlab-ci'
+    ref: master
+    file:
+      - 'ci/include/trivy-scan.yml'
+  # need var BI_REPO
+  # stage: deploy
+  - project: 'devops/gitlab-ci'
+    ref: master
+    file: 'ci/include/upload-to-devrepo.yml'
+    rules:
+      - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/'
+
+.check-rpm:
+  script:
+    - echo "======= Check RPM ========"
+      && rpm -qlpv --scripts --requires *.rpm
+      && rpm -qipv *.rpm
+      && DISTTAG=$(rpm -qp *.rpm --qf %{disttag})
+      && DISTRIBUTION=$(rpm -qp *.rpm --qf %{distribution})
+      && echo "DISTTAG/DISTRIBUTION   ${DISTTAG} | ${DISTRIBUTION}"
+
+defVersion:
+  stage: .pre
+  script:
+    - VERSION="$(git describe --tags --match v[0-9]*.[0-9]*.[0-9]* --abbrev=0 2>/dev/null|cut -dv -f2)" || true
+    - test -z "${VERSION}" && VERSION=$(cat VERSION)
+    - echo "VERSION=${VERSION}" > variables.env
+    - cat variables.env
+  artifacts:
+    reports:
+      dotenv: variables.env
+
+buildRpm:
+  stage: build
+  image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
+  before_script:
+    - !reference [ .gen-trivy-scan-script, script ]
+  script:
+    - dnf builddep -y ./${CI_PROJECT_NAME}.spec -D "version ${VERSION}" -D "pg_ver ${PG_VERSION}"
+    - spectool -g -C $(pwd) ./${CI_PROJECT_NAME}.spec -d "version ${VERSION}" -d "pg_ver ${PG_VERSION}"
+    - rpmbuild -bb ./${CI_PROJECT_NAME}.spec
+      --define "_topdir $(pwd)"
+      --define "_sourcedir $(pwd)"
+      --define "pg_ver ${PG_VERSION}"
+      --define "version ${VERSION}"
+    - mv ./RPMS/x86_64/*.rpm ${CI_PROJECT_DIR}/
+    - echo "${GPG_KEY}" | gpg --import --batch
+    - rpm --resign *.rpm
+    - !reference [.check-rpm, script]
+  artifacts:
+    name: pg-nats
+    paths:
+      - "*.rpm"
+      - "TRIVY-*.html"
+    reports:
+      junit:
+        - "TRIVY-*.xml"
+  parallel:
+    matrix:
+#      - OS_VER: [ "rocky9","redos8" ]
+#        PG_VERSION: [ "15" ]
+#      - OS_VER: [ "rocky8","redos7" ]
+#        PG_VERSION: [ "13" ]
+      - OS_VER: [ "redos7" ]
+        PG_VERSION: [ "13" ]
