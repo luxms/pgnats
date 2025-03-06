@@ -36,7 +36,6 @@ impl NatsConnection {
     let connection = self.get_connection().await?;
 
     connection.publish(subject, message.into()).await?;
-    connection.flush().await?;
 
     Ok(())
   }
@@ -54,8 +53,6 @@ impl NatsConnection {
       .await?
       .publish(subject, message.into())
       .await?;
-
-    self.get_connection().await?.flush().await?;
 
     Ok(())
   }
@@ -203,19 +200,7 @@ impl NatsConnection {
       .get_or_insert_with(fetch_connection_options)
       .clone();
 
-    let nats = Arc::clone(self);
     let connection = async_nats::ConnectOptions::new()
-      .event_callback(move |event| {
-        let nats = Arc::clone(&nats);
-
-        async move {
-          if let async_nats::Event::Disconnected = event {
-            nats.handle_disconnect().await;
-          }
-        }
-      })
-      .client_capacity(1)
-      .max_reconnects(Some(1))
       .connect(format!("{0}:{1}", config.host, config.port))
       .await
       .map_err(|io_error| PgNatsError::Connection {
@@ -280,9 +265,5 @@ impl NatsConnection {
     }
 
     Ok(jetstream)
-  }
-
-  async fn handle_disconnect(&self) {
-    self.invalidate_connection().await;
   }
 }

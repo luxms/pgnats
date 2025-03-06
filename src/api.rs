@@ -13,14 +13,16 @@ pub fn hello_pgnats() -> &'static str {
 
 #[pg_extern]
 pub fn pgnats_reload_conf() {
-  CTX
-    .rt()
-    .block_on(CTX.nats().check_and_invalidate_connection());
+  CTX.with(|ctx| {
+    ctx
+      .rt()
+      .block_on(ctx.nats().check_and_invalidate_connection());
+  });
 }
 
 #[pg_extern]
 pub fn pgnats_reload_conf_force() {
-  CTX
-    .rt()
-    .block_on(CTX.nats().invalidate_connection());
+  CTX.with(|ctx| {
+    ctx.rt().block_on(ctx.nats().invalidate_connection());
+  });
 }
