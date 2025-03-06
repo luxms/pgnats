@@ -74,55 +74,44 @@ unzip %{SOURCE0}
 
 %install
 cd %{name}-%{version}
-cargo install cargo-pgrx --version 0.12.9 --locked
+cargo install cargo-pgrx --version `cat .cargo-pgrx-version` --locked
 
 %if 0%{?el8} || 0%{?el9}
 %{__make} PG_CONFIG=/usr/bin/pg_server_config clean
 %make_install PG_CONFIG=/usr/bin/pg_server_config
 %{_topdir}/trivy-scan.sh ./ %{name}%{dist}
-%else
-%{__make} PG_CONFIG=/usr/pgsql-%{pg_ver}/bin/pg_config clean
-%make_install PG_CONFIG=/usr/pgsql-%{pg_ver}/bin/pg_config
-%{_topdir}/trivy-scan.sh ./ %{name}%{dist}
-%endif
-%if 0%{?redos}
-cargo pgrx init --pg13 "/usr/pgsql-%{pg_ver}/bin/pg_config"
 %endif
 
+%if 0%{?redos}
+export PATH=/usr/pgsql-%{pg_ver}/bin:$PATH
+
+cargo pgrx init --pg%{pg_ver} "/usr/pgsql-%{pg_ver}/bin/pg_config"
 cargo pgrx package
-#%{_topdir}/trivy-scan.sh ./ pgpro%{pg_ver}-http%{dist}
+%endif
+
+%{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
+#%{_topdir}/trivy-scan.sh ./ pgpro%{pg_ver}-nats%{dist}
 
 
 %files
 %if 0%{?el8} || 0%{?el9}
 /usr/lib64/pgsql
 /usr/share/pgsql/extension
-%else
-/usr/pgsql-%{pg_ver}/lib/
-/usr/pgsql-%{pg_ver}/share/extension
 %endif
-%{_datadir}/pgsql-http/selinux/pgsql-http.pp
 
 %if 0%{?redos}
-%files -n pgpro%{pg_ver}-http
-/opt/pgpro/std-%{pg_ver}/lib/
-/opt/pgpro/std-%{pg_ver}/share/extension
-%{_datadir}/pgsql-http/selinux/pgsql-http.pp
+/usr/pgsql-%{pg_ver}/lib/
+/usr/pgsql-%{pg_ver}/share/extension
 
-%files -n pgpro%{pg_ver}ent-http
-/opt/pgpro/ent-%{pg_ver}/lib/
-/opt/pgpro/ent-%{pg_ver}/share/extension
-%{_datadir}/pgsql-http/selinux/pgsql-http.pp
+#%files -n pgpro%{pg_ver}-nats
+#/opt/pgpro/std-%{pg_ver}/lib/
+#/opt/pgpro/std-%{pg_ver}/share/extension
+
+#%files -n pgpro%{pg_ver}ent-nats
+#/opt/pgpro/ent-%{pg_ver}/lib/
+#/opt/pgpro/ent-%{pg_ver}/share/extension
 %endif
 
 %changelog
-* Thu Jun 6 2024 Vladislav Semikin <repo@luxms.com>
-- change RPM specifications
-* Fri Sep 15 2023 Vladislav Semikin <repo@luxms.com>
-- add Rocky9 condition
-* Thu Sep 14 2023 Vladislav Semikin <repo@luxms.com>
-- Edit SELinux policy.
-* Thu Aug 04 2022 Dmitriy Kovyarov <dmitrii.koviarov@yasp.ru>
-- Added statiс curl lib.
-* Thu Jul 21 2022 Dmitriy Kovyarov <dmitrii.koviarov@yasp.ru>
+* Thu Mar 06 2025 Dmitriy Kovyarov <dmitrii.koviarov@yasp.ru>
 - Initial Package.
