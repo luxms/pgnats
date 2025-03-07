@@ -9,7 +9,7 @@
 %endif
 
 Name:           pgsql%{pg_ver}-nats
-Summary:        HTTP client for PostgreSQL
+Summary:        NATS connect for PostgreSQL
 Version:        %{version}
 Release:        1%{?dist}
 Vendor:         YASP Ltd, Luxms Group
@@ -25,29 +25,20 @@ Disttag:        redos%{redos_ver}
 Distribution:   redos/%{redos_ver}/x86_64
 %endif
 
-%if 0%{?el7} && 0%{?redos} == 0
-Requires:       postgresql%{pg_ver}-server
-BuildRequires:  postgresql%{pg_ver}-devel
-Disttag:        el%{rhel}
-Distribution:   el/%{rhel}/x86_64
-%endif
-
 %if 0%{?el8} || 0%{?el9}
 Requires:       postgresql-server >= %{pg_ver} postgresql-server < %(echo $((%{pg_ver} + 1)))
-Requires:       policycoreutils-python-utils
 BuildRequires:  postgresql-server-devel >= %{pg_ver} postgresql-server-devel < %(echo $((%{pg_ver} + 1)))
-BuildRequires:  perl-IPC-Cmd perl-Pod-Html libtool gettext-devel
+BuildRequires:  pkg-config unzip openssl-devel
 Disttag:        el%{rhel}
 Distribution:   el/%{rhel}/x86_64
 %endif
-
 
 %description
 NATS connect for PostgreSQL
 
 %if 0%{?redos}
 %package        -n pgpro%{pg_ver}-nats
-Summary:        HTTP client for PostgresPro
+Summary:        NATS connect for PostgresPro
 Requires:       postgrespro-std-%{pg_ver}-server policycoreutils-python-utils
 BuildRequires:  postgrespro-std-%{pg_ver}-devel
 Provides:       pgpro%{pg_ver}-nats
@@ -56,7 +47,7 @@ Provides:       pgpro%{pg_ver}-nats
 NATS connect for PostgresPRO
 
 %package        -n pgpro%{pg_ver}ent-nats
-Summary:        HTTP client for PostgresPro-ent
+Summary:        NATS connect for PostgresPro-ent
 Requires:       postgrespro-ent-%{pg_ver}-server policycoreutils-python-utils
 BuildRequires:  postgrespro-ent-%{pg_ver}-devel
 Provides:       pgpro%{pg_ver}ent-nats

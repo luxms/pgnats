@@ -84,7 +84,7 @@ buildRpm:
         - "TRIVY-*.xml"
   parallel:
     matrix:
-#      - OS_VER: [ "rocky9","redos8" ]
-#        PG_VERSION: [ "15" ]
+      - OS_VER: [ "rocky9","redos8" ]
+        PG_VERSION: [ "15" ]
       - OS_VER: [ "rocky8","redos7" ]
         PG_VERSION: [ "13" ]
