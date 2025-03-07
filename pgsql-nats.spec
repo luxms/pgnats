@@ -87,10 +87,9 @@ export PATH=/usr/pgsql-%{pg_ver}/bin:$PATH
 
 cargo pgrx init --pg%{pg_ver} "/usr/pgsql-%{pg_ver}/bin/pg_config"
 cargo pgrx package
-%endif
-
+%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
-#%{_topdir}/trivy-scan.sh ./ pgpro%{pg_ver}-nats%{dist}
+%endif
 
 
 %files
