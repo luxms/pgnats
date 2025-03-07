@@ -15,7 +15,8 @@ jobs:
 
     services:
       nats:
-        image: nats:latest -js
+        image: bitnami/nats:latest
+        options: --env NATS_EXTRA_ARGS "-js"
         ports:
           - 4222:4222
 
