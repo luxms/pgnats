@@ -18,6 +18,7 @@ cargo install nats-connect
 -- Конфигурируем
 Set nats.host = '127.0.0.1';
 Set nats.port = 4222;
+Set nats.capacity = 128;
 
 -- Перезагружаем конфигурацию
 Select pgnats_reload_conf();
@@ -43,16 +44,16 @@ Select nats_put_jsonb('bucket', 'key', '{}'::jsonb);
 -- Функция сохраняет данные в формате Json в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
 Select nats_put_json('bucket', 'key', '{}'::json);
 
--- Извлекает бинарные данные по указанному ключу из указанного бакета 
+-- Извлекает бинарные данные по указанному ключу из указанного бакета
 Select nats_get_binary('bucket', 'key');
 
--- Извлекает текстовые данные по указанному ключу из указанного бакета 
+-- Извлекает текстовые данные по указанному ключу из указанного бакета
 Select nats_get_text('bucket', 'key');
 
--- Извлекает Binary Json по указанному ключу из указанного бакета 
+-- Извлекает Binary Json по указанному ключу из указанного бакета
 Select nats_get_jsonb('bucket', 'key');
 
--- Извлекает Json по указанному ключу из указанного бакета 
+-- Извлекает Json по указанному ключу из указанного бакета
 Select nats_get_json('bucket', 'key');
 
 -- Эта функция удаляет значение, связанное с указанным ключом, из указанного бакета
@@ -93,6 +94,7 @@ luxmsbi.cdc.audit.events: luxmsbi_cdc_audit
 
 - `nats.host` - Адрес сервера NATS. По-умолчанию `127.0.0.1`
 - `nats.port` - Порт, на котором работает сервер NATS. По-умолчанию `4222`
+- `nats.capacity` - Емкость очереди команд в NATS Client. По-умолчанию `128`
 
 ### connection.rs
 
@@ -100,7 +102,7 @@ luxmsbi.cdc.audit.events: luxmsbi_cdc_audit
 
 ### ctx.rs
 
-Глобальный контекст, в котором хранятся `NatsConnection` и `tokio-runtime`
+Глобальный контекст, в котором хранятся `NatsConnection`, `tokio-runtime`  и `LocalSet`
 
 ### errors.rs
 

@@ -1,48 +1,49 @@
 use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
 use async_nats::Client;
-use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use pgrx::prelude::*;
 
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
-use crate::utils::{format_message, get_stream_name_by_subject, FromBytes};
+use crate::utils::{format_message, FromBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
-  connection: RwLock<Option<Arc<Client>>>,
-  jetstream: RwLock<Option<Arc<Context>>>,
-  cached_buckets: RwLock<HashMap<String, Arc<Store>>>,
-  current_config: RwLock<Option<ConnectionOptions>>,
+  connection: Option<Client>,
+  jetstream: Option<Context>,
+  cached_buckets: HashMap<String, Store>,
+  current_config: Option<ConnectionOptions>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionOptions {
   pub host: String,
   pub port: u16,
+  pub capacity: usize,
 }
 
 impl NatsConnection {
   pub async fn publish(
-    self: &Arc<Self>,
+    &mut self,
     subject: impl ToString,
     message: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
     let subject = subject.to_string();
     let message: Vec<u8> = message.into();
-    let connection = self.get_connection().await?;
 
-    connection.publish(subject, message.into()).await?;
-    connection.flush().await?;
+    self
+      .get_connection()
+      .await?
+      .publish(subject, message.into())
+      .await?;
 
     Ok(())
   }
 
   pub async fn publish_stream(
-    self: &Arc<Self>,
+    &mut self,
     subject: impl ToString,
     message: impl Into<Vec<u8>>,
   ) -> Result<(), PgNatsError> {
@@ -50,23 +51,21 @@ impl NatsConnection {
     let message: Vec<u8> = message.into();
 
     let _ask = self
-      .touch_stream_subject(subject.clone())
+      .get_jetstream()
       .await?
       .publish(subject, message.into())
       .await?;
 
-    self.get_connection().await?.flush().await?;
-
     Ok(())
   }
 
-  pub async fn invalidate_connection(&self) {
-    let connection = { self.connection.write().take() };
+  pub async fn invalidate_connection(&mut self) {
+    let connection = { self.connection.take() };
 
     {
-      self.cached_buckets.write().clear();
-      let _ = self.jetstream.write().take();
-      let _ = self.current_config.write().take();
+      self.cached_buckets.clear();
+      let _ = self.jetstream.take();
+      let _ = self.current_config.take();
     }
 
     if let Some(conn) = connection {
@@ -86,9 +85,9 @@ impl NatsConnection {
     }
   }
 
-  pub async fn check_and_invalidate_connection(&self) {
+  pub async fn check_and_invalidate_connection(&mut self) {
     let (changed, new_config) = {
-      let config = self.current_config.read();
+      let config = &self.current_config;
       let fetched_config = fetch_connection_options();
 
       let changed = config.as_ref() != Some(&fetched_config);
@@ -99,13 +98,12 @@ impl NatsConnection {
     if changed {
       self.invalidate_connection().await;
 
-      let mut config = self.current_config.write();
-      *config = Some(new_config);
+      self.current_config = Some(new_config);
     }
   }
 
   pub async fn put_value(
-    self: &Arc<Self>,
+    &mut self,
     bucket: impl ToString,
     key: impl AsRef<str>,
     data: impl Into<Vec<u8>>,
@@ -119,7 +117,7 @@ impl NatsConnection {
   }
 
   pub async fn get_value<T: FromBytes>(
-    self: &Arc<Self>,
+    &mut self,
     bucket: impl ToString,
     key: impl Into<String>,
   ) -> Result<Option<T>, PgNatsError> {
@@ -134,7 +132,7 @@ impl NatsConnection {
   }
 
   pub async fn delete_value(
-    self: &Arc<Self>,
+    &mut self,
     bucket: impl ToString,
     key: impl AsRef<str>,
   ) -> Result<(), PgNatsError> {
@@ -145,77 +143,64 @@ impl NatsConnection {
     Ok(())
   }
 
-  async fn get_connection(self: &Arc<Self>) -> Result<Arc<Client>, PgNatsError> {
-    if let Some(client) = &*self.connection.read() {
-      return Ok(Arc::clone(client));
+  async fn get_connection(&mut self) -> Result<&Client, PgNatsError> {
+    if self.connection.is_none() {
+      self.initialize_connection().await?;
     }
 
-    let (connection, _) = self.initialize_connection().await?;
-
-    Ok(connection)
+    Ok(
+      self
+        .connection
+        .as_ref()
+        .expect("unreachable, must be initialized"),
+    )
   }
 
-  async fn get_jetstream(self: &Arc<Self>) -> Result<Arc<Context>, PgNatsError> {
-    if let Some(jetstream) = &*self.jetstream.read() {
-      return Ok(Arc::clone(jetstream));
+  async fn get_jetstream(&mut self) -> Result<&Context, PgNatsError> {
+    if self.connection.is_none() {
+      self.initialize_connection().await?;
     }
 
-    let (_, jetstream) = self.initialize_connection().await?;
-
-    Ok(jetstream)
+    Ok(
+      self
+        .jetstream
+        .as_ref()
+        .expect("unreachable, must be initialized"),
+    )
   }
 
-  async fn get_or_create_bucket(
-    self: &Arc<Self>,
-    bucket: impl ToString,
-  ) -> Result<Arc<Store>, PgNatsError> {
+  async fn get_or_create_bucket(&mut self, bucket: impl ToString) -> Result<&Store, PgNatsError> {
     let bucket = bucket.to_string();
 
-    {
-      let cached = self.cached_buckets.read();
-      if let Some(store) = cached.get(&bucket) {
-        return Ok(Arc::clone(store));
-      }
+    if !self.cached_buckets.contains_key(&bucket) {
+      let new_store = {
+        let jetstream = self.get_jetstream().await?;
+        jetstream
+          .create_key_value(async_nats::jetstream::kv::Config {
+            bucket: bucket.clone(),
+            ..Default::default()
+          })
+          .await?
+      };
+
+      let _ = self.cached_buckets.insert(bucket.clone(), new_store);
     }
 
-    let jetstream = self.get_jetstream().await?;
-    let new_store = Arc::new(
-      jetstream
-        .create_key_value(async_nats::jetstream::kv::Config {
-          bucket: bucket.clone(),
-          ..Default::default()
-        })
-        .await?,
-    );
-
-    let mut cached = self.cached_buckets.write();
-    let _ = cached.insert(bucket, Arc::clone(&new_store));
-
-    Ok(new_store)
+    Ok(
+      self
+        .cached_buckets
+        .get(&bucket)
+        .expect("unreachable, must be initialized"),
+    )
   }
 
-  async fn initialize_connection(
-    self: &Arc<Self>,
-  ) -> Result<(Arc<Client>, Arc<Context>), PgNatsError> {
+  async fn initialize_connection(&mut self) -> Result<(), PgNatsError> {
     let config = self
       .current_config
-      .write()
-      .get_or_insert_with(fetch_connection_options)
-      .clone();
+      .get_or_insert_with(fetch_connection_options);
 
-    let nats = Arc::clone(self);
     let connection = async_nats::ConnectOptions::new()
-      .event_callback(move |event| {
-        let nats = Arc::clone(&nats);
-
-        async move {
-          if let async_nats::Event::Disconnected = event {
-            nats.handle_disconnect().await;
-          }
-        }
-      })
-      .client_capacity(1)
-      .max_reconnects(Some(1))
+      .client_capacity(config.capacity)
       .connect(format!("{0}:{1}", config.host, config.port))
       .await
       .map_err(|io_error| PgNatsError::Connection {
@@ -227,26 +212,20 @@ impl NatsConnection {
     let mut jetstream = async_nats::jetstream::new(connection.clone());
     jetstream.set_timeout(std::time::Duration::from_secs(5));
 
-    let mut nats_connection = self.connection.write();
-    let mut nats_jetstream = self.jetstream.write();
+    self.connection = Some(connection);
+    self.jetstream = Some(jetstream);
 
-    let connection = Arc::new(connection);
-    let jetstream = Arc::new(jetstream);
-    *nats_connection = Some(Arc::clone(&connection));
-    *nats_jetstream = Some(Arc::clone(&jetstream));
-
-    Ok((connection, jetstream))
+    Ok(())
   }
 
-  /// Touch stream by subject
-  /// if stream for subject not exists, creat it
-  /// if stream for subject exists, but not contains current subject, add subject to config
+  #[allow(unused, deprecated)]
+  #[deprecated]
   async fn touch_stream_subject(
-    self: &Arc<Self>,
+    &mut self,
     subject: impl ToString,
-  ) -> Result<Arc<Context>, PgNatsError> {
+  ) -> Result<&Context, PgNatsError> {
     let subject = subject.to_string();
-    let stream_name = get_stream_name_by_subject(&subject);
+    let stream_name = crate::utils::get_stream_name_by_subject(&subject);
 
     let jetstream = self.get_jetstream().await?;
     let info = jetstream.get_stream(&stream_name).await;
@@ -280,9 +259,5 @@ impl NatsConnection {
     }
 
     Ok(jetstream)
-  }
-
-  async fn handle_disconnect(&self) {
-    self.invalidate_connection().await;
   }
 }
