@@ -77,18 +77,30 @@ cd %{name}-%{version}
 cargo install cargo-pgrx --version `cat .cargo-pgrx-version` --locked
 
 %if 0%{?el8} || 0%{?el9}
-%{__make} PG_CONFIG=/usr/bin/pg_server_config clean
-%make_install PG_CONFIG=/usr/bin/pg_server_config
-%{_topdir}/trivy-scan.sh ./ %{name}%{dist}
-%endif
-
-%if 0%{?redos}
-export PATH=/usr/pgsql-%{pg_ver}/bin:$PATH
-
-cargo pgrx init --pg%{pg_ver} "/usr/pgsql-%{pg_ver}/bin/pg_config"
+cargo pgrx init --pg%{pg_ver} "/usr/bin/pg_server_config"
 cargo pgrx package
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
+%endif
+
+%if 0%{?redos}
+cargo pgrx init --pg%{pg_ver} "/usr/pgsql-%{pg_ver}/bin/pg_config"
+PATH=/usr/pgsql-%{pg_ver}/bin:$PATH cargo pgrx package
+%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
+%{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
+rm -rf target
+
+cargo pgrx init --pg%{pg_ver} "/opt/pgpro/std-%{pg_ver}/bin/pg_config"
+PATH=/opt/pgpro/std-%{pg_ver}/bin:$PATH cargo pgrx package
+%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}-nats%{dist}
+%{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
+rm -rf target
+
+cargo pgrx init --pg%{pg_ver} "/opt/pgpro/ent-%{pg_ver}/bin/pg_config"
+PATH=/opt/pgpro/ent-%{pg_ver}/bin:$PATH cargo pgrx package
+%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
+%{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
+rm -rf target
 %endif
 
 
@@ -102,13 +114,13 @@ cargo pgrx package
 /usr/pgsql-%{pg_ver}/lib/
 /usr/pgsql-%{pg_ver}/share/extension
 
-#%files -n pgpro%{pg_ver}-nats
-#/opt/pgpro/std-%{pg_ver}/lib/
-#/opt/pgpro/std-%{pg_ver}/share/extension
+%files -n pgpro%{pg_ver}-nats
+/opt/pgpro/std-%{pg_ver}/lib/
+/opt/pgpro/std-%{pg_ver}/share/extension
 
-#%files -n pgpro%{pg_ver}ent-nats
-#/opt/pgpro/ent-%{pg_ver}/lib/
-#/opt/pgpro/ent-%{pg_ver}/share/extension
+%files -n pgpro%{pg_ver}ent-nats
+/opt/pgpro/ent-%{pg_ver}/lib/
+/opt/pgpro/ent-%{pg_ver}/share/extension
 %endif
 
 %changelog
