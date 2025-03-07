@@ -21,6 +21,7 @@ pub struct NatsConnection {
 pub struct ConnectionOptions {
   pub host: String,
   pub port: u16,
+  pub capacity: usize,
 }
 
 impl NatsConnection {
@@ -196,10 +197,10 @@ impl NatsConnection {
   async fn initialize_connection(&mut self) -> Result<(), PgNatsError> {
     let config = self
       .current_config
-      .get_or_insert_with(fetch_connection_options)
-      .clone();
+      .get_or_insert_with(fetch_connection_options);
 
     let connection = async_nats::ConnectOptions::new()
+      .client_capacity(config.capacity)
       .connect(format!("{0}:{1}", config.host, config.port))
       .await
       .map_err(|io_error| PgNatsError::Connection {
