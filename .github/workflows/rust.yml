@@ -16,7 +16,8 @@ jobs:
     services:
       nats:
         image: nats:latest
-        options: -js
+        options: >-
+          --jetstream
         ports:
           - 4222:4222
 
