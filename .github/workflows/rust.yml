@@ -15,9 +15,7 @@ jobs:
 
     services:
       nats:
-        image: nats:latest
-        options: >-
-          -js
+        image: nats:latest -js
         ports:
           - 4222:4222
 
