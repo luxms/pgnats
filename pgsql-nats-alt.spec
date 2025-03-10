@@ -12,6 +12,7 @@ Release:        1.%{?dist}
 Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
+Group:		    Databases
 Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
 Requires:       postgresql%{pg_ver}-server
 BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel
