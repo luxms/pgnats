@@ -84,7 +84,7 @@ cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
 rm -rf target
 
 cargo pgrx init --pg%{pg_ver} "/opt/pgpro/std-%{pg_ver}/bin/pg_config"
-cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
+cargo pgrx package --pg-config /opt/pgpro/std-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}-nats%{dist}
 %{__mkdir_p} %{buildroot}/opt/pgpro/std-%{pg_ver}/lib %{buildroot}/opt/pgpro/std-%{pg_ver}/share/extension
 %{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/std-%{pg_ver}/lib/ %{buildroot}/opt/pgpro/std-%{pg_ver}/lib/
@@ -92,7 +92,7 @@ cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
 rm -rf target
 
 cargo pgrx init --pg%{pg_ver} "/opt/pgpro/ent-%{pg_ver}/bin/pg_config"
-cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
+cargo pgrx package --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
 %{__mkdir_p} %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension
 %{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/lib/ %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib/
