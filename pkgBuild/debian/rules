@@ -17,7 +17,7 @@ define \n
 endef
 
 override_dh_prep:
-	if [ ! -f "src/Makefile" ]; then curl -sLO $(URL); unzip main.zip; mv pgnats-main src; fi
+	if [ ! -f "src/Cargo.toml" ]; then curl -sLO $(URL); unzip main.zip; mv pgnats-main src; fi
 
 override_dh_strip:
 	dh_strip
@@ -33,7 +33,7 @@ override_dh_auto_install:
 		&& /root/.cargo/bin/cargo pgrx init --pg15 $(PGCONFIG_$(pkg)) \
 		&& /root/.cargo/bin/cargo pgrx package --pg-config $(PGCONFIG_$(pkg)) \
 		&& $(if $(filter true,$(CI)),../trivy-scan.sh src $(pkg),:) \
-		&& mv target/release/pgnats-pg15 ../../debian/$(pkg) \
+		&& mv target/release/pgnats-pg15 ../debian/$(pkg) \
 		${\n} \
 	)
 

@@ -100,7 +100,7 @@ buildALSE:
     DEB_BUILD_OPTIONS: "noautodbgsym"
     REVISION: 1
   before_script:
-    - ln -s pkgBuild/debian${ALSE_VER} debian
+    - ln -s pkgBuild/debian debian
     - if [[ ${ALSE_VER} == "1.7" ]];
       then
         echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro15-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
@@ -123,7 +123,7 @@ buildALSE:
     - echo "========================= Check DEB ========================="
       && for pkg in pg*.deb; do dpkg -I $pkg; dpkg -c $pkg; done
   artifacts:
-    name: pgsql-http-deb
+    name: pgsql-nats
     paths:
       - pg*.deb
       - TRIVY-*.html
@@ -134,4 +134,33 @@ buildALSE:
     matrix:
       - ALSE_VER:
           - '1.7'
-          #- '1.8'
+          - '1.8'
+
+buildAlt10:
+  stage: build
+  image: ${HARBOR_HOST}/build/alt10:rpmBuild
+  before_script:
+    - echo "rpm http://repo.postgrespro.ru/std/std-15/altlinux/10 x86_64 pgpro" > /etc/apt/sources.list.d/pgdg.list
+    - apt-get update
+    - grep BuildRequires ./${CI_PROJECT_NAME}-alt.spec | awk -F':' '{print $2}' |sed 's/%{pg_ver}/15/g' | xargs apt-get -y install
+    - !reference [ .gen-trivy-scan-script, script ]
+  script:
+    - mv pkgBuild/selinux/pgsql-http.te ./
+    - spectool -g -C $(pwd) ./${CI_PROJECT_NAME}-alt.spec -d "version ${VERSION}" -d "pg_ver 15"
+    - rpmbuild -bb ./${CI_PROJECT_NAME}-alt.spec
+      --define "_topdir $(pwd)"
+      --define "_sourcedir $(pwd)"
+      --define "pg_ver 15"
+      --define "version ${VERSION}"
+    - mv ./RPMS/x86_64/*.rpm ${CI_PROJECT_DIR}/
+    - echo "${GPG_KEY}" | gpg --import --batch
+    - rpm --resign *.rpm
+    - !reference [.check-rpm, script]
+  artifacts:
+    name: pg-nats
+    paths:
+      - "*.rpm"
+      - "TRIVY-*.html"
+    reports:
+      junit:
+        - "TRIVY-*.xml"
