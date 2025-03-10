@@ -44,7 +44,7 @@ defVersion:
     reports:
       dotenv: variables.env
 
-buildRpm:
+.buildRpm:
   stage: build
   image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
   before_script:
@@ -113,7 +113,6 @@ buildALSE:
     - apt update
     - echo yes | mk-build-deps -ri -t "apt -o=Debug::pkgProblemResolver=yes --no-install-recommends --no-install-suggests"
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    - source $HOME/.cargo/env
     - echo "${GPG_ALSE}" | gpg --batch --import
     - echo "${GPG_ALSE_PASS}">GPG_PASS
     - !reference [ .gen-trivy-scan-script, script ]

@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 export DH_VERBOSE = 1
+export PATH="$HOME/.cargo/bin:$PATH"
 
 URL="https://github.com/luxms/pgnats/archive/refs/heads/main.zip"
 GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key=08C82543B30BE336
