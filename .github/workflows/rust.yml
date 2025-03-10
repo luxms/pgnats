@@ -13,7 +13,7 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
-      cache-key: ${{ steps.cache-dependencies.outputs.cache-key }}
+      cache-key: ${{ steps.generate-cache-key.outputs.cache-key }}
 
     steps:
       - uses: actions/checkout@v4
