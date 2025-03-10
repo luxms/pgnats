@@ -88,3 +88,47 @@ buildRpm:
         PG_VERSION: [ "15" ]
       - OS_VER: [ "rocky8","redos7" ]
         PG_VERSION: [ "13" ]
+
+buildALSE:
+  stage: build
+  image: ${HARBOR_HOST}/build/alse${ALSE_VER}:debBuild
+  variables:
+    TRIVY_SFX: alse-${ALSE_VER}
+    DEB_BUILD_OPTIONS: "noautodbgsym"
+    REVISION: 2
+  before_script:
+    - ln -s pkgBuild/debian${ALSE_VER} debian
+    - if [[ ${ALSE_VER} == "1.7" ]];
+      then
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro${PG_VERSION}-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro${PG_VERSION}-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgres/alse1_7-pgdg-${PG_VERSION} buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list;
+      else
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro${PG_VERSION}-alse1_8 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro${PG_VERSION}-alse1_8 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+      fi
+    - apt update
+    - echo yes | mk-build-deps -ri -t "apt -o=Debug::pkgProblemResolver=yes --no-install-recommends --no-install-suggests"
+    - echo "${GPG_ALSE}" | gpg --batch --import
+    - echo "${GPG_ALSE_PASS}">GPG_PASS
+    - !reference [ .gen-trivy-scan-script, script ]
+  script:
+    - dch -m -v "${VERSION}-${REVISION}~alse${ALSE_VER}" "All latest updates"
+    - debuild -eVERSION -eCI -us -uc -b
+    - mv ../pg*.deb ./
+    - echo "========================= Check DEB ========================="
+      && for pkg in pg*.deb; do dpkg -I $pkg; dpkg -c $pkg; done
+  artifacts:
+    name: pgsql-http-deb
+    paths:
+      - pg*.deb
+      - TRIVY-*.html
+    reports:
+      junit:
+        - TRIVY-*.xml
+  parallel:
+    matrix:
+      - ALSE_VER: [ '1.7' ]
+        PG_VERSION: [ '13' ]
+#      - ALSE_VER: [ '1.8' ]
+#        PG_VERSION: [ '15' ]

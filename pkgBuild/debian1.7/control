@@ -1,0 +1,23 @@
+Source: pgsql-nats
+Section: database
+Priority: optional
+Maintainer: Luxms Package Manager <repo@luxms.com>
+Build-Depends: debhelper (>= 12), curl, pkg-config, unzip, libcurl4-openssl-dev, postgresql-server-dev-13, postgrespro-std-13-dev, postgrespro-ent-13-dev
+Standards-Version: 10.0.0
+Homepage: https://github.com/luxms/pgnats/
+
+Package: pgsql13-nats
+Architecture: amd64
+Depends: ${shlibs:Depends}, postgresql-13
+Description: NATS connect for PostgreSQL.
+
+Package: pgpro13-nats
+Architecture: amd64
+Depends: ${shlibs:Depends}, postgrespro-std-13-server
+Description: NATS connect for PostgreSQL.
+
+Package: pgpro13ent-nats
+Architecture: amd64
+Depends: ${shlibs:Depends}, postgrespro-ent-13-server
+Provides: pgpro13-nats (= ${binary:Version})
+Description: NATS connect for PostgreSQL.

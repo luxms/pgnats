@@ -1,0 +1,5 @@
+pgsql-http (1.5.0-1) stable; urgency=medium
+
+  * Initial release
+
+ -- Dmitriy Koviyarov <repo@luxms.com>  Mon, 20 Jun 2022 13:01:00 +0300

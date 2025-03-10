@@ -1,0 +1,43 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+
+URL="https://github.com/pramsey/pgsql-http/archive/v$(VERSION).tar.gz"
+GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key 08C82543B30BE336
+
+PGCONFIG_pgsql15-http := /usr/lib/postgresql/15/bin/pg_config
+PGCONFIG_pgpro15-http := /opt/pgpro/std-15/bin/pg_config
+PGCONFIG_pgpro15ent-http := /opt/pgpro/ent-15/bin/pg_config
+
+PKG_LIST := $(foreach pkg,$(shell dh_listpackages), $(shell if [ -f $(PGCONFIG_$(pkg)) ] ; then echo $(pkg); fi))
+
+define \n
+
+
+endef
+
+override_dh_prep:
+	if [ ! -f "src/Makefile" ]; then curl $(URL) -sL | tar -xz -C src/ --strip-components=1; fi
+	dh_quilt_patch
+
+override_dh_strip:
+	dh_strip
+	$(if $(filter true,$(CI)),\
+		find debian/ -type f -name http.so > elf_files.list;\
+	  if [ -f elf_files.list ]; then bsign -s -E --pgoptions="$(GPG_OPTIONS)" -f elf_files.list ; bsign -c -E -f elf_files.list ||:; fi \
+	,)
+
+override_dh_auto_install:
+	$(foreach pkg,$(PKG_LIST), \
+		make -C src PG_CONFIG=$(PGCONFIG_$(pkg)) clean \
+		&& make -C src PG_CONFIG=$(PGCONFIG_$(pkg)) \
+		&& $(if $(filter true,$(CI)),./trivy-scan.sh src $(pkg),:) \
+		&& make -C src PG_CONFIG=$(PGCONFIG_$(pkg)) DESTDIR=../debian/$(pkg) install \
+		${\n} \
+	)
+
+clean:
+	mkdir -p src
+	dh clean
+
+%:
+	dh $@ --srcdirectory=src $(foreach opt,$(PKG_LIST), -p$(opt) )
