@@ -29,7 +29,7 @@ jobs:
       - name: Generate cache key
         id: generate-cache-key
         run: |
-          echo "cache-key=${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}" >> $GITHUB_OUTPUT
+          echo "cache-key=${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}-${{ hashFiles('.cargo-pgrx-version') }}" >> $GITHUB_OUTPUT
 
       - name: Cache dependencies
         id: cache-dependencies
