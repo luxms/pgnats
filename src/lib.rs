@@ -1,14 +1,14 @@
 ::pgrx::pg_module_magic!();
 
 mod config;
-mod connection;
-mod ctx;
 mod errors;
 mod init;
-mod tests;
+mod pgnats_tests;
 mod utils;
 
 pub mod api;
+pub mod connection;
+pub mod ctx;
 
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.

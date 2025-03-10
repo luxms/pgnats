@@ -94,6 +94,9 @@ jobs:
       - name: Run pgrx tests
         run: cargo pgrx test
 
+      - name: Run nats tests
+        run: cargo test --test nats_tests
+
   clippy:
     runs-on: ubuntu-latest
     needs: setup

@@ -22,7 +22,7 @@ mod tests {
   }
 
   #[pg_test]
-  fn test_nats_publish() {
+  fn test_pgnats_publish() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
     Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
@@ -35,7 +35,7 @@ mod tests {
 
   #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
-  fn test_nats_publish_stream() {
+  fn test_pgnats_publish_stream() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
     Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
@@ -48,7 +48,7 @@ mod tests {
 
   #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
-  fn test_nats_put_and_get_binary() {
+  fn test_pgnats_put_and_get_binary() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
     Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
@@ -76,7 +76,7 @@ mod tests {
 
   #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
-  fn test_nats_put_and_get_text() {
+  fn test_pgnats_put_and_get_text() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
     Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
@@ -96,7 +96,7 @@ mod tests {
 
   #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
-  fn test_nats_put_and_get_json() {
+  fn test_pgnats_put_and_get_json() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
     Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
@@ -117,7 +117,7 @@ mod tests {
 
   #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
-  fn test_nats_put_and_get_jsonb() {
+  fn test_pgnats_put_and_get_jsonb() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
     Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
@@ -146,7 +146,7 @@ mod tests {
 
   #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
-  fn test_nats_delete_value() {
+  fn test_pgnats_delete_value() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
     Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
