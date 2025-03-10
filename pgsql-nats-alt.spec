@@ -33,8 +33,8 @@ unzip %{SOURCE0}
 %install
 cd %{name}-%{version}
 cargo install cargo-pgrx --version `cat .cargo-pgrx-version` --locked
-cargo pgrx init --pg%{pg_ver} "/usr/pgsql-%{pg_ver}/bin/pg_config"
-cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
+cargo pgrx init --pg%{pg_ver} "/usr/bin/pg_config"
+cargo pgrx package --pg-config /usr/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mkdir_p} %{buildroot}/usr/lib64/pgsql %{buildroot}/usr/share/pgsql/extension
 %{__mv} target/release/pgnats-pg%{pg_ver}/usr/pgsql-%{pg_ver}/lib/ %{buildroot}/usr/lib64/pgsql/
