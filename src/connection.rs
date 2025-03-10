@@ -25,6 +25,13 @@ pub struct ConnectionOptions {
 }
 
 impl NatsConnection {
+  pub fn new(opt: Option<ConnectionOptions>) -> Self {
+    Self {
+      current_config: opt,
+      ..Default::default()
+    }
+  }
+
   pub async fn publish(
     &mut self,
     subject: impl ToString,
@@ -93,6 +100,22 @@ impl NatsConnection {
       let changed = config.as_ref() != Some(&fetched_config);
 
       (changed, fetched_config)
+    };
+
+    if changed {
+      self.invalidate_connection().await;
+
+      self.current_config = Some(new_config);
+    }
+  }
+
+  pub async fn set_config(&mut self, opt: ConnectionOptions) {
+    let (changed, new_config) = {
+      let config = &self.current_config;
+
+      let changed = config.as_ref() != Some(&opt);
+
+      (changed, opt)
     };
 
     if changed {
