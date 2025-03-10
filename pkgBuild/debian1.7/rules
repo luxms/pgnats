@@ -30,9 +30,10 @@ override_dh_auto_install:
 	/root/.cargo/bin/cargo install cargo-pgrx --version `cat src/.cargo-pgrx-version` --locked
 	$(foreach pkg,$(PKG_LIST), \
 		cd src/ \
-		&& /root/.cargo/bin/cargo pgrx init --pg15 $(PGCONFIG_$(pkg)) \
-		&& /root/.cargo/bin/cargo pgrx package --pg-config $(PGCONFIG_$(pkg)) \
-		&& $(if $(filter true,$(CI)),../trivy-scan.sh src $(pkg),:) \
+		#&& /root/.cargo/bin/cargo pgrx init --pg15 $(PGCONFIG_$(pkg)) \
+		#&& /root/.cargo/bin/cargo pgrx package --pg-config $(PGCONFIG_$(pkg)) \
+		#&& $(if $(filter true,$(CI)),../trivy-scan.sh src $(pkg),:) \
+		&& pwd && ls -la && ls -la ../ && ls -la ../../ \
 		&& mv target/release/pgnats-pg15 ../../debian/$(pkg) \
 		${\n} \
 	)
