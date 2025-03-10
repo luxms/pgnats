@@ -92,7 +92,7 @@ defVersion:
         PG_VERSION:
           - "15"
 
-buildALSE:
+.buildALSE:
   stage: build
   image: ${HARBOR_HOST}/build/alse${ALSE_VER}:debBuild
   variables:
@@ -145,7 +145,6 @@ buildAlt10:
     - grep BuildRequires ./${CI_PROJECT_NAME}-alt.spec | awk -F':' '{print $2}' |sed 's/%{pg_ver}/15/g' | xargs apt-get -y install
     - !reference [ .gen-trivy-scan-script, script ]
   script:
-    - mv pkgBuild/selinux/pgsql-http.te ./
     - spectool -g -C $(pwd) ./${CI_PROJECT_NAME}-alt.spec -d "version ${VERSION}" -d "pg_ver 15"
     - rpmbuild -bb ./${CI_PROJECT_NAME}-alt.spec
       --define "_topdir $(pwd)"
