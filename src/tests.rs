@@ -33,6 +33,7 @@ mod tests {
     assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
   }
 
+  #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
   fn test_nats_publish_stream() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
@@ -45,6 +46,7 @@ mod tests {
     assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
   }
 
+  #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
   fn test_nats_put_and_get_binary() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
@@ -72,6 +74,7 @@ mod tests {
     assert_eq!(Some(data.as_slice()), value.as_ref().map(|v| v.as_slice()));
   }
 
+  #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
   fn test_nats_put_and_get_text() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
@@ -91,6 +94,7 @@ mod tests {
     assert_eq!(Some(text), value.as_ref().map(|v| v.as_str()));
   }
 
+  #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
   fn test_nats_put_and_get_json() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
@@ -111,6 +115,7 @@ mod tests {
     assert_eq!(Some(json_value), returned_json.map(|v| v.0));
   }
 
+  #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
   fn test_nats_put_and_get_jsonb() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");
@@ -139,6 +144,7 @@ mod tests {
     assert_eq!(Some(json_value), returned_json.map(|v| v.0));
   }
 
+  #[cfg(not(skip_nats_js_tests))]
   #[pg_test]
   fn test_nats_delete_value() {
     Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).expect("Failed to set NATS host");

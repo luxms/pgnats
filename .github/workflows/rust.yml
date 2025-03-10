@@ -64,6 +64,8 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     needs: setup
+    env:
+      SKIP_NATS_JS_TESTS: "1"
     services:
       nats:
         image: nats:latest

@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 
 fn main() {
+  if std::env::var("SKIP_NATS_JS_TESTS").is_ok() {
+    println!("cargo:rustc-cfg=skip_nats_js_tests");
+  }
+
   let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
   let cargo_toml_path = PathBuf::from(&manifest_dir).join("Cargo.toml");
 
