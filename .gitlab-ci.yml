@@ -98,7 +98,7 @@ buildALSE:
   variables:
     TRIVY_SFX: alse-${ALSE_VER}
     DEB_BUILD_OPTIONS: "noautodbgsym"
-    REVISION: 2
+    REVISION: 1
   before_script:
     - ln -s pkgBuild/debian${ALSE_VER} debian
     - if [[ ${ALSE_VER} == "1.7" ]];
