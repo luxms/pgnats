@@ -4,10 +4,10 @@ export DH_VERBOSE = 1
 URL="https://github.com/luxms/pgnats/archive/refs/heads/main.zip"
 GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key=08C82543B30BE336
 
-PGCONFIG_pgsql15-http := /usr/lib/postgresql/15/bin/pg_config
-PGCONFIG_pgpro15-http := /opt/pgpro/std-15/bin/pg_config
-PGCONFIG_pgpro15ent-http := /opt/pgpro/ent-15/bin/pg_config
-PGCONFIG_jatoba4-http := /usr/jatoba-4/bin/pg_config
+PGCONFIG_pgsql15-nats := /usr/lib/postgresql/15/bin/pg_config
+PGCONFIG_pgpro15-nats := /opt/pgpro/std-15/bin/pg_config
+PGCONFIG_pgpro15ent-nats := /opt/pgpro/ent-15/bin/pg_config
+PGCONFIG_jatoba4-nats := /usr/jatoba-4/bin/pg_config
 
 PKG_LIST := $(foreach pkg,$(shell dh_listpackages), $(shell if [ -f $(PGCONFIG_$(pkg)) ] ; then echo $(pkg); fi))
 
