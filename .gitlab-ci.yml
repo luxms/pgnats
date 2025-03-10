@@ -143,6 +143,8 @@ buildAlt10:
     - echo "rpm http://repo.postgrespro.ru/std/std-15/altlinux/10 x86_64 pgpro" > /etc/apt/sources.list.d/pgdg.list
     - apt-get update
     - grep BuildRequires ./${CI_PROJECT_NAME}-alt.spec | awk -F':' '{print $2}' |sed 's/%{pg_ver}/15/g' | xargs apt-get -y install
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - source $HOME/.cargo/env
     - !reference [ .gen-trivy-scan-script, script ]
   script:
     - spectool -g -C $(pwd) ./${CI_PROJECT_NAME}-alt.spec -d "version ${VERSION}" -d "pg_ver 15"
