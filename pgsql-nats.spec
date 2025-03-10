@@ -28,7 +28,7 @@ Distribution:   redos/%{redos_ver}/x86_64
 %if 0%{?el8} || 0%{?el9}
 Requires:       postgresql-server >= %{pg_ver} postgresql-server < %(echo $((%{pg_ver} + 1)))
 BuildRequires:  postgresql-server-devel >= %{pg_ver} postgresql-server-devel < %(echo $((%{pg_ver} + 1)))
-BuildRequires:  pkg-config unzip openssl-devel
+BuildRequires:  pkg-config unzip openssl-devel clang
 Disttag:        el%{rhel}
 Distribution:   el/%{rhel}/x86_64
 %endif
@@ -69,26 +69,26 @@ cargo install cargo-pgrx --version `cat .cargo-pgrx-version` --locked
 
 %if 0%{?el8} || 0%{?el9}
 cargo pgrx init --pg%{pg_ver} "/usr/bin/pg_server_config"
-cargo pgrx package
+cargo pgrx package --pg-config /usr/bin/pg_server_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
 %endif
 
 %if 0%{?redos}
 cargo pgrx init --pg%{pg_ver} "/usr/pgsql-%{pg_ver}/bin/pg_config"
-PATH=/usr/pgsql-%{pg_ver}/bin:$PATH cargo pgrx package
+cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
 rm -rf target
 
 cargo pgrx init --pg%{pg_ver} "/opt/pgpro/std-%{pg_ver}/bin/pg_config"
-PATH=/opt/pgpro/std-%{pg_ver}/bin:$PATH cargo pgrx package
+cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
 rm -rf target
 
 cargo pgrx init --pg%{pg_ver} "/opt/pgpro/ent-%{pg_ver}/bin/pg_config"
-PATH=/opt/pgpro/ent-%{pg_ver}/bin:$PATH cargo pgrx package
+cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
 rm -rf target
