@@ -26,6 +26,11 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Generate cache key
+        id: generate-cache-key
+        run: |
+          echo "cache-key=${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}" >> $GITHUB_OUTPUT
+
       - name: Cache dependencies
         id: cache-dependencies
         uses: actions/cache@v4
@@ -36,7 +41,7 @@ jobs:
             target
             ~/.cargo/bin
             ~/.pgrx
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ steps.generate-cache-key.outputs.cache-key }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -78,6 +83,8 @@ jobs:
             ~/.cargo/bin
             ~/.pgrx
           key: ${{ needs.setup.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Wait for NATS
         run: timeout 60 sh -c 'until nc -z localhost 4222; do sleep 1; done'
@@ -101,6 +108,8 @@ jobs:
             ~/.cargo/bin
             ~/.pgrx
           key: ${{ needs.setup.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Run Clippy
         run: cargo clippy -- -D warnings
