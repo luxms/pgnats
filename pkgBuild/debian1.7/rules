@@ -1,8 +1,5 @@
 #!/usr/bin/make -f
 export DH_VERBOSE = 1
-echo $PATH
-export PATH="$HOME/.cargo/bin:$PATH"
-echo $PATH
 
 URL="https://github.com/luxms/pgnats/archive/refs/heads/main.zip"
 GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key=08C82543B30BE336
@@ -30,6 +27,7 @@ override_dh_strip:
 	,)
 
 override_dh_auto_install:
+	export PATH="$HOME/.cargo/bin:$PATH"
 	cargo install cargo-pgrx --version `cat .cargo-pgrx-version` --locked
 	$(foreach pkg,$(PKG_LIST), \
 		cd src \
