@@ -84,10 +84,13 @@ buildRpm:
         - "TRIVY-*.xml"
   parallel:
     matrix:
-      - OS_VER: [ "rocky9","redos8" ]
-        PG_VERSION: [ "15" ]
-      - OS_VER: [ "rocky8","redos7" ]
-        PG_VERSION: [ "13" ]
+      - OS_VER:
+          - "rocky9"
+          - "redos8"
+          - "rocky8"
+          - "redos7"
+        PG_VERSION:
+          - "15"
 
 buildALSE:
   stage: build
@@ -100,15 +103,17 @@ buildALSE:
     - ln -s pkgBuild/debian${ALSE_VER} debian
     - if [[ ${ALSE_VER} == "1.7" ]];
       then
-        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro${PG_VERSION}-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
-        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro${PG_VERSION}-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
-        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgres/alse1_7-pgdg-${PG_VERSION} buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro15-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro15-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgres/alse1_7-pgdg-15 buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list;
       else
-        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro${PG_VERSION}-alse1_8 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
-        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro${PG_VERSION}-alse1_8 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro15-alse1_8 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro15-alse1_8 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
       fi
     - apt update
     - echo yes | mk-build-deps -ri -t "apt -o=Debug::pkgProblemResolver=yes --no-install-recommends --no-install-suggests"
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - source $HOME/.cargo/env
     - echo "${GPG_ALSE}" | gpg --batch --import
     - echo "${GPG_ALSE_PASS}">GPG_PASS
     - !reference [ .gen-trivy-scan-script, script ]
@@ -128,7 +133,6 @@ buildALSE:
         - TRIVY-*.xml
   parallel:
     matrix:
-      - ALSE_VER: [ '1.7' ]
-        PG_VERSION: [ '13' ]
-#      - ALSE_VER: [ '1.8' ]
-#        PG_VERSION: [ '15' ]
+      - ALSE_VER:
+          - '1.7'
+          #- '1.8'
