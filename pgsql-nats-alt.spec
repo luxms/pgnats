@@ -15,7 +15,7 @@ License:        CorpGPL
 Group:		    Databases
 Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
 Requires:       postgresql%{pg_ver}-server
-BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel
+BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel libpq5-devel-15
 
 Disttag:        alt10
 Distribution:   alt/p10/x86_64/RPMS.thirdparty/
