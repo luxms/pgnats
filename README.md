@@ -2,8 +2,6 @@
 
 PostgreSQL расширение для работы с NATS
 
-**WIP, Not usable yet!**
-
 ## Install
 
 ```sh
