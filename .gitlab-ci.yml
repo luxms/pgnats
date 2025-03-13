@@ -44,7 +44,7 @@ defVersion:
     reports:
       dotenv: variables.env
 
-.buildRpm:
+buildRpm:
   stage: build
   image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
   before_script:
@@ -92,7 +92,7 @@ defVersion:
         PG_VERSION:
           - "15"
 
-.buildALSE:
+buildALSE:
   stage: build
   image: ${HARBOR_HOST}/build/alse${ALSE_VER}:debBuild
   variables:
