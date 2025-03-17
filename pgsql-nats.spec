@@ -16,7 +16,7 @@ Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
 
-Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
+Source0:        https://github.com/luxms/pgnats/archive/refs/heads/fix/pgpro.zip
 
 %if 0%{?redos}
 Requires:       postgresql%{pg_ver}-server
@@ -60,7 +60,7 @@ NATS connect for PostgresPRO-ent
 %prep
 %{__rm} -rf %{name}-%{version}
 unzip %{SOURCE0}
-%{__mv} pgnats-main %{name}-%{version}
+%{__mv} pgnats-fix-pgpro %{name}-%{version}
 
 
 %install
@@ -92,7 +92,7 @@ cargo pgrx package --pg-config /opt/pgpro/std-%{pg_ver}/bin/pg_config
 rm -rf target
 
 cargo pgrx init --pg%{pg_ver} "/opt/pgpro/ent-%{pg_ver}/bin/pg_config"
-cargo pgrx package --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
+cargo pgrx package --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config --features pgpro_ent
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
 %{__mkdir_p} %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension
 %{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/lib/ %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib/

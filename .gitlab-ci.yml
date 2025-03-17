@@ -92,7 +92,7 @@ buildRpm:
         PG_VERSION:
           - "15"
 
-buildALSE:
+.buildALSE:
   stage: build
   image: ${HARBOR_HOST}/build/alse${ALSE_VER}:debBuild
   variables:
@@ -136,7 +136,7 @@ buildALSE:
           - '1.7'
           - '1.8'
 
-buildAlt10:
+.buildAlt10:
   stage: build
   image: ${HARBOR_HOST}/build/alt10:rpmBuild
   before_script:
