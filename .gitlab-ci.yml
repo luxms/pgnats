@@ -85,11 +85,6 @@ defVersion:
   parallel:
     matrix:
       - OS_VER:
-          - "redos7"
-          - "redos8"
-        PG_VERSION:
-          - "13"
-      - OS_VER:
           - "rocky9"
           - "rocky8"
           - "redos7"
