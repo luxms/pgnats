@@ -66,7 +66,7 @@ rm -rf target
 /opt/pgpro/std-%{pg_ver}/lib/
 /opt/pgpro/std-%{pg_ver}/share/extension
 
-%files -n pgpro%{pg_ver}-http
+%files -n pgpro%{pg_ver}-nats
 /opt/pgpro/std-%{pg_ver}/lib/
 /opt/pgpro/std-%{pg_ver}/share/extension
 
