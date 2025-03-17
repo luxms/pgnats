@@ -6,6 +6,12 @@ Build-Depends: debhelper (>= 12), curl, pkg-config, unzip, libcurl4-openssl-dev,
 Standards-Version: 10.0.0
 Homepage: https://github.com/luxms/pgnats/
 
+Package: pgpro15ent-nats
+Architecture: amd64
+Depends: ${shlibs:Depends}, postgrespro-ent-15-server
+Provides: pgpro15-nats (= ${binary:Version})
+Description: NATS connect for PostgreSQL.
+
 Package: pgsql15-nats
 Architecture: amd64
 Depends: ${shlibs:Depends}, postgresql-15
@@ -16,8 +22,3 @@ Architecture: amd64
 Depends: ${shlibs:Depends}, postgrespro-std-15-server
 Description: NATS connect for PostgreSQL.
 
-Package: pgpro15ent-nats
-Architecture: amd64
-Depends: ${shlibs:Depends}, postgrespro-ent-15-server
-Provides: pgpro15-nats (= ${binary:Version})
-Description: NATS connect for PostgreSQL.
