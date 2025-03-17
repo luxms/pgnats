@@ -44,7 +44,7 @@ defVersion:
     reports:
       dotenv: variables.env
 
-buildRpm:
+.buildRpm:
   stage: build
   image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
   before_script:
@@ -85,14 +85,19 @@ buildRpm:
   parallel:
     matrix:
       - OS_VER:
-          - "rocky9"
+          - "redos7"
           - "redos8"
+        PG_VERSION:
+          - "13"
+      - OS_VER:
+          - "rocky9"
           - "rocky8"
           - "redos7"
+          - "redos8"
         PG_VERSION:
           - "15"
 
-.buildALSE:
+buildALSE:
   stage: build
   image: ${HARBOR_HOST}/build/alse${ALSE_VER}:debBuild
   variables:
