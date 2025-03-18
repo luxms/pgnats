@@ -12,7 +12,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sudo apt-get install build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
 
 # 3. Install cargo-pgrx
-cargo install --locked cargo-pgrx --version 0.13.1
+cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 
 # 4. Initialize pgrx
 cargo pgrx init
