@@ -1,5 +1,6 @@
 %global         __brp_check_rpaths %{nil}
 %define         _build_id_links   none
+%define         debug_package  %{nil}
 
 %{!?version:    %define version %{VERSION}}
 %{!?pg_ver:     %define pg_ver 13}

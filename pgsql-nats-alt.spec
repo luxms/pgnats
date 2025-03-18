@@ -1,5 +1,6 @@
 %global         __brp_check_rpaths %{nil}
 %define         _build_id_links   none
+%define         debug_package  %{nil}
 
 %{!?version:    %define version %{VERSION}}
 %{!?pg_ver:     %define pg_ver 15}
@@ -42,14 +43,15 @@ unzip %{SOURCE0}
 
 %install
 cd %{name}-%{version}
-cargo install cargo-pgrx --version `cat .cargo-pgrx-version` --locked
+cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 
-#cargo pgrx init --pg%{pg_ver} "/usr/bin/pg_config"
-#cargo pgrx package --pg-config /usr/bin/pg_config
-#%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
-#%{__mkdir_p} %{buildroot}/usr/lib64/pgsql %{buildroot}/usr/share/pgsql/extension
-#%{__mv} target/release/pgnats-pg%{pg_ver}/usr/pgsql-%{pg_ver}/lib/ %{buildroot}/usr/lib64/pgsql/
-#%{__mv} target/release/pgnats-pg%{pg_ver}/usr/pgsql-%{pg_ver}/share/extension/ %{buildroot}/usr/share/pgsql/extension/
+cargo pgrx init --pg%{pg_ver} /usr/bin/pg_config --skip-version-check
+cargo pgrx package --pg-config /usr/bin/pg_config
+%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
+%{__mkdir_p} %{buildroot}/usr/lib64/pgsql %{buildroot}/usr/share/pgsql/extension
+%{__mv} target/release/pgnats-pg%{pg_ver}/usr/pgsql-%{pg_ver}/lib/ %{buildroot}/usr/lib64/pgsql/
+%{__mv} target/release/pgnats-pg%{pg_ver}/usr/pgsql-%{pg_ver}/share/extension/ %{buildroot}/usr/share/pgsql/extension/
+rm -rf target
 
 cargo pgrx init --pg%{pg_ver} "/opt/pgpro/std-%{pg_ver}/bin/pg_config"
 cargo pgrx package --pg-config /opt/pgpro/std-%{pg_ver}/bin/pg_config
@@ -61,10 +63,8 @@ rm -rf target
 
 
 %files
-#/usr/lib64/pgsql/
-#/usr/share/pgsql/extension/
-/opt/pgpro/std-%{pg_ver}/lib/
-/opt/pgpro/std-%{pg_ver}/share/extension
+/usr/lib64/pgsql/
+/usr/share/pgsql/extension/
 
 %files -n pgpro%{pg_ver}-nats
 /opt/pgpro/std-%{pg_ver}/lib/
