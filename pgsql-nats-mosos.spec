@@ -40,8 +40,8 @@ cargo pgrx init --pg%{pg_ver} /usr/lib/postgresql%{pg_ver}/bin/pg_config --skip-
 cargo pgrx package --pg-config /usr/lib/postgresql%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mkdir_p} %{buildroot}/usr/lib/postgresql%{pg_ver}/lib64 %{buildroot}/usr/share/postgresql%{pg_ver}/extension
-%{__mv} target/release/pgnats-pg%{pg_ver}/usr/pgsql-%{pg_ver}/lib/ %{buildroot}/usr/lib/postgresql%{pg_ver}/lib64/
-%{__mv} target/release/pgnats-pg%{pg_ver}/usr/pgsql-%{pg_ver}/share/extension/ %{buildroot}/usr/share/postgresql%{pg_ver}/extension/
+%{__mv} target/release/pgnats-pg%{pg_ver}/usr/lib/postgresql%{pg_ver}/lib64/ %{buildroot}/usr/lib/postgresql%{pg_ver}/lib64/
+%{__mv} target/release/pgnats-pg%{pg_ver}/usr/share/postgresql%{pg_ver}/extension/ %{buildroot}/usr/share/postgresql%{pg_ver}/extension/
 rm -rf target
 
 
