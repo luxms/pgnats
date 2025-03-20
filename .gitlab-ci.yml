@@ -136,7 +136,7 @@ defVersion:
           - '1.7'
           - '1.8'
 
-buildAlt10:
+.buildAlt10:
   stage: build
   image: ${HARBOR_HOST}/build/alt10:rpmBuild
   before_script:
@@ -159,6 +159,35 @@ buildAlt10:
     - !reference [.check-rpm, script]
   artifacts:
     name: pg-nats
+    paths:
+      - "*.rpm"
+      - "TRIVY-*.html"
+    reports:
+      junit:
+        - "TRIVY-*.xml"
+
+buildRpmMosOS:
+  stage: build
+  image: ${HARBOR_HOST}/build/mosos:rpmBuild
+  variables:
+    PG_VERSION: "15"
+  before_script:
+    - zypper ar -G https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/mosos15/pgsql15/ pgsql
+    - !reference [ .gen-trivy-scan-script, script ]
+  script:
+    - zypper install -y $(rpmspec -q --buildrequires ./${CI_PROJECT_NAME}-mosos.spec -D "version ${VERSION}" -D "pg_ver ${PG_VERSION}")
+    - spectool -g -C $(pwd) ./${CI_PROJECT_NAME}-mosos.spec -d "version ${VERSION}" -d "pg_ver ${PG_VERSION}"
+    - rpmbuild -bb ./${CI_PROJECT_NAME}-mosos.spec
+      --define "_topdir $(pwd)"
+      --define "_sourcedir $(pwd)"
+      --define "pg_ver ${PG_VERSION}"
+      --define "version ${VERSION}"
+    - mv ./RPMS/x86_64/*.rpm ${CI_PROJECT_DIR}/
+    - echo "${GPG_KEY}" | gpg --import --batch
+    - rpm --resign *.rpm
+    - !reference [.check-rpm, script]
+  artifacts:
+    name: pg-http-rpm
     paths:
       - "*.rpm"
       - "TRIVY-*.html"
