@@ -71,9 +71,16 @@ jobs:
         image: nats:latest
         ports:
           - 4222:4222
+        options: --name jetstream
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Restart NATS with Jetstream
+        run: |
+          chmod a+x ${{ github.workspace }}/.github/workflows/nats_entrypoint.sh
+          docker cp ${{ github.workspace }}/.github/workflows/nats_entrypoint.sh jetstream:/usr/local/bin/docker-entrypoint.sh
+          docker restart jetstream
 
       - name: Restore cached dependencies
         uses: actions/cache@v4
