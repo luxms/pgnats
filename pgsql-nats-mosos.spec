@@ -17,7 +17,7 @@ URL:            https://github.com/pramsey/pgsql-nats
 License:        CorpGPL
 Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
 Requires:       postgresql%{pg_ver}-server
-BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel
+BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel clang
 Disttag:        mosos
 Distribution:   mosos/15.5/x86_64
 

@@ -173,7 +173,7 @@ buildRpmMosOS:
     PG_VERSION: "15"
   before_script:
     - zypper ar -G https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/mosos15/pgsql15/ pgsql
-    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - curl --proto '=https' --tlsv1.3 -sSf https://sh.rustup.rs | sh -s -- -y
     - source $HOME/.cargo/env
     - !reference [ .gen-trivy-scan-script, script ]
   script:
