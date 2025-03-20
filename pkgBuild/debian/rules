@@ -18,7 +18,7 @@ define \n
 endef
 
 override_dh_prep:
-	if [ ! -f "src/Cargo.toml" ]; then curl -sLO $(URL); unzip pgpro.zip; mv pgnats-main src; fi
+	if [ ! -f "src/Cargo.toml" ]; then curl -sLO $(URL); unzip main.zip; mv pgnats-main src; fi
 
 override_dh_strip:
 	dh_strip
