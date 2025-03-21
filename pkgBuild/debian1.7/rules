@@ -7,10 +7,6 @@ GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --def
 PGCONFIG_pgsql13-nats := /usr/lib/postgresql/13/bin/pg_config
 PGCONFIG_pgpro13-nats := /opt/pgpro/std-13/bin/pg_config
 PGCONFIG_pgpro13ent-nats := /opt/pgpro/ent-13/bin/pg_config
-PGCONFIG_pgsql15-nats := /usr/lib/postgresql/15/bin/pg_config
-PGCONFIG_pgpro15-nats := /opt/pgpro/std-15/bin/pg_config
-PGCONFIG_pgpro15ent-nats := /opt/pgpro/ent-15/bin/pg_config
-PGCONFIG_jatoba4-nats := /usr/jatoba-4/bin/pg_config
 
 PKG_LIST := $(foreach pkg,$(shell dh_listpackages), $(shell if [ -f $(PGCONFIG_$(pkg)) ] ; then echo $(pkg); fi))
 
@@ -33,10 +29,10 @@ override_dh_auto_install:
 	/root/.cargo/bin/cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 	$(foreach pkg,$(PKG_LIST), \
 		cd src/ \
-		&& /root/.cargo/bin/cargo pgrx init --pg15 $(PGCONFIG_$(pkg)) \
+		&& /root/.cargo/bin/cargo pgrx init --pg13 $(PGCONFIG_$(pkg)) \
 		&& /root/.cargo/bin/cargo pgrx package --pg-config $(PGCONFIG_$(pkg)) \
 		&& $(if $(filter true,$(CI)),../trivy-scan.sh src $(pkg),:) \
-		&& mv target/release/pgnats-pg15 ../debian/$(pkg) \
+		&& mv target/release/pgnats-pg13 ../debian/$(pkg) \
 		${\n} \
 	)
 
