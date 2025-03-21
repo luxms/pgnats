@@ -21,19 +21,3 @@ Architecture: amd64
 Depends: ${shlibs:Depends}, postgrespro-ent-13-server
 Provides: pgpro13-nats (= ${binary:Version})
 Description: NATS connect for PostgreSQL.
-
-Package: pgsql15-nats
-Architecture: amd64
-Depends: ${shlibs:Depends}, postgresql-15
-Description: NATS connect for PostgreSQL.
-
-Package: pgpro15-nats
-Architecture: amd64
-Depends: ${shlibs:Depends}, postgrespro-std-15-server
-Description: NATS connect for PostgreSQL.
-
-Package: pgpro15ent-nats
-Architecture: amd64
-Depends: ${shlibs:Depends}, postgrespro-ent-15-server
-Provides: pgpro15-nats (= ${binary:Version})
-Description: NATS connect for PostgreSQL.
