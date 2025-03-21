@@ -105,7 +105,7 @@ buildALSE:
     DEB_BUILD_OPTIONS: "noautodbgsym"
     REVISION: 1
   before_script:
-    - ln -s pkgBuild/debian debian
+    - ln -s pkgBuild/debian${ALSE_VER} debian
     - if [[ ${ALSE_VER} == "1.7" ]];
       then
         echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro15-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
