@@ -108,6 +108,9 @@ buildALSE:
     - ln -s pkgBuild/debian${ALSE_VER} debian
     - if [[ ${ALSE_VER} == "1.7" ]];
       then
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro13-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro13-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
+        echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgres/alse1_7-pgdg-13 buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list;
         echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-std/pgpro15-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
         echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgrespro-ent/pgpro15-alse1_7 ${ALSE_VER}_x86-64 main" >> /etc/apt/sources.list.d/pgdg.list;
         echo "deb [ trusted=yes ] https://katello.spb.luxms.com/pulp/content/Luxms/Library/custom/postgres/alse1_7-pgdg-15 buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list;
