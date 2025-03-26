@@ -18,6 +18,14 @@ cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 cargo pgrx init
 ```
 
+## PostgreSQL Configure options
+
+You can fine tune PostgreSQL build options:
+
+```
+cargo pgrx init --configure-flag='--without-icu'
+```
+
 ## Build package
 
 ```sh
