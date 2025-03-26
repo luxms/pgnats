@@ -25,6 +25,10 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          cache: true
+          cache-key: ${{ steps.generate-cache-key.outputs.cache-key }}
 
       - name: Generate cache key
         id: generate-cache-key
@@ -44,6 +48,9 @@ jobs:
           key: ${{ steps.generate-cache-key.outputs.cache-key }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Update pgnats dependencies
+        run: cargo update
 
       - name: Install pgrx
         run: |
