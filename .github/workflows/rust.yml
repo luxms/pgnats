@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: ["main", "ghactions"]
+    branches: ["main", "ghactions", "pgpro"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "pgpro"]
 
 env:
   CARGO_TERM_COLOR: always
