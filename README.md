@@ -4,19 +4,7 @@ PostgreSQL расширение для работы с NATS
 
 ## Install
 
-```sh
-# 1. Install Rust >= 1.81.0
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# 2. Install pgrx dependencies
-sudo apt-get install build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
-
-# 3. Install cargo-pgrx
-cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
-
-# 4. Initialize pgrx
-cargo pgrx init
-```
+See [INSTALL.md](INSTALL.md) for instructions on how to install required system dependencies.
 
 ## PostgreSQL Configure options
 
@@ -36,6 +24,9 @@ cargo pgrx package
 
 > [!WARNING]
 > Before starting the test, NATS-Server should be started on a local host with port 4222.
+
+> [!WARNING]
+> You need docker installed for integration testing.
 
 **1. Run all tests**
 ```sh
