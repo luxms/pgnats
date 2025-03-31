@@ -2,7 +2,7 @@ use crate::{config::initialize_configuration, ctx::CTX};
 use pgrx::prelude::*;
 
 #[pg_guard]
-pub extern "C" fn _PG_init() {
+pub extern "C-unwind" fn _PG_init() {
     initialize_configuration();
 
     unsafe {
@@ -11,7 +11,7 @@ pub extern "C" fn _PG_init() {
 }
 
 #[pg_guard]
-pub extern "C" fn _PG_fini() {
+pub extern "C-unwind" fn _PG_fini() {
     CTX.with_borrow_mut(|ctx| {
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
