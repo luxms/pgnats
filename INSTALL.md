@@ -20,6 +20,11 @@ cargo pgrx init
 git clone https://github.com/luxms/pgnats -b pgpro
 ```
 
+> [!WARNING]
+> If you want to specify the path to the installed `pg_config`, use the following command:
+>
+> `cargo pgrx init -pg<POSTGRES_VERSION> <path to pg_config> --skip-version-check`
+
 
 #### Other Linux:
 
@@ -30,7 +35,7 @@ git clone https://github.com/luxms/pgnats -b pgpro
 cargo install cargo-pgrx --version 0.13.1 --locked
 
 # 2. Initialize pgrx
-cargo pgrx init
+cargo pgrx init [-pg<POSTGRES_VERSION> <path to pg_config>]
 
 # 3. Clone repo
 git clone https://github.com/luxms/pgnats
@@ -43,7 +48,7 @@ git clone https://github.com/luxms/pgnats
 cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
 
 # 2. Initialize pgrx
-cargo pgrx init
+cargo pgrx init -pg<POSTGRES_VERSION> <path to pg_config>
 
 # 3. Clone repo
 git clone https://github.com/luxms/pgnats -b pgpro
