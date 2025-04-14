@@ -43,6 +43,11 @@ git clone https://github.com/luxms/pgnats
 
 ##### PostgresPro Std. / Ent.
 
+> [!WARNING]
+> You need to use feature `xid8` to build the extension:
+>
+> `cargo pgrx package -pg_config<path to pg_config> --features xid8`
+
 ```sh
 # 1. Install cargo-pgrx
 cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
