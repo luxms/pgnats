@@ -3,7 +3,25 @@ use pgrx::pg_extern;
 use crate::{ctx::CTX, errors::PgNatsError};
 
 #[pg_extern]
-pub fn nats_publish(subject: &str, publish_text: &str) -> Result<(), PgNatsError> {
+pub fn nats_publish_bytes(subject: &str, bytes: Vec<u8>) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.publish(subject, bytes))
+    })
+}
+
+#[pg_extern]
+pub fn nats_publish_bytes_stream(subject: &str, bytes: Vec<u8>) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set.block_on(
+            &ctx.rt,
+            ctx.nats_connection.publish_stream(subject, bytes),
+        )
+    })
+}
+
+#[pg_extern]
+pub fn nats_publish_text(subject: &str, publish_text: String) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.publish(subject, publish_text))
@@ -11,11 +29,47 @@ pub fn nats_publish(subject: &str, publish_text: &str) -> Result<(), PgNatsError
 }
 
 #[pg_extern]
-pub fn nats_publish_stream(subject: &str, publish_text: &str) -> Result<(), PgNatsError> {
+pub fn nats_publish_text_stream(subject: &str, publish_text: String) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
         ctx.local_set.block_on(
             &ctx.rt,
             ctx.nats_connection.publish_stream(subject, publish_text),
+        )
+    })
+}
+
+#[pg_extern]
+pub fn nats_publish_json(subject: &str, json: pgrx::Json) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.publish(subject, json.0))
+    })
+}
+
+#[pg_extern]
+pub fn nats_publish_json_stream(subject: &str, json: pgrx::Json) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set.block_on(
+            &ctx.rt,
+            ctx.nats_connection.publish_stream(subject, json.0),
+        )
+    })
+}
+
+#[pg_extern]
+pub fn nats_publish_jsonb(subject: &str, json: pgrx::JsonB) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.publish(subject, json.0))
+    })
+}
+
+#[pg_extern]
+pub fn nats_publish_jsonb_stream(subject: &str, json: pgrx::JsonB) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set.block_on(
+            &ctx.rt,
+            ctx.nats_connection.publish_stream(subject, json.0),
         )
     })
 }

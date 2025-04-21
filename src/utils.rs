@@ -51,3 +51,31 @@ impl FromBytes for String {
         String::from_utf8(bytes).map_err(|e| PgNatsError::Deserialize(e.to_string()))
     }
 }
+
+pub trait ToBytes: Sized {
+    fn to_bytes(self) -> Result<Vec<u8>, PgNatsError>;
+}
+
+impl ToBytes for Vec<u8> {
+    fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
+        Ok(self)
+    }
+}
+
+impl ToBytes for serde_json::Value {
+    fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
+        serde_json::to_vec(&self).map_err(|e| PgNatsError::Serialize(e))
+    }
+}
+
+impl ToBytes for String {
+    fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
+        Ok(self.into_bytes())
+    }
+}
+
+impl ToBytes for &str {
+    fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
+        Ok(self.as_bytes().to_vec())
+    }
+}

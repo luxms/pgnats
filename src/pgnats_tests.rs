@@ -30,9 +30,9 @@ mod tests {
         Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
         let subject = "test.test_nats_publish";
-        let message = "Hello, World! 🦀";
+        let message = "Hello, World! 🦀".to_string();
 
-        let res = api::nats_publish(subject, message);
+        let res = api::nats_publish_text(subject, message);
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 
@@ -44,9 +44,9 @@ mod tests {
         Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
         let subject = "test.test_nats_publish_stream";
-        let message = "Hello, World! 🦀";
+        let message = "Hello, World! 🦀".to_string();
 
-        let res = api::nats_publish_stream(subject, message);
+        let res = api::nats_publish_text_stream(subject, message);
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
     }
 
@@ -187,27 +187,27 @@ mod tests {
             .expect("Failed to set NATS host");
         Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
 
-        let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
+        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
         api::pgnats_reload_conf();
 
-        let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
+        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
         Spi::run(&format!("SET {NATS_HOST_CONF} = 'localhost1'")).expect("Failed to set NATS host");
-        let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
+        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
         api::pgnats_reload_conf();
 
-        assert!(api::nats_publish("test.test_pgnats_reload_conf", "test").is_err());
+        assert!(api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string()).is_err());
 
         Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
             .expect("Failed to set NATS host");
         api::pgnats_reload_conf_force();
 
-        let res = api::nats_publish("test.test_pgnats_reload_conf", "test");
+        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 }

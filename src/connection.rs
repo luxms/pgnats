@@ -7,7 +7,7 @@ use pgrx::prelude::*;
 
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
-use crate::utils::{format_message, FromBytes};
+use crate::utils::{format_message, FromBytes, ToBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -35,10 +35,10 @@ impl NatsConnection {
     pub async fn publish(
         &mut self,
         subject: impl ToString,
-        message: impl Into<Vec<u8>>,
+        message: impl ToBytes,
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
-        let message: Vec<u8> = message.into();
+        let message: Vec<u8> = message.to_bytes()?;
 
         self.get_connection()
             .await?
@@ -51,10 +51,10 @@ impl NatsConnection {
     pub async fn publish_stream(
         &mut self,
         subject: impl ToString,
-        message: impl Into<Vec<u8>>,
+        message: impl ToBytes,
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
-        let message: Vec<u8> = message.into();
+        let message: Vec<u8> = message.to_bytes()?;
 
         let _ask = self
             .get_jetstream()
