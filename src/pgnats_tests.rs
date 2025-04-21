@@ -34,6 +34,18 @@ mod tests {
 
         let res = api::nats_publish_text(subject, message);
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        let message = "Hello, World! 🦀".to_string().into_bytes();
+        let res = api::nats_publish_bytes(subject, message);
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        let message = pgrx::Json(serde_json::json!({"key": "value"}));
+        let res = api::nats_publish_json(subject, message);
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        let message = pgrx::JsonB(serde_json::json!({"key": "value"}));
+        let res = api::nats_publish_jsonb(subject, message);
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -48,6 +60,18 @@ mod tests {
 
         let res = api::nats_publish_text_stream(subject, message);
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
+
+        let message = "Hello, World! 🦀".to_string().into_bytes();
+        let res = api::nats_publish_bytes(subject, message);
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        let message = pgrx::Json(serde_json::json!({"key": "value"}));
+        let res = api::nats_publish_json(subject, message);
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        let message = pgrx::JsonB(serde_json::json!({"key": "value"}));
+        let res = api::nats_publish_jsonb(subject, message);
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
