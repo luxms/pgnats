@@ -23,6 +23,7 @@ pg_test = []
 [dependencies]
 async-nats = "0.38.0"
 futures = "0.3.31"
+paste = "1.0.15"
 pgrx = { version = "0.14.1", features = ["unsafe-postgres"] }
 regex = "1.11.1"
 serde_json = "1.0.138"

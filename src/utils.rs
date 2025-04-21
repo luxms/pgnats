@@ -46,6 +46,18 @@ impl FromBytes for serde_json::Value {
     }
 }
 
+impl FromBytes for pgrx::Json {
+    fn from_bytes(bytes: Vec<u8>) -> Result<Self, PgNatsError> {
+        Ok(Self(serde_json::Value::from_bytes(bytes)?))
+    }
+}
+
+impl FromBytes for pgrx::JsonB {
+    fn from_bytes(bytes: Vec<u8>) -> Result<Self, PgNatsError> {
+        Ok(Self(serde_json::Value::from_bytes(bytes)?))
+    }
+}
+
 impl FromBytes for String {
     fn from_bytes(bytes: Vec<u8>) -> Result<Self, PgNatsError> {
         String::from_utf8(bytes).map_err(|e| PgNatsError::Deserialize(e.to_string()))
@@ -64,7 +76,7 @@ impl ToBytes for Vec<u8> {
 
 impl ToBytes for serde_json::Value {
     fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
-        serde_json::to_vec(&self).map_err(|e| PgNatsError::Serialize(e))
+        serde_json::to_vec(&self).map_err(PgNatsError::Serialize)
     }
 }
 
@@ -77,5 +89,17 @@ impl ToBytes for String {
 impl ToBytes for &str {
     fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
         Ok(self.as_bytes().to_vec())
+    }
+}
+
+impl ToBytes for pgrx::Json {
+    fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
+        self.0.to_bytes()
+    }
+}
+
+impl ToBytes for pgrx::JsonB {
+    fn to_bytes(self) -> Result<Vec<u8>, PgNatsError> {
+        self.0.to_bytes()
     }
 }

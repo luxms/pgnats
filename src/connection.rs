@@ -128,10 +128,10 @@ impl NatsConnection {
         &mut self,
         bucket: impl ToString,
         key: impl AsRef<str>,
-        data: impl Into<Vec<u8>>,
+        data: impl ToBytes,
     ) -> Result<(), PgNatsError> {
         let bucket = self.get_or_create_bucket(bucket).await?;
-        let data: Vec<u8> = data.into();
+        let data: Vec<u8> = data.to_bytes()?;
 
         let _version = bucket.put(key, data.into()).await?;
 

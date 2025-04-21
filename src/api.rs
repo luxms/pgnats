@@ -1,5 +1,8 @@
 mod nats;
 
+#[macro_use]
+mod macros;
+
 use pgrx::pg_extern;
 
 pub use nats::*;

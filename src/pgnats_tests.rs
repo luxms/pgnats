@@ -61,7 +61,7 @@ mod tests {
         let key = "binary_key";
         let data = b"binary data";
 
-        let put_res = api::nats_put_binary(bucket.clone(), key, data);
+        let put_res = api::nats_put_binary(bucket.clone(), key, data.to_vec());
         assert!(
             put_res.is_ok(),
             "nats_put_binary occurs error: {:?}",
