@@ -1,13 +1,13 @@
-## Installation
+# Installation
 
-### Prerequisite
+## Prerequisite
 
 1. Install [rust](https://www.rust-lang.org/tools/install) >= 1.81.0
 2. Install prerequisites for [pgrx](https://github.com/pgcentralfoundation/pgrx?tab=readme-ov-file#system-requirements)
 
-### Linux
+## Linux
 
-#### ALT Linux:
+### ALT Linux
 
 ```sh
 # 1. Install cargo-pgrx
@@ -26,9 +26,9 @@ git clone https://github.com/luxms/pgnats -b pgpro
 > `cargo pgrx init -pg<POSTGRES_VERSION> <path to pg_config> --skip-version-check`
 
 
-#### Other Linux:
+### Other Linux
 
-##### Postgres Official
+#### Postgres Official
 
 ```sh
 # 1. Install cargo-pgrx
@@ -41,7 +41,7 @@ cargo pgrx init [-pg<POSTGRES_VERSION> <path to pg_config>]
 git clone https://github.com/luxms/pgnats
 ```
 
-##### PostgresPro Std. / Ent.
+#### PostgresPro Std. / Ent.
 
 > [!WARNING]
 > You need to use feature `xid8` to build the extension:
