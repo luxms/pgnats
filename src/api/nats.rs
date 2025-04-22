@@ -2,7 +2,7 @@ use pgrx::pg_extern;
 
 use crate::{ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put};
 
-impl_nats_publish!(bytes, Vec<u8>);
+impl_nats_publish!(binary, Vec<u8>);
 impl_nats_publish!(text, String);
 impl_nats_publish!(json, pgrx::Json);
 impl_nats_publish!(jsonb, pgrx::JsonB);

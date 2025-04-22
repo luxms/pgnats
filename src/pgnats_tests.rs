@@ -36,7 +36,7 @@ mod tests {
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
         let message = "Hello, World! 🦀".to_string().into_bytes();
-        let res = api::nats_publish_bytes(subject, message);
+        let res = api::nats_publish_binary(subject, message);
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
         let message = pgrx::Json(serde_json::json!({"key": "value"}));
@@ -62,7 +62,7 @@ mod tests {
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
 
         let message = "Hello, World! 🦀".to_string().into_bytes();
-        let res = api::nats_publish_bytes(subject, message);
+        let res = api::nats_publish_binary(subject, message);
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
         let message = pgrx::Json(serde_json::json!({"key": "value"}));
@@ -225,7 +225,9 @@ mod tests {
 
         api::pgnats_reload_conf();
 
-        assert!(api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string()).is_err());
+        assert!(
+            api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string()).is_err()
+        );
 
         Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
             .expect("Failed to set NATS host");

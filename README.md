@@ -46,7 +46,7 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 ## Minimum supported Rust version
 
 - `Rust 1.81.0`
-- `cargo-pgrx 0.13.*`
+- `cargo-pgrx 0.14.*`
 
 ## Usage
 

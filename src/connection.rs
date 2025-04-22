@@ -233,47 +233,4 @@ impl NatsConnection {
 
         Ok(())
     }
-
-    #[allow(unused, deprecated)]
-    #[deprecated]
-    async fn touch_stream_subject(
-        &mut self,
-        subject: impl ToString,
-    ) -> Result<&Context, PgNatsError> {
-        let subject = subject.to_string();
-        let stream_name = crate::utils::get_stream_name_by_subject(&subject);
-
-        let jetstream = self.get_jetstream().await?;
-        let info = jetstream.get_stream(&stream_name).await;
-
-        if let Ok(mut info) = info {
-            // if stream exists
-            let info = info.info().await?;
-
-            let mut subjects = info.config.subjects.clone();
-            if !subjects.contains(&subject) {
-                // if not contains current subject
-                subjects.push(subject);
-
-                let cfg = async_nats::jetstream::stream::Config {
-                    name: stream_name,
-                    subjects: subjects,
-                    ..Default::default()
-                };
-
-                let _stream_info = jetstream.update_stream(&cfg).await?;
-            }
-        } else {
-            // if stream not exists
-            let cfg = async_nats::jetstream::stream::Config {
-                name: stream_name,
-                subjects: vec![subject],
-                ..Default::default()
-            };
-
-            let _stream_info = jetstream.create_stream(cfg).await?;
-        }
-
-        Ok(jetstream)
-    }
 }
