@@ -62,11 +62,29 @@ Select pgnats_reload_conf();
 -- Перезагружаем конфигурацию без проверок на изменения конфигураций
 Select pgnats_reload_conf_force();
 
--- Публикация в NATS
-Select nats_publish('sub.ject', 'publish_text');
+-- Отправка массива байт в NATS
+Select nats_publish_binary('sub.ject', 'binary data'::bytea);
 
--- Публикация с помощью jetstream (sync)
-Select nats_publish_stream('sub.ject', 'publish_text');
+-- Отправка массива байт с помощью jetstream (sync)
+Select nats_publish_binary_stream('sub.ject', 'binary data'::bytea);
+
+-- Отправка текста в NATS
+Select nats_publish_text('sub.ject', 'text data');
+
+-- Отправка текста с помощью jetstream (sync)
+Select nats_publish_text_stream('sub.ject', 'text data');
+
+-- Отправка Json в NATS
+Select nats_publish_json('sub.ject', '{}'::json);
+
+-- Отправка Json с помощью jetstream (sync)
+Select nats_publish_json_stream('sub.ject', '{}'::json);
+
+-- Отправка Binary Json в NATS
+Select nats_publish_jsonb('sub.ject', '{}'::json);
+
+-- Отправка Binary Json с помощью jetstream (sync)
+Select nats_publish_jsonb_stream('sub.ject', '{}'::jsonb);
 
 -- Функция сохраняет бинарные данные в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
 Select nats_put_binary('bucket', 'key', 'binary data'::bytea);
@@ -121,6 +139,10 @@ luxmsbi.cdc.audit.events: luxmsbi_cdc_audit
 #### api/nats.rs
 
 Функции для работы с NATS
+
+#### api/macros.rs
+
+Вспомогательные макросы для генерации однотипного кода для NATS Api
 
 ### config.rs
 
