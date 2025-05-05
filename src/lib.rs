@@ -1,14 +1,31 @@
 ::pgrx::pg_module_magic!();
 
 mod config;
-mod errors;
 mod init;
 mod pgnats_tests;
 mod utils;
 
+/// Main public API for PostgreSQL extensions
+///
+/// Contains all NATS operations exported to PostgreSQL including:
+/// - Message publishing (core NATS and JetStream)
+/// - Key-Value store operations
 pub mod api;
+
+#[doc(hidden)]
 pub mod connection;
+
+#[doc(hidden)]
 pub mod ctx;
+
+/// Error handling types
+///
+/// Defines all error types used in the crate including:
+/// - Connection errors
+/// - Publishing errors
+/// - JetStream errors
+/// - KV store operation errors
+pub mod errors;
 
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.

@@ -13,15 +13,6 @@ mod tests {
     const NATS_HOST_CONF: &str = "nats.host";
     const NATS_PORT_CONF: &str = "nats.port";
 
-    #[pg_test]
-    fn test_hello_pgnats() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
-        assert_eq!("Hello, pgnats!", api::hello_pgnats());
-    }
-
     #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
     fn test_pgnats_publish() {

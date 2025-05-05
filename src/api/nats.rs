@@ -2,21 +2,259 @@ use pgrx::pg_extern;
 
 use crate::{ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put};
 
-impl_nats_publish!(binary, Vec<u8>);
-impl_nats_publish!(text, String);
-impl_nats_publish!(json, pgrx::Json);
-impl_nats_publish!(jsonb, pgrx::JsonB);
+impl_nats_publish! {
+    /// Publishes a raw binary message to the specified NATS subject.
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to publish to
+    /// * `payload` - Binary data to publish as `Vec<u8>`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful publish
+    /// * `Err(PgNatsError)` if publish failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_publish_binary('events.raw', E'\\xDEADBEEF'::bytea);
+    /// ```
+    ///
+    /// # JetStream Version
+    /// The stream version [`nats_publish_binary_stream`] provides JetStream
+    /// persistence and delivery guarantees.
+    binary, Vec<u8>
+}
+impl_nats_publish! {
+    /// Publishes a UTF-8 text message to the specified NATS subject.
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to publish to
+    /// * `payload` - Text message to publish as `String`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful publish
+    /// * `Err(PgNatsError)` if publish failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_publish_text('alerts', 'System temperature critical');
+    /// ```
+    ///
+    /// # JetStream Version
+    /// The stream version [`nats_publish_text_stream`] provides JetStream
+    /// persistence and delivery guarantees.
+    text, String
+}
 
-impl_nats_put!(binary, Vec<u8>);
-impl_nats_put!(text, &str);
-impl_nats_put!(json, pgrx::Json);
-impl_nats_put!(jsonb, pgrx::JsonB);
+impl_nats_publish! {
+    /// Publishes a JSON payload to the specified NATS subject.
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to publish to
+    /// * `payload` - JSON data to publish as `pgrx::Json`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful publish
+    /// * `Err(PgNatsError)` if publish failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_publish_json('events', '{"type": "login", "user": "admin"}'::json);
+    /// ```
+    ///
+    /// # JetStream Version
+    /// The stream version [`nats_publish_json_stream`] provides JetStream
+    /// persistence and delivery guarantees.
+    json, pgrx::Json
+}
 
-impl_nats_get!(binary, Vec<u8>);
-impl_nats_get!(text, String);
-impl_nats_get!(json, pgrx::Json);
-impl_nats_get!(jsonb, pgrx::JsonB);
+impl_nats_publish! {
+    /// Publishes a binary-encoded JSON (JSONB) payload to the specified NATS subject.
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to publish to
+    /// * `payload` - Binary JSON data to publish as `pgrx::JsonB`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful publish
+    /// * `Err(PgNatsError)` if publish failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_publish_jsonb('large.events', '{"data": "...", "meta": {...}}'::jsonb);
+    /// ```
+    ///
+    /// # JetStream Version
+    /// The stream version [`nats_publish_jsonb_stream`] provides JetStream
+    /// persistence and delivery guarantees.
+    jsonb, pgrx::JsonB
+}
 
+impl_nats_put! {
+    /// Stores a raw binary value in the KV bucket under the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to store the value under
+    /// * `data` - Binary data to store as `Vec<u8>`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful store
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_put_binary('config_files', 'server_cert', E'\\xDEADBEEF'::bytea);
+    /// ```
+    binary, Vec<u8>
+}
+
+impl_nats_put! {
+    /// Stores a UTF-8 text value in the KV bucket under the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to store the value under
+    /// * `data` - Text data to store as `&str`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful store
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_put_text('templates', 'welcome_email', `Hello, ${name}`);
+    /// ```
+    text, &str
+}
+
+impl_nats_put! {
+    /// Stores a JSON value in the KV bucket under the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to store the value under
+    /// * `data` - JSON data to store as `pgrx::Json`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful store
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_put_json('user_profiles', 'user123', '{"prefs": {...}}'::json);
+    /// ```
+    json, pgrx::Json
+}
+
+impl_nats_put! {
+    /// Stores a binary-encoded JSON (JSONB) value in the KV bucket under the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to store the value under
+    /// * `data` - Binary JSON data to store as `pgrx::JsonB`
+    ///
+    /// # Returns
+    /// * `Ok(())` on successful store
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_put_jsonb('large_docs', 'spec_v2', large_document::jsonb);
+    /// ```
+    jsonb, pgrx::JsonB
+}
+
+impl_nats_get! {
+    /// Retrieves a raw binary value from the KV bucket by the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to retrieve the value from
+    ///
+    /// # Returns
+    /// * `Ok(Some(Vec<u8>))` if value exists
+    /// * `Ok(None)` if key doesn't exist
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_get_binary('config_files', 'server_cert');
+    /// ```
+    binary, Vec<u8>
+}
+
+impl_nats_get! {
+    /// Retrieves a UTF-8 text value from the KV bucket by the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to retrieve the value from
+    ///
+    /// # Returns
+    /// * `Ok(Some(String))` if value exists
+    /// * `Ok(None)` if key doesn't exist
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_get_text('templates', 'welcome_email') AS template;
+    /// ```
+    text, String
+}
+
+impl_nats_get! {
+    /// Retrieves a JSON value from the KV bucket by the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to retrieve the value from
+    ///
+    /// # Returns
+    /// * `Ok(Some(pgrx::Json))` if value exists
+    /// * `Ok(None)` if key doesn't exist
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_get_json('user_profiles', 'user123');
+    /// ```
+    json, pgrx::Json
+}
+
+impl_nats_get! {
+    /// Retrieves a binary-encoded JSON (JSONB) value from the KV bucket by the specified key.
+    ///
+    /// # Arguments
+    /// * `bucket` - Name of the KV bucket
+    /// * `key` - Key to retrieve the value from
+    ///
+    /// # Returns
+    /// * `Ok(Some(pgrx::JsonB))` if value exists
+    /// * `Ok(None)` if key doesn't exist
+    /// * `Err(PgNatsError)` if operation failed
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// SELECT nats_get_jsonb('large_docs', 'spec_v2');
+    /// ```
+    jsonb, pgrx::JsonB
+}
+
+/// Deletes a value from the NATS KV bucket by the specified key.
+///
+/// # Arguments
+/// * `bucket` - The name of the KV bucket
+/// * `key` - The key associated with the value to be deleted
+///
+/// # Returns
+/// * `Ok(())` if the deletion was successful
+/// * `Err(PgNatsError)` if an error occurred during deletion
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_delete_value('user_profiles', 'inactive_user_123');
+/// ```
 #[pg_extern]
 pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
