@@ -57,6 +57,48 @@ mod nats_tests {
     }
 
     #[tokio::test]
+    async fn test_nats_request_text() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+        }));
+
+        let subject = "test.test_nats_request_text";
+        let request_msg = "Ping";
+        let response_msg = "Pong";
+
+        let client = async_nats::connect(format!("127.0.0.1:{port}"))
+            .await
+            .expect("failed to connect to NATS server");
+
+        let subscriber = client
+            .subscribe(subject)
+            .await
+            .expect("failed to subscribe");
+
+        let handle = tokio::spawn(async move {
+            let mut subscriber = subscriber;
+            while let Some(message) = subscriber.next().await {
+                if let Some(reply) = message.reply {
+                    client
+                        .publish(reply, response_msg.into())
+                        .await
+                        .expect("failed to send reply");
+                }
+            }
+        });
+
+        let res = nats.request(subject, request_msg, Some(1000)).await;
+
+        assert!(res.is_ok(), "nats_request_text failed: {:?}", res);
+        assert_eq!(response_msg.as_bytes().to_vec(), res.unwrap());
+
+        handle.abort();
+    }
+
+    #[tokio::test]
     async fn test_nats_publish_stream() {
         let (_cont, port) = setup().await;
         let mut nats = NatsConnection::new(Some(ConnectionOptions {

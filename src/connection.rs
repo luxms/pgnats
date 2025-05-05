@@ -1,7 +1,8 @@
 use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
-use async_nats::Client;
+use async_nats::{Client, Request};
 use std::collections::HashMap;
+use std::time::Duration;
 
 use pgrx::prelude::*;
 
@@ -46,6 +47,32 @@ impl NatsConnection {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn request(
+        &mut self,
+        subject: impl ToString,
+        message: impl ToBytes,
+        timeout: Option<u64>,
+    ) -> Result<Vec<u8>, PgNatsError> {
+        let subject = subject.to_string();
+        let message: Vec<u8> = message.to_bytes()?;
+
+        let request = Request::new().payload(message.into());
+
+        let request = if let Some(timeout) = timeout {
+            request.timeout(Some(Duration::from_millis(timeout)))
+        } else {
+            request
+        };
+
+        let result = self
+            .get_connection()
+            .await?
+            .send_request(subject, request)
+            .await?;
+
+        Ok(result.payload.to_vec())
     }
 
     pub async fn publish_stream(

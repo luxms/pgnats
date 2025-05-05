@@ -1,7 +1,7 @@
 use async_nats::{
     client::{FlushErrorKind, PublishErrorKind},
     error::Error,
-    jetstream, ConnectErrorKind,
+    jetstream, ConnectErrorKind, RequestErrorKind,
 };
 use thiserror::Error as TError;
 
@@ -16,6 +16,8 @@ pub enum PgNatsError {
 
     /// Failed to publish message via JetStream
     JetStreamPublishIo(#[from] Error<jetstream::context::PublishErrorKind>),
+
+    Request(#[from] Error<RequestErrorKind>),
 
     /// Failed to establish connection to NATS server
     ///
@@ -63,6 +65,9 @@ impl std::fmt::Display for PgNatsError {
             PgNatsError::PublishIo(error) => write!(f, "{MSG_PREFIX}: publish error {error}"),
             PgNatsError::JetStreamPublishIo(error) => {
                 write!(f, "{MSG_PREFIX}: jetsteam publish error {error}")
+            }
+            PgNatsError::Request(error) => {
+                write!(f, "{MSG_PREFIX}: jetsteam request error {error}")
             }
             PgNatsError::Connection {
                 host,

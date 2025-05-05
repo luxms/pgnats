@@ -1,6 +1,9 @@
 use pgrx::pg_extern;
 
-use crate::{ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put};
+use crate::{
+    ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put,
+    impl_nats_request,
+};
 
 impl_nats_publish! {
     /// Publishes a raw binary message to the specified NATS subject.
@@ -86,6 +89,86 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_jsonb_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    jsonb, pgrx::JsonB
+}
+
+impl_nats_request! {
+    /// Performs a binary request/response operation with NATS
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to send request to
+    /// * `payload` - Binary request data as `Vec<u8>`
+    /// * `timeout` - Optional maximum duration to wait for response in ms
+    ///
+    /// # Returns
+    /// * `Ok(Vec<u8>)` - Binary response data on success
+    /// * `Err(PgNatsError)` - If request fails or times out
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// -- Simple binary request
+    /// SELECT nats_request_binary('service.call', E'\\x01'::bytea, '5s');
+    /// ```
+    binary, Vec<u8>
+}
+
+impl_nats_request! {
+    /// Performs a text request/response operation with NATS
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to send request to
+    /// * `payload` - Text request data as `String`
+    /// * `timeout` - Optional maximum duration to wait for response in ms
+    ///
+    /// # Returns
+    /// * `Ok(String)` - Text response on success
+    /// * `Err(PgNatsError)` - If request fails or times out
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// -- Simple text request
+    /// SELECT nats_request_text('api.get', '{"id":42}', '1s');
+    /// ```
+    text, String
+}
+
+impl_nats_request! {
+    /// Performs a JSON request/response operation with NATS
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to send request to
+    /// * `payload` - JSON request data as `pgrx::Json`
+    /// * `timeout` - Optional maximum duration to wait for response in ms
+    ///
+    /// # Returns
+    /// * `Ok(pgrx::Json)` - JSON response on success
+    /// * `Err(PgNatsError)` - If request fails or times out
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// -- Basic JSON request
+    /// SELECT nats_request_json('api.users', '{"action":"get"}'::json, '2s');
+    /// ```
+    json, pgrx::Json
+}
+
+impl_nats_request! {
+    /// Performs a binary JSON (JSONB) request/response operation with NATS
+    ///
+    /// # Arguments
+    /// * `subject` - NATS subject to send request to
+    /// * `payload` - Binary JSON request data as `pgrx::JsonB`
+    /// * `timeout` - Optional maximum duration to wait for response in ms
+    ///
+    /// # Returns
+    /// * `Ok(pgrx::JsonB)` - Binary JSON response on success
+    /// * `Err(PgNatsError)` - If request fails or times out
+    ///
+    /// # SQL Usage
+    /// ```sql
+    /// -- Simple JSONB request
+    /// SELECT nats_request_jsonb('data.export', '{"format":"parquet"}'::jsonb, '10s');
+    /// ```
     jsonb, pgrx::JsonB
 }
 

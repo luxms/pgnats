@@ -96,6 +96,68 @@ mod tests {
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
+    fn test_pgnats_request() {
+        use std::sync::mpsc::channel;
+
+        use futures::StreamExt;
+
+        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
+            .expect("Failed to set NATS host");
+        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS port");
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let (sdr, rcv) = channel();
+
+        let handle = rt.spawn(async move {
+            let client = async_nats::connect(format!("{NATS_HOST}:{NATS_PORT}"))
+                .await
+                .expect("failed to connect to NATS server");
+
+            let mut subscriber = client
+                .subscribe("test.test_nats_request".to_string())
+                .await
+                .expect("failed to subscribe");
+
+            sdr.send(()).unwrap();
+
+            while let Some(message) = subscriber.next().await {
+                if let Some(reply) = message.reply {
+                    client
+                        .publish(reply, message.payload)
+                        .await
+                        .expect("failed to send reply");
+                }
+            }
+        });
+
+        rcv.recv().unwrap();
+
+        let request_text = "Test request".to_string();
+        let res = api::nats_request_text("test.test_nats_request", request_text.clone(), None);
+        assert!(res.is_ok(), "nats_request_text failed: {:?}", res);
+        assert_eq!(res.unwrap().as_slice(), request_text.as_bytes());
+
+        let request_binary = b"Binary request".to_vec();
+        let res = api::nats_request_binary("test.test_nats_request", request_binary.clone(), None);
+        assert!(res.is_ok(), "nats_request_binary failed: {:?}", res);
+        assert_eq!(res.unwrap(), request_binary);
+
+        let request_json = pgrx::Json(serde_json::json!({"action": "ping"}));
+        let res = api::nats_request_json("test.test_nats_request", request_json, None);
+        assert!(res.is_ok(), "nats_request_json failed: {:?}", res);
+
+        let request_jsonb = pgrx::JsonB(serde_json::json!({"action": "ping"}));
+        let res = api::nats_request_jsonb("test.test_nats_request", request_jsonb, None);
+        assert!(res.is_ok(), "nats_request_jsonb failed: {:?}", res);
+
+        handle.abort();
+    }
+
+    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[pg_test]
     fn test_pgnats_put_and_get_text() {
         Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
             .expect("Failed to set NATS host");
