@@ -2,6 +2,7 @@
 
 mod config;
 mod init;
+mod log;
 mod pgnats_tests;
 mod utils;
 

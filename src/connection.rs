@@ -1,15 +1,15 @@
 use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
 use async_nats::{Client, Request};
+use pgrx::warning;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use pgrx::prelude::*;
-
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
-use crate::utils::{format_message, FromBytes, ToBytes};
+use crate::info;
+use crate::utils::{FromBytes, ToBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -116,18 +116,10 @@ impl NatsConnection {
         }
 
         if let Some(conn) = connection {
-            ereport!(
-                PgLogLevel::INFO,
-                PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-                format_message("Disconnect from NATS service")
-            );
+            info!("Disconnect from NATS service");
 
             if let Err(e) = conn.drain().await {
-                ereport!(
-                    PgLogLevel::WARNING,
-                    PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-                    format_message(format!("Failed to drain connection {e}"))
-                );
+                warning!("Failed to drain connection {e}");
             }
         }
     }
@@ -262,31 +254,20 @@ impl NatsConnection {
             if let Ok(root) = std::env::current_dir() {
                 match tls {
                     TlsOptions::Tls { ca } => {
-                        ereport!(
-                            PgLogLevel::INFO,
-                            PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-                            format_message(format!(
-                                "Trying to find CA cert in '{:?}'",
-                                root.join(&ca)
-                            ))
-                        );
-                        opts = opts.require_tls(true).add_root_certificates(root.join(&ca))
+                        info!("Trying to find CA cert in '{:?}'", root.join(ca));
+                        opts = opts.require_tls(true).add_root_certificates(root.join(ca))
                     }
                     TlsOptions::MutualTls { ca, cert, key } => {
-                        ereport!(
-                            PgLogLevel::INFO,
-                            PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-                            format_message(format!(
-                                "Trying to find CA cert in '{:?}', cert in '{:?}' and key in '{:?}'",
-                                root.join(&ca),
-                                root.join(&cert),
-                                root.join(&key)
-                            ))
+                        info!(
+                            "Trying to find CA cert in '{:?}', cert in '{:?}' and key in '{:?}'",
+                            root.join(ca),
+                            root.join(cert),
+                            root.join(key)
                         );
                         opts = opts
                             .require_tls(true)
-                            .add_root_certificates(root.join(&ca))
-                            .add_client_certificate(root.join(&cert), root.join(&key));
+                            .add_root_certificates(root.join(ca))
+                            .add_client_certificate(root.join(cert), root.join(key));
                     }
                 }
             }

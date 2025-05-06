@@ -5,7 +5,7 @@ use async_nats::{
 };
 use thiserror::Error as TError;
 
-use crate::utils::MSG_PREFIX;
+use crate::log::MSG_PREFIX;
 
 /// This error type encapsulates various failure scenarios that can occur when
 /// interacting with NATS and JetStream from PostgreSQL.

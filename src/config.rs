@@ -2,11 +2,10 @@ use core::ffi::CStr;
 use std::path::PathBuf;
 
 use pgrx::guc::*;
-use pgrx::prelude::*;
 
 use crate::connection::ConnectionOptions;
 use crate::connection::TlsOptions;
-use crate::utils::format_message;
+use crate::info;
 
 // configs names
 pub const CONFIG_HOST: &str = "nats.host";
@@ -89,17 +88,11 @@ pub fn initialize_configuration() {
         GucFlags::default(),
     );
 
-    ereport!(
-        PgLogLevel::INFO,
-        PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-        format_message("PGNats has been successfully initialized!")
-    );
+    info!("PGNats has been successfully initialized!");
 }
 
 fn fetch_tls_options() -> Option<TlsOptions> {
-    let Some(ca) = GUC_TLS_CA_PATH.get().and_then(|path| path.to_str().ok()) else {
-        return None;
-    };
+    let ca = GUC_TLS_CA_PATH.get().and_then(|path| path.to_str().ok())?;
 
     match (
         GUC_TLS_CERT_PATH.get().and_then(|c| c.to_str().ok()),
