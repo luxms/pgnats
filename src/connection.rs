@@ -1,13 +1,15 @@
 use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
-use async_nats::Client;
+use async_nats::{Client, Request};
+use pgrx::warning;
 use std::collections::HashMap;
-
-use pgrx::prelude::*;
+use std::path::PathBuf;
+use std::time::Duration;
 
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
-use crate::utils::{format_message, FromBytes, ToBytes};
+use crate::info;
+use crate::utils::{FromBytes, ToBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -18,10 +20,23 @@ pub struct NatsConnection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TlsOptions {
+    Tls {
+        ca: PathBuf,
+    },
+    MutualTls {
+        ca: PathBuf,
+        cert: PathBuf,
+        key: PathBuf,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionOptions {
     pub host: String,
     pub port: u16,
     pub capacity: usize,
+    pub tls: Option<TlsOptions>,
 }
 
 impl NatsConnection {
@@ -46,6 +61,32 @@ impl NatsConnection {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn request(
+        &mut self,
+        subject: impl ToString,
+        message: impl ToBytes,
+        timeout: Option<u64>,
+    ) -> Result<Vec<u8>, PgNatsError> {
+        let subject = subject.to_string();
+        let message: Vec<u8> = message.to_bytes()?;
+
+        let request = Request::new().payload(message.into());
+
+        let request = if let Some(timeout) = timeout {
+            request.timeout(Some(Duration::from_millis(timeout)))
+        } else {
+            request
+        };
+
+        let result = self
+            .get_connection()
+            .await?
+            .send_request(subject, request)
+            .await?;
+
+        Ok(result.payload.to_vec())
     }
 
     pub async fn publish_stream(
@@ -75,18 +116,10 @@ impl NatsConnection {
         }
 
         if let Some(conn) = connection {
-            ereport!(
-                PgLogLevel::INFO,
-                PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-                format_message("Disconnect from NATS service")
-            );
+            info!("Disconnect from NATS service");
 
             if let Err(e) = conn.drain().await {
-                ereport!(
-                    PgLogLevel::WARNING,
-                    PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-                    format_message(format!("Failed to drain connection {e}"))
-                );
+                warning!("Failed to drain connection {e}");
             }
         }
     }
@@ -215,8 +248,32 @@ impl NatsConnection {
             .current_config
             .get_or_insert_with(fetch_connection_options);
 
-        let connection = async_nats::ConnectOptions::new()
-            .client_capacity(config.capacity)
+        let mut opts = async_nats::ConnectOptions::new().client_capacity(config.capacity);
+
+        if let Some(tls) = &config.tls {
+            if let Ok(root) = std::env::current_dir() {
+                match tls {
+                    TlsOptions::Tls { ca } => {
+                        info!("Trying to find CA cert in '{:?}'", root.join(ca));
+                        opts = opts.require_tls(true).add_root_certificates(root.join(ca))
+                    }
+                    TlsOptions::MutualTls { ca, cert, key } => {
+                        info!(
+                            "Trying to find CA cert in '{:?}', cert in '{:?}' and key in '{:?}'",
+                            root.join(ca),
+                            root.join(cert),
+                            root.join(key)
+                        );
+                        opts = opts
+                            .require_tls(true)
+                            .add_root_certificates(root.join(ca))
+                            .add_client_certificate(root.join(cert), root.join(key));
+                    }
+                }
+            }
+        }
+
+        let connection = opts
             .connect(format!("{0}:{1}", config.host, config.port))
             .await
             .map_err(|io_error| PgNatsError::Connection {

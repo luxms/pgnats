@@ -1,11 +1,5 @@
 use crate::errors::PgNatsError;
 
-pub const MSG_PREFIX: &str = "[PGNATS]";
-
-pub fn format_message(message_text: impl AsRef<str>) -> String {
-    format!("{MSG_PREFIX}: {}", message_text.as_ref())
-}
-
 pub trait FromBytes: Sized {
     fn from_bytes(bytes: Vec<u8>) -> Result<Self, PgNatsError>;
 }

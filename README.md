@@ -1,6 +1,12 @@
-# pgnats
+# pgnats - PostgreSQL extension for NATS messaging
 
-PostgreSQL расширение для работы с NATS
+Provides seamless integration between PostgreSQL and NATS messaging system,
+enabling:
+
+Provides one-way integration from PostgreSQL to NATS, supporting:
+- Message publishing to core NATS subjects from SQL
+- JetStream persistent message streams
+- Key-Value storage operations from SQL
 
 ## Install
 
@@ -48,128 +54,92 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 - `Rust 1.81.0`
 - `cargo-pgrx 0.14.*`
 
+# Extension config
+
+- `nats.host` - IP/hostname of the NATS message server (default: `127.0.0.1`)
+- `nats.port` - TCP port for NATS connections (default: `4222`)
+- `nats.capacity` - Internal command buffer size in messages (default: `128`)
+- `nats.tls.ca` – Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
+- `nats.tls.cert` – Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
+- `nats.tls.key` – Path to the client private key corresponding to `nats.tls.cert` (default: unset; required if `nats.tls.cert` is set)
+
 ## Usage
 
 ```sql
--- Конфигурируем
-Set nats.host = '127.0.0.1';
-Set nats.port = 4222;
-Set nats.capacity = 128;
+-- Configuration
+SET nats.host = '127.0.0.1';
+SET nats.port = 4222;
+SET nats.capacity = 128;
+SET nats.tls.ca = 'ca';
+SET nats.tls.cert = 'cert';
+SET nats.tls.key = 'key';
 
--- Перезагружаем конфигурацию
-Select pgnats_reload_conf();
+-- Reload configuration (checks for changes)
+SELECT pgnats_reload_conf();
 
--- Перезагружаем конфигурацию без проверок на изменения конфигураций
-Select pgnats_reload_conf_force();
+-- Force reload configuration (no change checks)
+SELECT pgnats_reload_conf_force();
 
--- Отправка массива байт в NATS
-Select nats_publish_binary('sub.ject', 'binary data'::bytea);
+-- Publish binary data to NATS
+SELECT nats_publish_binary('sub.ject', 'binary data'::bytea);
 
--- Отправка массива байт с помощью jetstream (sync)
-Select nats_publish_binary_stream('sub.ject', 'binary data'::bytea);
+-- Publish binary data via JetStream (sync)
+SELECT nats_publish_binary_stream('sub.ject', 'binary data'::bytea);
 
--- Отправка текста в NATS
-Select nats_publish_text('sub.ject', 'text data');
+-- Publish text to NATS
+SELECT nats_publish_text('sub.ject', 'text data');
 
--- Отправка текста с помощью jetstream (sync)
-Select nats_publish_text_stream('sub.ject', 'text data');
+-- Publish text via JetStream (sync)
+SELECT nats_publish_text_stream('sub.ject', 'text data');
 
--- Отправка Json в NATS
-Select nats_publish_json('sub.ject', '{}'::json);
+-- Publish JSON to NATS
+SELECT nats_publish_json('sub.ject', '{}'::json);
 
--- Отправка Json с помощью jetstream (sync)
-Select nats_publish_json_stream('sub.ject', '{}'::json);
+-- Publish JSON via JetStream (sync)
+SELECT nats_publish_json_stream('sub.ject', '{}'::json);
 
--- Отправка Binary Json в NATS
-Select nats_publish_jsonb('sub.ject', '{}'::json);
+-- Publish binary JSON (JSONB) to NATS
+SELECT nats_publish_jsonb('sub.ject', '{}'::json);
 
--- Отправка Binary Json с помощью jetstream (sync)
-Select nats_publish_jsonb_stream('sub.ject', '{}'::jsonb);
+-- Publish binary JSON (JSONB) via JetStream (sync)
+SELECT nats_publish_jsonb_stream('sub.ject', '{}'::jsonb);
 
--- Функция сохраняет бинарные данные в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
-Select nats_put_binary('bucket', 'key', 'binary data'::bytea);
+-- Request binary data from NATS (wait for response with timeout in ms)
+SELECT nats_request_binary('sub.ject', 'binary request'::bytea, 1000);
 
--- Функция сохраняет текстовые данные в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
-Select nats_put_text('bucket', 'key', 'text data');
+-- Request text from NATS (wait for response with timeout in ms)
+SELECT nats_request_text('sub.ject', 'text request', 1000);
 
--- Функция сохраняет данные в формате Binary Json в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
-Select nats_put_jsonb('bucket', 'key', '{}'::jsonb);
+-- Request JSON from NATS (wait for response with timeout in ms)
+SELECT nats_request_json('sub.ject', '{"query": "value"}'::json, 1000);
 
--- Функция сохраняет данные в формате Json в Key-Value (KV) хранилище NATS JetStream, используя указанный ключ
-Select nats_put_json('bucket', 'key', '{}'::json);
+-- Request binary JSON (JSONB) from NATS (wait for response with timeout in ms)
+SELECT nats_request_jsonb('sub.ject', '{"query": "value"}'::jsonb, 1000);
 
--- Извлекает бинарные данные по указанному ключу из указанного бакета
-Select nats_get_binary('bucket', 'key');
+-- Store binary data in NATS JetStream KV storage with specified key
+SELECT nats_put_binary('bucket', 'key', 'binary data'::bytea);
 
--- Извлекает текстовые данные по указанному ключу из указанного бакета
-Select nats_get_text('bucket', 'key');
+-- Store text data in NATS JetStream KV storage with specified key
+SELECT nats_put_text('bucket', 'key', 'text data');
 
--- Извлекает Binary Json по указанному ключу из указанного бакета
-Select nats_get_jsonb('bucket', 'key');
+-- Store binary JSON (JSONB) data in NATS JetStream KV storage with specified key
+SELECT nats_put_jsonb('bucket', 'key', '{}'::jsonb);
 
--- Извлекает Json по указанному ключу из указанного бакета
-Select nats_get_json('bucket', 'key');
+-- Store JSON data in NATS JetStream KV storage with specified key
+SELECT nats_put_json('bucket', 'key', '{}'::json);
 
--- Эта функция удаляет значение, связанное с указанным ключом, из указанного бакета
-Select nats_delete_value('bucket', 'key');
+-- Retrieve binary data by key from specified bucket
+SELECT nats_get_binary('bucket', 'key');
+
+-- Retrieve text data by key from specified bucket
+SELECT nats_get_text('bucket', 'key');
+
+-- Retrieve binary JSON (JSONB) by key from specified bucket
+SELECT nats_get_jsonb('bucket', 'key');
+
+-- Retrieve JSON by key from specified bucket
+SELECT nats_get_json('bucket', 'key');
+
+-- Delete value associated with specified key from bucket
+SELECT nats_delete_value('bucket', 'key');
 ```
-
-При публикации с помощью `jetstream` создается стрим с именем субъекта без последнего блока. Спецсимволы (`.^?`) заменяются на `_`.
-
-Например:
-
-```text
-luxmsbi.cdc.audit.events: luxmsbi_cdc_audit
-```
-
-## Source
-
-### init.rs
-
-Системные процедуры инициализации расширения
-
-### lib.rs
-
-Точка входа в расширение, подключение необходимых модулей
-
-### api.rs
-
-Набор функций, экспортируемых в PostgreSQL
-
-#### api/nats.rs
-
-Функции для работы с NATS
-
-#### api/macros.rs
-
-Вспомогательные макросы для генерации однотипного кода для NATS Api
-
-### config.rs
-
-Закрытые функции инициализации, настройка параметров по-умолчанию
-
-Список настроек:
-
-- `nats.host` - Адрес сервера NATS. По-умолчанию `127.0.0.1`
-- `nats.port` - Порт, на котором работает сервер NATS. По-умолчанию `4222`
-- `nats.capacity` - Емкость очереди команд в NATS Client. По-умолчанию `128`
-
-### connection.rs
-
-Внутренние функции для работы с NATS-соединением и NATS-stream
-
-### ctx.rs
-
-Глобальный контекст, в котором хранятся `NatsConnection`, `tokio-runtime`  и `LocalSet`
-
-### errors.rs
-
-Внутренние типы ошибок
-
-### tests.rs
-
-Функции тестирования
-
-### utils.rs
-
-Вспомогательные функции

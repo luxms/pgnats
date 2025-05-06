@@ -1,29 +1,61 @@
 use async_nats::{
     client::{FlushErrorKind, PublishErrorKind},
     error::Error,
-    jetstream, ConnectErrorKind,
+    jetstream, ConnectErrorKind, RequestErrorKind,
 };
 use thiserror::Error as TError;
 
-use crate::utils::MSG_PREFIX;
+use crate::log::MSG_PREFIX;
 
+/// This error type encapsulates various failure scenarios that can occur when
+/// interacting with NATS and JetStream from PostgreSQL.
 #[derive(TError, Debug)]
 pub enum PgNatsError {
+    /// Failed to publish message to core NATS
     PublishIo(#[from] Error<PublishErrorKind>),
+
+    /// Failed to publish message via JetStream
     JetStreamPublishIo(#[from] Error<jetstream::context::PublishErrorKind>),
+
+    Request(#[from] Error<RequestErrorKind>),
+
+    /// Failed to establish connection to NATS server
+    ///
+    /// # Fields
+    /// - `host`: The server host that was attempted
+    /// - `port`: The port used for connection
+    /// - `io_error`: Detailed connection failure reason
     Connection {
         host: String,
         port: u16,
         io_error: Error<ConnectErrorKind>,
     },
+
+    /// Failed to update/create JetStream stream configuration
     UpdateStream(#[from] Error<jetstream::context::CreateStreamErrorKind>),
+
+    /// Failed to flush messages to NATS server
     Flush(#[from] Error<FlushErrorKind>),
+
+    /// Failed to retrieve stream information
     StreamInfo(#[from] Error<jetstream::context::RequestErrorKind>),
+
+    /// Failed to create JetStream Key-Value bucket
     CreateBucket(#[from] Error<jetstream::context::CreateKeyValueErrorKind>),
+
+    /// Failed to store value in Key-Value bucket
     PutValue(#[from] Error<jetstream::kv::PutErrorKind>),
+
+    /// Failed to retrieve value from Key-Value bucket
     GetValue(#[from] Error<jetstream::kv::EntryErrorKind>),
+
+    /// Failed to delete value from Key-Value bucket
     DeleteValue(#[from] Error<jetstream::kv::DeleteErrorKind>),
+
+    /// Failed to serialize data to JSON
     Serialize(serde_json::Error),
+
+    /// Failed to deserialize data from JSON
     Deserialize(String),
 }
 
@@ -33,6 +65,9 @@ impl std::fmt::Display for PgNatsError {
             PgNatsError::PublishIo(error) => write!(f, "{MSG_PREFIX}: publish error {error}"),
             PgNatsError::JetStreamPublishIo(error) => {
                 write!(f, "{MSG_PREFIX}: jetsteam publish error {error}")
+            }
+            PgNatsError::Request(error) => {
+                write!(f, "{MSG_PREFIX}: jetsteam request error {error}")
             }
             PgNatsError::Connection {
                 host,
