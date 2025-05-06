@@ -34,6 +34,7 @@ mod nats_tests {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
+            tls: None,
         }));
 
         let subject = "test.test_nats_publish";
@@ -63,6 +64,7 @@ mod nats_tests {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
+            tls: None,
         }));
 
         let subject = "test.test_nats_request_text";
@@ -105,6 +107,7 @@ mod nats_tests {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
+            tls: None,
         }));
 
         let subject = "test.test_nats_publish_stream";
@@ -134,6 +137,7 @@ mod nats_tests {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
+            tls: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -165,6 +169,7 @@ mod nats_tests {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
+            tls: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -196,6 +201,7 @@ mod nats_tests {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
+            tls: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -222,6 +228,7 @@ mod nats_tests {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
+            tls: None,
         }));
 
         let bucket = "test_default".to_string();

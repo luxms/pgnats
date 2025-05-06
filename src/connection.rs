@@ -2,6 +2,7 @@ use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::Context;
 use async_nats::{Client, Request};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use pgrx::prelude::*;
@@ -19,10 +20,23 @@ pub struct NatsConnection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TlsOptions {
+    Tls {
+        ca: PathBuf,
+    },
+    MutualTls {
+        ca: PathBuf,
+        cert: PathBuf,
+        key: PathBuf,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionOptions {
     pub host: String,
     pub port: u16,
     pub capacity: usize,
+    pub tls: Option<TlsOptions>,
 }
 
 impl NatsConnection {
@@ -242,8 +256,43 @@ impl NatsConnection {
             .current_config
             .get_or_insert_with(fetch_connection_options);
 
-        let connection = async_nats::ConnectOptions::new()
-            .client_capacity(config.capacity)
+        let mut opts = async_nats::ConnectOptions::new().client_capacity(config.capacity);
+
+        if let Some(tls) = &config.tls {
+            if let Ok(root) = std::env::current_dir() {
+                match tls {
+                    TlsOptions::Tls { ca } => {
+                        ereport!(
+                            PgLogLevel::INFO,
+                            PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
+                            format_message(format!(
+                                "Trying to find CA cert in '{:?}'",
+                                root.join(&ca)
+                            ))
+                        );
+                        opts = opts.require_tls(true).add_root_certificates(root.join(&ca))
+                    }
+                    TlsOptions::MutualTls { ca, cert, key } => {
+                        ereport!(
+                            PgLogLevel::INFO,
+                            PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
+                            format_message(format!(
+                                "Trying to find CA cert in '{:?}', cert in '{:?}' and key in '{:?}'",
+                                root.join(&ca),
+                                root.join(&cert),
+                                root.join(&key)
+                            ))
+                        );
+                        opts = opts
+                            .require_tls(true)
+                            .add_root_certificates(root.join(&ca))
+                            .add_client_certificate(root.join(&cert), root.join(&key));
+                    }
+                }
+            }
+        }
+
+        let connection = opts
             .connect(format!("{0}:{1}", config.host, config.port))
             .await
             .map_err(|io_error| PgNatsError::Connection {

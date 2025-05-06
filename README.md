@@ -59,6 +59,9 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 - `nats.host` - IP/hostname of the NATS message server (default: `127.0.0.1`)
 - `nats.port` - TCP port for NATS connections (default: `4222`)
 - `nats.capacity` - Internal command buffer size in messages (default: `128`)
+- `nats.tls.ca` – Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
+- `nats.tls.cert` – Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
+- `nats.tls.key` – Path to the client private key corresponding to `nats.tls.cert` (default: unset; required if `nats.tls.cert` is set)
 
 ## Usage
 
@@ -67,6 +70,9 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 SET nats.host = '127.0.0.1';
 SET nats.port = 4222;
 SET nats.capacity = 128;
+SET nats.tls.ca = 'ca';
+SET nats.tls.cert = 'cert';
+SET nats.tls.key = 'key';
 
 -- Reload configuration (checks for changes)
 SELECT pgnats_reload_conf();
