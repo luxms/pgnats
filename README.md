@@ -1,4 +1,4 @@
-# pgnats - PostgreSQL extension for NATS messaging
+# 📡 pgnats - PostgreSQL extension for NATS messaging
 
 Provides seamless integration between PostgreSQL and NATS messaging system,
 enabling:
@@ -8,11 +8,11 @@ Provides one-way integration from PostgreSQL to NATS, supporting:
 - JetStream persistent message streams
 - Key-Value storage operations from SQL
 
-## Install
+## ⚙️ Install
 
 See [INSTALL.md](INSTALL.md) for instructions on how to install required system dependencies.
 
-## PostgreSQL Configure options
+## 🛠️ PostgreSQL Configure options
 
 You can fine tune PostgreSQL build options:
 
@@ -20,13 +20,13 @@ You can fine tune PostgreSQL build options:
 cargo pgrx init --configure-flag='--without-icu'
 ```
 
-## Build package
+## 📦 Build package
 
 ```sh
 cargo pgrx package
 ```
 
-## Tests
+## 🧪 Tests
 
 > [!WARNING]
 > Before starting the test, NATS-Server should be started on a local host with port 4222.
@@ -49,12 +49,12 @@ SKIP_PGNATS_JS_TESTS=1 cargo pgrx test
 SKIP_PGNATS_TESTS=1 cargo pgrx test
 ```
 
-## Minimum supported Rust version
+## 🦀 Minimum supported Rust version
 
 - `Rust 1.81.0`
 - `cargo-pgrx 0.14.*`
 
-## Documentation
+## 📚 Documentation
 
 To view the documentation, run:
 
@@ -64,7 +64,7 @@ cargo doc --open`
 
 The exported PostgreSQL API is implemented in the `api` module.
 
-## Extension config
+## 🧩 Extension Configuration
 
 - `nats.host` - IP/hostname of the NATS message server (default: `127.0.0.1`)
 - `nats.port` - TCP port for NATS connections (default: `4222`)
@@ -73,7 +73,9 @@ The exported PostgreSQL API is implemented in the `api` module.
 - `nats.tls.cert` – Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
 - `nats.tls.key` – Path to the client private key corresponding to `nats.tls.cert` (default: unset; required if `nats.tls.cert` is set)
 
-## Usage
+## 📘 Usage
+
+### ⚙️ Configuration
 
 ```sql
 -- Configuration
@@ -83,13 +85,23 @@ SET nats.capacity = 128;
 SET nats.tls.ca = 'ca';
 SET nats.tls.cert = 'cert';
 SET nats.tls.key = 'key';
+```
 
+### 🔄 Reload configuration
+
+```sql
 -- Reload configuration (checks for changes)
 SELECT pgnats_reload_conf();
 
 -- Force reload configuration (no change checks)
 SELECT pgnats_reload_conf_force();
+```
 
+### 📤 Publish
+
+#### 🧊 Binary
+
+```sql
 -- Publish binary data to NATS
 SELECT nats_publish_binary('sub.ject', 'binary data'::bytea);
 
@@ -120,7 +132,11 @@ SELECT nats_publish_binary_stream_with_headers(
   'binary data'::bytea,
   '{}'::json
 );
+```
 
+#### 📝 Utf-8 Text
+
+```sql
 -- Publish text to NATS
 SELECT nats_publish_text('sub.ject', 'text data');
 
@@ -151,7 +167,11 @@ SELECT nats_publish_text_stream_with_headers(
   'text data',
   '{}'::json
 );
+```
 
+#### 📄 JSON
+
+```sql
 -- Publish JSON to NATS
 SELECT nats_publish_json('sub.ject', '{}'::json);
 
@@ -182,7 +202,11 @@ SELECT nats_publish_json_stream_with_headers(
   '{}'::json,
   '{}'::json
 );
+```
 
+#### 🧱 Binary JSON
+
+```sql
 -- Publish binary JSON (JSONB) to NATS
 SELECT nats_publish_jsonb('sub.ject', '{}'::json);
 
@@ -213,7 +237,11 @@ SELECT nats_publish_jsonb_stream_with_headers(
   '{}'::jsonb,
   '{}'::json
 );
+```
 
+### 📥 Request
+
+```sql
 -- Request binary data from NATS (wait for response with timeout in ms)
 SELECT nats_request_binary('sub.ject', 'binary request'::bytea, 1000);
 
@@ -225,7 +253,11 @@ SELECT nats_request_json('sub.ject', '{"query": "value"}'::json, 1000);
 
 -- Request binary JSON (JSONB) from NATS (wait for response with timeout in ms)
 SELECT nats_request_jsonb('sub.ject', '{"query": "value"}'::jsonb, 1000);
+```
 
+### 🗃️ Key-Value Storage
+
+```sql
 -- Store binary data in NATS JetStream KV storage with specified key
 SELECT nats_put_binary('bucket', 'key', 'binary data'::bytea);
 
@@ -252,7 +284,11 @@ SELECT nats_get_json('bucket', 'key');
 
 -- Delete value associated with specified key from bucket
 SELECT nats_delete_value('bucket', 'key');
+```
 
+### 🛠️ Utils
+
+```sql
 -- Retrieves information about the NATS server connection.
 SELECT nats_get_server_info();
 ```
