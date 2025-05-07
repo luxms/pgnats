@@ -24,6 +24,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_binary_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_binary_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_binary_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_binary_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     binary, Vec<u8>
 }
 impl_nats_publish! {
@@ -45,6 +51,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_text_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_text_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_text_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_text_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     text, String
 }
 
@@ -67,6 +79,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_json_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_json_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_json_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_json_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     json, pgrx::Json
 }
 
@@ -89,6 +107,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_jsonb_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_jsonb_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_jsonb_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_jsonb_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     jsonb, pgrx::JsonB
 }
 

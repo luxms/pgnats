@@ -75,3 +75,17 @@ impl ToBytes for pgrx::JsonB {
         self.0.to_bytes()
     }
 }
+
+pub(crate) fn extract_headers(v: serde_json::Value) -> async_nats::HeaderMap {
+    let mut map = async_nats::HeaderMap::new();
+
+    if let Some(obj) = v.as_object() {
+        for (k, v) in obj {
+            if let Some(v) = v.as_str() {
+                map.append(k.as_str(), v);
+            }
+        }
+    }
+
+    map
+}

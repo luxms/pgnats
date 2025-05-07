@@ -48,7 +48,7 @@ mod nats_tests {
             .await
             .expect("failed to subscribe");
 
-        let res = nats.publish(subject, message).await;
+        let res = nats.publish(subject, message, None::<String>, None).await;
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
         assert_eq!(

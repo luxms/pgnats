@@ -8,7 +8,48 @@ macro_rules! impl_nats_publish {
             pub fn [<nats_publish_ $suffix>](subject: &str, payload: $ty) -> Result<(), PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
                     ctx.local_set.block_on(&ctx.rt,
-                        ctx.nats_connection.publish(subject, payload)
+                        ctx.nats_connection.publish(subject, payload, None::<String>, None)
+                    )
+                })
+            }
+
+
+            #[pgrx::pg_extern]
+            #[doc = concat!("Equivalent to [`nats_publish_", stringify!($suffix), "`], but includes support for headers.")]
+            /// # Arguments
+            ///
+            /// * `headers` - A JSON object representing the message headers. This should be a dictionary where each key and value is a string.
+            pub fn [<nats_publish_ $suffix _with_headers>](subject: &str, payload: $ty, headers: pgrx::Json) -> Result<(), PgNatsError> {
+                CTX.with_borrow_mut(|ctx| {
+                    ctx.local_set.block_on(&ctx.rt,
+                        ctx.nats_connection.publish(subject, payload, None::<String>, Some(headers.0))
+                    )
+                })
+            }
+
+            #[pgrx::pg_extern]
+            #[doc = concat!("Equivalent to [`nats_publish_", stringify!($suffix), "`], but includes a reply subject.")]
+            /// # Arguments
+            ///
+            /// * `reply` - The NATS subject where the response should be sent. This sets the `reply-to` field in the message, enabling request-reply semantics.
+            pub fn [<nats_publish_ $suffix _reply>](subject: &str, payload: $ty, reply: &str) -> Result<(), PgNatsError> {
+                CTX.with_borrow_mut(|ctx| {
+                    ctx.local_set.block_on(&ctx.rt,
+                        ctx.nats_connection.publish(subject, payload, Some(reply), None)
+                    )
+                })
+            }
+
+            #[pgrx::pg_extern]
+            #[doc = concat!("Equivalent to [`nats_publish_", stringify!($suffix), "`], but includes both a reply subject and headers.")]
+            /// # Arguments
+            ///
+            /// * `reply` - The NATS subject where the response should be sent. This sets the `reply-to` field in the message, enabling request-reply semantics.
+            /// * `headers` - A JSON object representing the message headers. This should be a dictionary where each key and value is a string.
+            pub fn [<nats_publish_ $suffix _reply_with_headers>](subject: &str, payload: $ty, reply: &str,  headers: pgrx::Json) -> Result<(), PgNatsError> {
+                CTX.with_borrow_mut(|ctx| {
+                    ctx.local_set.block_on(&ctx.rt,
+                        ctx.nats_connection.publish(subject, payload, Some(reply), Some(headers.0))
                     )
                 })
             }

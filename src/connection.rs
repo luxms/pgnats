@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
 use crate::info;
-use crate::utils::{FromBytes, ToBytes};
+use crate::utils::{extract_headers, FromBytes, ToBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -51,14 +51,32 @@ impl NatsConnection {
         &mut self,
         subject: impl ToString,
         message: impl ToBytes,
+        reply: Option<impl ToString>,
+        headers: Option<serde_json::Value>,
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
+        let conn = self.get_connection().await?;
+        let headers = headers.map(extract_headers);
 
-        self.get_connection()
-            .await?
-            .publish(subject, message.into())
-            .await?;
+        if let Some(reply) = reply {
+            let reply = reply.to_string();
+
+            if let Some(headers) = headers {
+                conn.publish_with_reply_and_headers(subject, reply, headers, message.into())
+                    .await?;
+            } else {
+                conn.publish_with_reply(subject, reply, message.into())
+                    .await?;
+            }
+        } else {
+            if let Some(headers) = headers {
+                conn.publish_with_headers(subject, headers, message.into())
+                    .await?;
+            } else {
+                conn.publish(subject, message.into()).await?;
+            }
+        }
 
         Ok(())
     }

@@ -93,11 +93,47 @@ SELECT pgnats_reload_conf_force();
 -- Publish binary data to NATS
 SELECT nats_publish_binary('sub.ject', 'binary data'::bytea);
 
+-- Publish binary data with a reply subject
+SELECT nats_publish_binary_reply('sub.ject', 'binary data'::bytea, 'reply.subject');
+
+-- Publish binary data with headers
+SELECT nats_publish_binary_with_headers(
+  'sub.ject',
+  'binary data'::bytea,
+  '{}'::json
+);
+
+-- Publish binary data with both a reply subject and headers
+SELECT nats_publish_binary_reply_with_headers(
+  'sub.ject',
+  'binary data'::bytea,
+  'reply.subject',
+  '{}'::json
+);
+
 -- Publish binary data via JetStream (sync)
 SELECT nats_publish_binary_stream('sub.ject', 'binary data'::bytea);
 
 -- Publish text to NATS
 SELECT nats_publish_text('sub.ject', 'text data');
+
+-- Publish text data with a reply subject
+SELECT nats_publish_text_reply('sub.ject', 'text data', 'reply.subject');
+
+-- Publish text data with headers
+SELECT nats_publish_text_with_headers(
+  'sub.ject',
+  'text data',
+  '{}'::json
+);
+
+-- Publish text data with both a reply subject and headers
+SELECT nats_publish_text_reply_with_headers(
+  'sub.ject',
+  'text data',
+  'reply.subject',
+  '{}'::json
+);
 
 -- Publish text via JetStream (sync)
 SELECT nats_publish_text_stream('sub.ject', 'text data');
@@ -105,11 +141,47 @@ SELECT nats_publish_text_stream('sub.ject', 'text data');
 -- Publish JSON to NATS
 SELECT nats_publish_json('sub.ject', '{}'::json);
 
+-- Publish JSON data with a reply subject
+SELECT nats_publish_json_reply('sub.ject', '{"key": "value"}'::json, 'reply.subject');
+
+-- Publish JSON data with headers
+SELECT nats_publish_json_with_headers(
+  'sub.ject',
+  '{"key": "value"}'::json,
+  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+);
+
+-- Publish JSON data with both a reply subject and headers
+SELECT nats_publish_json_reply_with_headers(
+  'sub.ject',
+  '{"key": "value"}'::json,
+  'reply.subject',
+  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+);
+
 -- Publish JSON via JetStream (sync)
 SELECT nats_publish_json_stream('sub.ject', '{}'::json);
 
 -- Publish binary JSON (JSONB) to NATS
 SELECT nats_publish_jsonb('sub.ject', '{}'::json);
+
+-- Publish JSONB data with a reply subject
+SELECT nats_publish_jsonb_reply('sub.ject', '{"key": "value"}'::jsonb, 'reply.subject');
+
+-- Publish JSONB data with headers
+SELECT nats_publish_jsonb_with_headers(
+  'sub.ject',
+  '{"key": "value"}'::jsonb,
+  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+);
+
+-- Publish JSONB data with both a reply subject and headers
+SELECT nats_publish_jsonb_reply_with_headers(
+  'sub.ject',
+  '{"key": "value"}'::jsonb,
+  'reply.subject',
+  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+);
 
 -- Publish binary JSON (JSONB) via JetStream (sync)
 SELECT nats_publish_jsonb_stream('sub.ject', '{}'::jsonb);
