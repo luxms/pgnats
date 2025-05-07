@@ -121,7 +121,7 @@ mod nats_tests {
             .await
             .expect("failed to subscribe");
 
-        let res = nats.publish_stream(subject, message).await;
+        let res = nats.publish_stream(subject, message, None).await;
 
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
         assert_eq!(

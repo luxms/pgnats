@@ -54,7 +54,7 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 - `Rust 1.81.0`
 - `cargo-pgrx 0.14.*`
 
-# Documentation
+## Documentation
 
 To view the documentation, run:
 
@@ -64,7 +64,7 @@ cargo doc --open`
 
 The exported PostgreSQL API is implemented in the `api` module.
 
-# Extension config
+## Extension config
 
 - `nats.host` - IP/hostname of the NATS message server (default: `127.0.0.1`)
 - `nats.port` - TCP port for NATS connections (default: `4222`)
@@ -114,6 +114,13 @@ SELECT nats_publish_binary_reply_with_headers(
 -- Publish binary data via JetStream (sync)
 SELECT nats_publish_binary_stream('sub.ject', 'binary data'::bytea);
 
+-- Publish text via JetStream (sync) with headers
+SELECT nats_publish_binary_stream_with_headers(
+  'sub.ject',
+  'binary data'::bytea,
+  '{}'::json
+);
+
 -- Publish text to NATS
 SELECT nats_publish_text('sub.ject', 'text data');
 
@@ -138,6 +145,13 @@ SELECT nats_publish_text_reply_with_headers(
 -- Publish text via JetStream (sync)
 SELECT nats_publish_text_stream('sub.ject', 'text data');
 
+-- Publish text via JetStream (sync) with headers
+SELECT nats_publish_text_stream_with_headers(
+  'sub.ject',
+  'text data',
+  '{}'::json
+);
+
 -- Publish JSON to NATS
 SELECT nats_publish_json('sub.ject', '{}'::json);
 
@@ -148,7 +162,7 @@ SELECT nats_publish_json_reply('sub.ject', '{"key": "value"}'::json, 'reply.subj
 SELECT nats_publish_json_with_headers(
   'sub.ject',
   '{"key": "value"}'::json,
-  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+  '{}'::json
 );
 
 -- Publish JSON data with both a reply subject and headers
@@ -156,11 +170,18 @@ SELECT nats_publish_json_reply_with_headers(
   'sub.ject',
   '{"key": "value"}'::json,
   'reply.subject',
-  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+  '{}'::json
 );
 
 -- Publish JSON via JetStream (sync)
 SELECT nats_publish_json_stream('sub.ject', '{}'::json);
+
+-- Publish JSON via JetStream (sync) with headers
+SELECT nats_publish_json_stream_with_headers(
+  'sub.ject',
+  '{}'::json,
+  '{}'::json
+);
 
 -- Publish binary JSON (JSONB) to NATS
 SELECT nats_publish_jsonb('sub.ject', '{}'::json);
@@ -172,7 +193,7 @@ SELECT nats_publish_jsonb_reply('sub.ject', '{"key": "value"}'::jsonb, 'reply.su
 SELECT nats_publish_jsonb_with_headers(
   'sub.ject',
   '{"key": "value"}'::jsonb,
-  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+  '{}'::json
 );
 
 -- Publish JSONB data with both a reply subject and headers
@@ -180,11 +201,18 @@ SELECT nats_publish_jsonb_reply_with_headers(
   'sub.ject',
   '{"key": "value"}'::jsonb,
   'reply.subject',
-  '{"Content-Type": "application/json", "X-Custom": "value"}'::json
+  '{}'::json
 );
 
 -- Publish binary JSON (JSONB) via JetStream (sync)
 SELECT nats_publish_jsonb_stream('sub.ject', '{}'::jsonb);
+
+--  Publish binary JSON (JSONB) via JetStream (sync) with headers
+SELECT nats_publish_jsonb_stream_with_headers(
+  'sub.ject',
+  '{}'::jsonb,
+  '{}'::json
+);
 
 -- Request binary data from NATS (wait for response with timeout in ms)
 SELECT nats_request_binary('sub.ject', 'binary request'::bytea, 1000);

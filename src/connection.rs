@@ -109,15 +109,20 @@ impl NatsConnection {
         &mut self,
         subject: impl ToString,
         message: impl ToBytes,
+        headers: Option<serde_json::Value>,
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
+        let headers = headers.map(extract_headers);
+        let js = self.get_jetstream().await?;
 
-        let _ask = self
-            .get_jetstream()
-            .await?
-            .publish(subject, message.into())
-            .await?;
+        if let Some(headers) = headers {
+            let _ = js
+                .publish_with_headers(subject, headers, message.into())
+                .await?;
+        } else {
+            let _ = js.publish(subject, message.into()).await?;
+        }
 
         Ok(())
     }

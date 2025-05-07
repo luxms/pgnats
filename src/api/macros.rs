@@ -55,11 +55,28 @@ macro_rules! impl_nats_publish {
             }
 
             #[pgrx::pg_extern]
-            #[doc = concat!("JetStream version of [`nats_publish_", stringify!($suffix), "`]", " but with JetStream delivery guarantees.")]
+            #[doc = concat!("JetStream version of [`nats_publish_", stringify!($suffix), "`].")]
+            ///
+            /// # Alternative
+            /// For additional functionality, consider the following variants:
+            #[doc = concat!("- [`nats_publish_", stringify!($suffix), "_stream_with_headers`] - Publishes a message to JetStream with headers.")]
             pub fn [<nats_publish_ $suffix _stream>](subject: &str, payload: $ty) -> Result<(), PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
                     ctx.local_set.block_on(&ctx.rt,
-                        ctx.nats_connection.publish_stream(subject, payload)
+                        ctx.nats_connection.publish_stream(subject, payload, None)
+                    )
+                })
+            }
+
+            #[pgrx::pg_extern]
+            #[doc = concat!("JetStream version of [`nats_publish_", stringify!($suffix), "`] but with headers.")]
+            /// # Arguments
+            ///
+            /// * `headers` - A JSON object representing the message headers. This should be a dictionary where each key and value is a string.
+            pub fn [<nats_publish_ $suffix _stream_with_headers>](subject: &str, payload: $ty) -> Result<(), PgNatsError> {
+                CTX.with_borrow_mut(|ctx| {
+                    ctx.local_set.block_on(&ctx.rt,
+                        ctx.nats_connection.publish_stream(subject, payload, None)
                     )
                 })
             }
