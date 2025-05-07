@@ -152,4 +152,7 @@ SELECT nats_get_json('bucket', 'key');
 
 -- Delete value associated with specified key from bucket
 SELECT nats_delete_value('bucket', 'key');
+
+-- Retrieves information about the NATS server connection.
+SELECT nats_get_server_info();
 ```

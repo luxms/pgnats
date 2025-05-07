@@ -1,8 +1,8 @@
 use pgrx::pg_extern;
 
 use crate::{
-    ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put,
-    impl_nats_request,
+    api::types::ServerInfo, ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish,
+    impl_nats_put, impl_nats_request,
 };
 
 impl_nats_publish! {
@@ -343,5 +343,24 @@ pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.delete_value(bucket, key))
+    })
+}
+
+/// Retrieves information about the NATS server connection.
+///
+/// # Returns
+/// * `Ok(ServerInfo)` - Contains details about the NATS server if successful
+/// * `Err(PgNatsError)` - If an error occurred while fetching server information
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_get_server_info();
+/// ```
+#[pg_extern]
+pub fn nats_get_server_info() -> Result<ServerInfo, PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.get_server_info())
+            .map(|v| v.into())
     })
 }

@@ -3,7 +3,7 @@
 macro_rules! impl_nats_publish {
     ($(#[$attr:meta])* $suffix:ident, $ty:ty) => {
         paste::paste! {
-            #[pg_extern]
+            #[pgrx::pg_extern]
             $(#[$attr])*
             pub fn [<nats_publish_ $suffix>](subject: &str, payload: $ty) -> Result<(), PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
@@ -13,7 +13,7 @@ macro_rules! impl_nats_publish {
                 })
             }
 
-            #[pg_extern]
+            #[pgrx::pg_extern]
             #[doc = concat!("JetStream version of [`nats_publish_", stringify!($suffix), "`]", " but with JetStream delivery guarantees.")]
             pub fn [<nats_publish_ $suffix _stream>](subject: &str, payload: $ty) -> Result<(), PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
@@ -31,7 +31,7 @@ macro_rules! impl_nats_publish {
 macro_rules! impl_nats_request {
     ($(#[$attr:meta])* $suffix:ident, $ty:ty) => {
         paste::paste! {
-            #[pg_extern]
+            #[pgrx::pg_extern]
             $(#[$attr])*
                 pub fn [<nats_request_ $suffix>](subject: &str, payload: $ty, timeout: Option<i32>) -> Result<Vec<u8>, PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
@@ -49,7 +49,7 @@ macro_rules! impl_nats_request {
 macro_rules! impl_nats_put {
     ($(#[$attr:meta])* $suffix:ident, $ty:ty) => {
         paste::paste! {
-            #[pg_extern]
+            #[pgrx::pg_extern]
             $(#[$attr])*
                 pub fn [<nats_put_ $suffix>](bucket: String, key: &str, data: $ty) -> Result<i64, PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
@@ -67,7 +67,7 @@ macro_rules! impl_nats_put {
 macro_rules! impl_nats_get {
     ($(#[$attr:meta])* $suffix:ident, $ret:ty) => {
         paste::paste! {
-            #[pg_extern]
+            #[pgrx::pg_extern]
             $(#[$attr])*
             pub fn [<nats_get_ $suffix>](bucket: String, key: &str) -> Result<Option<$ret>, PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
