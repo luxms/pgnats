@@ -1,8 +1,8 @@
 use pgrx::pg_extern;
 
 use crate::{
-    ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put,
-    impl_nats_request,
+    api::types::ServerInfo, ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish,
+    impl_nats_put, impl_nats_request,
 };
 
 impl_nats_publish! {
@@ -13,8 +13,8 @@ impl_nats_publish! {
     /// * `payload` - Binary data to publish as `Vec<u8>`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -24,6 +24,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_binary_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_binary_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_binary_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_binary_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     binary, Vec<u8>
 }
 impl_nats_publish! {
@@ -34,8 +40,8 @@ impl_nats_publish! {
     /// * `payload` - Text message to publish as `String`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -45,6 +51,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_text_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_text_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_text_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_text_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     text, String
 }
 
@@ -56,8 +68,8 @@ impl_nats_publish! {
     /// * `payload` - JSON data to publish as `pgrx::Json`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -67,6 +79,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_json_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_json_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_json_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_json_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     json, pgrx::Json
 }
 
@@ -78,8 +96,8 @@ impl_nats_publish! {
     /// * `payload` - Binary JSON data to publish as `pgrx::JsonB`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -89,6 +107,12 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_jsonb_stream`] provides JetStream
     /// persistence and delivery guarantees.
+    ///
+    /// # Alternative
+    /// For additional functionality, consider the following variants:
+    /// - [`nats_publish_jsonb_reply`] – Publishes a message with a reply subject.
+    /// - [`nats_publish_jsonb_with_headers`] – Publishes a message with headers.
+    /// - [`nats_publish_jsonb_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     jsonb, pgrx::JsonB
 }
 
@@ -181,8 +205,8 @@ impl_nats_put! {
     /// * `data` - Binary data to store as `Vec<u8>`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -200,8 +224,8 @@ impl_nats_put! {
     /// * `data` - Text data to store as `&str`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -219,8 +243,8 @@ impl_nats_put! {
     /// * `data` - JSON data to store as `pgrx::Json`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -238,8 +262,8 @@ impl_nats_put! {
     /// * `data` - Binary JSON data to store as `pgrx::JsonB`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -256,9 +280,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(Vec<u8>))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(Vec<u8>))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -275,9 +299,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(String))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(String))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -294,9 +318,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(pgrx::Json))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(pgrx::Json))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -313,9 +337,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(pgrx::JsonB))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(pgrx::JsonB))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -331,8 +355,8 @@ impl_nats_get! {
 /// * `key` - The key associated with the value to be deleted
 ///
 /// # Returns
-/// * `Ok(())` if the deletion was successful
-/// * `Err(PgNatsError)` if an error occurred during deletion
+/// * `Ok(())` - If the deletion was successful
+/// * `Err(PgNatsError)` - If an error occurred during deletion
 ///
 /// # SQL Usage
 /// ```sql
@@ -343,5 +367,24 @@ pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.delete_value(bucket, key))
+    })
+}
+
+/// Retrieves information about the NATS server connection.
+///
+/// # Returns
+/// * `Ok(ServerInfo)` - Contains details about the NATS server if successful
+/// * `Err(PgNatsError)` - If an error occurred while fetching server information
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_get_server_info();
+/// ```
+#[pg_extern]
+pub fn nats_get_server_info() -> Result<ServerInfo, PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.get_server_info())
+            .map(|v| v.into())
     })
 }

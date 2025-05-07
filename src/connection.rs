@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
 use crate::info;
-use crate::utils::{FromBytes, ToBytes};
+use crate::utils::{extract_headers, FromBytes, ToBytes};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -51,14 +51,30 @@ impl NatsConnection {
         &mut self,
         subject: impl ToString,
         message: impl ToBytes,
+        reply: Option<impl ToString>,
+        headers: Option<serde_json::Value>,
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
+        let conn = self.get_connection().await?;
+        let headers = headers.map(extract_headers);
 
-        self.get_connection()
-            .await?
-            .publish(subject, message.into())
-            .await?;
+        if let Some(reply) = reply {
+            let reply = reply.to_string();
+
+            if let Some(headers) = headers {
+                conn.publish_with_reply_and_headers(subject, reply, headers, message.into())
+                    .await?;
+            } else {
+                conn.publish_with_reply(subject, reply, message.into())
+                    .await?;
+            }
+        } else if let Some(headers) = headers {
+            conn.publish_with_headers(subject, headers, message.into())
+                .await?;
+        } else {
+            conn.publish(subject, message.into()).await?;
+        }
 
         Ok(())
     }
@@ -93,15 +109,20 @@ impl NatsConnection {
         &mut self,
         subject: impl ToString,
         message: impl ToBytes,
+        headers: Option<serde_json::Value>,
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
+        let headers = headers.map(extract_headers);
+        let js = self.get_jetstream().await?;
 
-        let _ask = self
-            .get_jetstream()
-            .await?
-            .publish(subject, message.into())
-            .await?;
+        if let Some(headers) = headers {
+            let _ = js
+                .publish_with_headers(subject, headers, message.into())
+                .await?;
+        } else {
+            let _ = js.publish(subject, message.into()).await?;
+        }
 
         Ok(())
     }
@@ -162,13 +183,12 @@ impl NatsConnection {
         bucket: impl ToString,
         key: impl AsRef<str>,
         data: impl ToBytes,
-    ) -> Result<(), PgNatsError> {
+    ) -> Result<u64, PgNatsError> {
         let bucket = self.get_or_create_bucket(bucket).await?;
         let data: Vec<u8> = data.to_bytes()?;
+        let version = bucket.put(key, data.into()).await?;
 
-        let _version = bucket.put(key, data.into()).await?;
-
-        Ok(())
+        Ok(version)
     }
 
     pub async fn get_value<T: FromBytes>(
@@ -192,12 +212,18 @@ impl NatsConnection {
         key: impl AsRef<str>,
     ) -> Result<(), PgNatsError> {
         let bucket = self.get_or_create_bucket(bucket).await?;
-
         bucket.delete(key).await?;
 
         Ok(())
     }
 
+    pub async fn get_server_info(&mut self) -> Result<async_nats::ServerInfo, PgNatsError> {
+        let connection = self.get_connection().await?;
+        Ok(connection.server_info())
+    }
+}
+
+impl NatsConnection {
     async fn get_connection(&mut self) -> Result<&Client, PgNatsError> {
         if self.connection.is_none() {
             self.initialize_connection().await?;
@@ -280,6 +306,9 @@ impl NatsConnection {
                 host: config.host.clone(),
                 port: config.port,
                 io_error,
+            })
+            .inspect_err(|_| {
+                self.current_config = None;
             })?;
 
         let mut jetstream = async_nats::jetstream::new(connection.clone());

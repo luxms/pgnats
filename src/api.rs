@@ -1,4 +1,5 @@
 mod nats;
+mod types;
 
 #[macro_use]
 mod macros;

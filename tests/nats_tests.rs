@@ -48,7 +48,7 @@ mod nats_tests {
             .await
             .expect("failed to subscribe");
 
-        let res = nats.publish(subject, message).await;
+        let res = nats.publish(subject, message, None::<String>, None).await;
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
         assert_eq!(
@@ -121,7 +121,7 @@ mod nats_tests {
             .await
             .expect("failed to subscribe");
 
-        let res = nats.publish_stream(subject, message).await;
+        let res = nats.publish_stream(subject, message, None).await;
 
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
         assert_eq!(
@@ -159,7 +159,7 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(data.as_slice()), value.as_ref().map(|v| v.as_slice()));
+        assert_eq!(Some(data.as_slice()), value.as_deref());
     }
 
     #[tokio::test]
@@ -191,7 +191,7 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(text), value.as_ref().map(|v| v.as_str()));
+        assert_eq!(Some(text), value.as_deref());
     }
 
     #[tokio::test]
