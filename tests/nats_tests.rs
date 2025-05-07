@@ -159,7 +159,7 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(data.as_slice()), value.as_ref().map(|v| v.as_slice()));
+        assert_eq!(Some(data.as_slice()), value.as_deref());
     }
 
     #[tokio::test]
@@ -191,7 +191,7 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(text), value.as_ref().map(|v| v.as_str()));
+        assert_eq!(Some(text), value.as_deref());
     }
 
     #[tokio::test]

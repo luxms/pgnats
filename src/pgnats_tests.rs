@@ -91,7 +91,7 @@ mod tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(data.as_slice()), value.as_ref().map(|v| v.as_slice()));
+        assert_eq!(Some(data.as_slice()), value.as_deref());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -174,7 +174,7 @@ mod tests {
         assert!(get_res.is_ok(), "nats_get_text occurs error {:?}", get_res);
 
         let value = get_res.unwrap();
-        assert_eq!(Some(text), value.as_ref().map(|v| v.as_str()));
+        assert_eq!(Some(text), value.as_deref());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]

@@ -69,13 +69,11 @@ impl NatsConnection {
                 conn.publish_with_reply(subject, reply, message.into())
                     .await?;
             }
+        } else if let Some(headers) = headers {
+            conn.publish_with_headers(subject, headers, message.into())
+                .await?;
         } else {
-            if let Some(headers) = headers {
-                conn.publish_with_headers(subject, headers, message.into())
-                    .await?;
-            } else {
-                conn.publish(subject, message.into()).await?;
-            }
+            conn.publish(subject, message.into()).await?;
         }
 
         Ok(())
