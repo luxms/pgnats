@@ -280,6 +280,9 @@ impl NatsConnection {
                 host: config.host.clone(),
                 port: config.port,
                 io_error,
+            })
+            .inspect_err(|_| {
+                self.current_config = None;
             })?;
 
         let mut jetstream = async_nats::jetstream::new(connection.clone());
