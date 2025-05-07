@@ -54,6 +54,16 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 - `Rust 1.81.0`
 - `cargo-pgrx 0.14.*`
 
+# Documentation
+
+To view the documentation, run:
+
+```sh
+cargo doc --open`
+```
+
+The exported PostgreSQL API is implemented in the `api` module.
+
 # Extension config
 
 - `nats.host` - IP/hostname of the NATS message server (default: `127.0.0.1`)

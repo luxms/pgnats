@@ -51,11 +51,11 @@ macro_rules! impl_nats_put {
         paste::paste! {
             #[pg_extern]
             $(#[$attr])*
-            pub fn [<nats_put_ $suffix>](bucket: String, key: &str, data: $ty) -> Result<(), PgNatsError> {
+                pub fn [<nats_put_ $suffix>](bucket: String, key: &str, data: $ty) -> Result<i64, PgNatsError> {
                 CTX.with_borrow_mut(|ctx| {
                     ctx.local_set.block_on(&ctx.rt,
                         ctx.nats_connection.put_value(bucket, key, data)
-                    )
+                    ).map(|v| v.try_into().unwrap_or(i64::MAX))
                 })
             }
         }

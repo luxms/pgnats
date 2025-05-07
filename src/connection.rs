@@ -162,13 +162,12 @@ impl NatsConnection {
         bucket: impl ToString,
         key: impl AsRef<str>,
         data: impl ToBytes,
-    ) -> Result<(), PgNatsError> {
+    ) -> Result<u64, PgNatsError> {
         let bucket = self.get_or_create_bucket(bucket).await?;
         let data: Vec<u8> = data.to_bytes()?;
+        let version = bucket.put(key, data.into()).await?;
 
-        let _version = bucket.put(key, data.into()).await?;
-
-        Ok(())
+        Ok(version)
     }
 
     pub async fn get_value<T: FromBytes>(
@@ -192,12 +191,18 @@ impl NatsConnection {
         key: impl AsRef<str>,
     ) -> Result<(), PgNatsError> {
         let bucket = self.get_or_create_bucket(bucket).await?;
-
         bucket.delete(key).await?;
 
         Ok(())
     }
 
+    pub async fn get_server_info(&mut self) -> Result<async_nats::ServerInfo, PgNatsError> {
+        let connection = self.get_connection().await?;
+        Ok(connection.server_info())
+    }
+}
+
+impl NatsConnection {
     async fn get_connection(&mut self) -> Result<&Client, PgNatsError> {
         if self.connection.is_none() {
             self.initialize_connection().await?;

@@ -13,8 +13,8 @@ impl_nats_publish! {
     /// * `payload` - Binary data to publish as `Vec<u8>`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -34,8 +34,8 @@ impl_nats_publish! {
     /// * `payload` - Text message to publish as `String`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -56,8 +56,8 @@ impl_nats_publish! {
     /// * `payload` - JSON data to publish as `pgrx::Json`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -78,8 +78,8 @@ impl_nats_publish! {
     /// * `payload` - Binary JSON data to publish as `pgrx::JsonB`
     ///
     /// # Returns
-    /// * `Ok(())` on successful publish
-    /// * `Err(PgNatsError)` if publish failed
+    /// * `Ok(())` - On successful publish
+    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -181,8 +181,8 @@ impl_nats_put! {
     /// * `data` - Binary data to store as `Vec<u8>`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -200,8 +200,8 @@ impl_nats_put! {
     /// * `data` - Text data to store as `&str`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -219,8 +219,8 @@ impl_nats_put! {
     /// * `data` - JSON data to store as `pgrx::Json`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -238,8 +238,8 @@ impl_nats_put! {
     /// * `data` - Binary JSON data to store as `pgrx::JsonB`
     ///
     /// # Returns
-    /// * `Ok(())` on successful store
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(i64)` - The revision number of the stored value on success.
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -256,9 +256,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(Vec<u8>))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(Vec<u8>))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -275,9 +275,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(String))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(String))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -294,9 +294,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(pgrx::Json))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(pgrx::Json))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -313,9 +313,9 @@ impl_nats_get! {
     /// * `key` - Key to retrieve the value from
     ///
     /// # Returns
-    /// * `Ok(Some(pgrx::JsonB))` if value exists
-    /// * `Ok(None)` if key doesn't exist
-    /// * `Err(PgNatsError)` if operation failed
+    /// * `Ok(Some(pgrx::JsonB))` - If value exists
+    /// * `Ok(None)` - If key doesn't exist
+    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -331,8 +331,8 @@ impl_nats_get! {
 /// * `key` - The key associated with the value to be deleted
 ///
 /// # Returns
-/// * `Ok(())` if the deletion was successful
-/// * `Err(PgNatsError)` if an error occurred during deletion
+/// * `Ok(())` - If the deletion was successful
+/// * `Err(PgNatsError)` - If an error occurred during deletion
 ///
 /// # SQL Usage
 /// ```sql
