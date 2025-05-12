@@ -45,6 +45,7 @@ impl From<async_nats::ServerInfo> for ServerInfo {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub fn map_object_info(
     v: impl IntoIterator<Item = ObjectInfo> + 'static,
 ) -> pgrx::iter::TableIterator<

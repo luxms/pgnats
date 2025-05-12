@@ -472,6 +472,7 @@ pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
 /// ```sql
 /// SELECT * FROM nats_get_file_info('documents', 'report.pdf');
 /// ```
+#[allow(clippy::type_complexity)]
 #[pg_extern]
 pub fn nats_get_file_info(
     store: String,
@@ -513,6 +514,7 @@ pub fn nats_get_file_info(
 /// # SQL Usage
 /// ```sql
 /// SELECT * FROM nats_get_file_list('documents');
+#[allow(clippy::type_complexity)]
 #[pg_extern]
 pub fn nats_get_file_list(
     store: String,
