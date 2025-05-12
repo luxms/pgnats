@@ -1,11 +1,11 @@
 use pgrx::{name, pg_extern};
 
 use crate::{
-    api::types::ServerInfo, ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish,
-    impl_nats_put, impl_nats_request,
+    ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put,
+    impl_nats_request,
 };
 
-use super::types::map_object_info;
+use super::types::{map_object_info, map_server_info};
 
 impl_nats_publish! {
     /// Publishes a raw binary message to the specified NATS subject.
@@ -382,12 +382,36 @@ pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
 /// ```sql
 /// SELECT nats_get_server_info();
 /// ```
+#[allow(clippy::type_complexity)]
 #[pg_extern]
-pub fn nats_get_server_info() -> Result<ServerInfo, PgNatsError> {
+pub fn nats_get_server_info() -> Result<
+    pgrx::iter::TableIterator<
+        'static,
+        (
+            name!(server_id, String),
+            name!(server_name, String),
+            name!(host, String),
+            name!(port, i32),
+            name!(version, String),
+            name!(auth_required, bool),
+            name!(tls_requiered, bool),
+            name!(max_payload, i64),
+            name!(proto, i8),
+            name!(client_id, i64),
+            name!(go, String),
+            name!(nonce, String),
+            name!(connect_urls, pgrx::Json),
+            name!(client_ip, String),
+            name!(headers, bool),
+            name!(lame_duck_mode, bool),
+        ),
+    >,
+    PgNatsError,
+> {
     CTX.with_borrow_mut(|ctx| {
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.get_server_info())
-            .map(|v| v.into())
+            .map(|v| map_server_info(std::iter::once(v)))
     })
 }
 
