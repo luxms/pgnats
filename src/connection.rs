@@ -1,10 +1,14 @@
 use async_nats::jetstream::kv::Store;
+use async_nats::jetstream::object_store::{ObjectInfo, ObjectStore};
 use async_nats::jetstream::Context;
 use async_nats::{Client, Request};
+use futures::StreamExt;
 use pgrx::warning;
 use std::collections::HashMap;
+use std::io::Cursor;
 use std::path::PathBuf;
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
@@ -16,6 +20,7 @@ pub struct NatsConnection {
     connection: Option<Client>,
     jetstream: Option<Context>,
     cached_buckets: HashMap<String, Store>,
+    cached_object_stores: HashMap<String, ObjectStore>,
     current_config: Option<ConnectionOptions>,
 }
 
@@ -221,6 +226,67 @@ impl NatsConnection {
         let connection = self.get_connection().await?;
         Ok(connection.server_info())
     }
+
+    pub async fn get_file(
+        &mut self,
+        store: impl ToString,
+        name: impl AsRef<str> + Send,
+    ) -> Result<Vec<u8>, PgNatsError> {
+        let store = self.get_or_create_object_store(store).await?;
+        let mut file = store.get(name).await?;
+        let mut content = Vec::with_capacity(file.info().size);
+        let _ = file.read_to_end(&mut content).await?;
+
+        Ok(content)
+    }
+
+    pub async fn put_file(
+        &mut self,
+        store: impl ToString,
+        name: impl AsRef<str>,
+        content: Vec<u8>,
+    ) -> Result<(), PgNatsError> {
+        let store = self.get_or_create_object_store(store).await?;
+        let mut reader = BufReader::new(Cursor::new(content));
+        let _ = store.put(name.as_ref(), &mut reader).await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_file(
+        &mut self,
+        store: impl ToString,
+        name: impl AsRef<str>,
+    ) -> Result<(), PgNatsError> {
+        let store = self.get_or_create_object_store(store).await?;
+        store.delete(name).await.map_err(|e| e.into())
+    }
+
+    pub async fn file_info(
+        &mut self,
+        store: impl ToString,
+        name: impl AsRef<str>,
+    ) -> Result<ObjectInfo, PgNatsError> {
+        let store = self.get_or_create_object_store(store).await?;
+        store.info(name).await.map_err(|e| e.into())
+    }
+
+    pub async fn file_list(
+        &mut self,
+        store: impl ToString,
+    ) -> Result<Vec<ObjectInfo>, PgNatsError> {
+        let store = self.get_or_create_object_store(store).await?;
+        let mut vec = vec![];
+        let mut list = store.list().await?;
+
+        while let Some(object) = list.next().await {
+            if let Ok(object) = object {
+                vec.push(object);
+            }
+        }
+
+        Ok(vec)
+    }
 }
 
 impl NatsConnection {
@@ -265,6 +331,32 @@ impl NatsConnection {
 
         Ok(self
             .cached_buckets
+            .get(&bucket)
+            .expect("unreachable, must be initialized"))
+    }
+
+    async fn get_or_create_object_store(
+        &mut self,
+        store: impl ToString,
+    ) -> Result<&ObjectStore, PgNatsError> {
+        let bucket = store.to_string();
+
+        if !self.cached_object_stores.contains_key(&bucket) {
+            let new_store = {
+                let jetstream = self.get_jetstream().await?;
+                jetstream
+                    .create_object_store(async_nats::jetstream::object_store::Config {
+                        bucket: bucket.clone(),
+                        ..Default::default()
+                    })
+                    .await?
+            };
+
+            let _ = self.cached_object_stores.insert(bucket.clone(), new_store);
+        }
+
+        Ok(self
+            .cached_object_stores
             .get(&bucket)
             .expect("unreachable, must be initialized"))
     }
