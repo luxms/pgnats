@@ -1,4 +1,4 @@
-comment = 'pgnats:  Created by pgrx'
+comment = 'NATS messaging system'
 default_version = '@CARGO_VERSION@'
 module_pathname = '$libdir/pgnats'
 relocatable = false
