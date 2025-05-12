@@ -262,7 +262,7 @@ impl NatsConnection {
         store.delete(name).await.map_err(|e| e.into())
     }
 
-    pub async fn file_info(
+    pub async fn get_file_info(
         &mut self,
         store: impl ToString,
         name: impl AsRef<str>,
@@ -271,7 +271,7 @@ impl NatsConnection {
         store.info(name).await.map_err(|e| e.into())
     }
 
-    pub async fn file_list(
+    pub async fn get_file_list(
         &mut self,
         store: impl ToString,
     ) -> Result<Vec<ObjectInfo>, PgNatsError> {

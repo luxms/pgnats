@@ -1,4 +1,5 @@
-use pgrx::PostgresType;
+use async_nats::jetstream::object_store::ObjectInfo;
+use pgrx::{name, PostgresType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, PostgresType)]
@@ -42,4 +43,37 @@ impl From<async_nats::ServerInfo> for ServerInfo {
             lame_duck_mode: value.lame_duck_mode,
         }
     }
+}
+
+pub fn map_object_info(
+    v: impl IntoIterator<Item = ObjectInfo> + 'static,
+) -> pgrx::iter::TableIterator<
+    'static,
+    (
+        name!(name, String),
+        name!(description, Option<String>),
+        name!(metadata, pgrx::Json),
+        name!(bucket, String),
+        name!(nuid, String),
+        name!(size, i64),
+        name!(chunks, i64),
+        name!(modified, Option<String>),
+        name!(digest, Option<String>),
+        name!(delete, bool),
+    ),
+> {
+    pgrx::iter::TableIterator::new(v.into_iter().map(|v| {
+        (
+            v.name,
+            v.description,
+            pgrx::Json(serde_json::to_value(v.metadata).expect("Must generate value")),
+            v.bucket,
+            v.nuid,
+            v.size as i64,
+            v.chunks as i64,
+            v.modified.map(|v| v.to_string()),
+            v.digest,
+            v.deleted,
+        )
+    }))
 }

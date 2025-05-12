@@ -1,9 +1,11 @@
-use pgrx::pg_extern;
+use pgrx::{name, pg_extern};
 
 use crate::{
     api::types::ServerInfo, ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish,
     impl_nats_put, impl_nats_request,
 };
+
+use super::types::map_object_info;
 
 impl_nats_publish! {
     /// Publishes a raw binary message to the specified NATS subject.
@@ -386,5 +388,155 @@ pub fn nats_get_server_info() -> Result<ServerInfo, PgNatsError> {
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.get_server_info())
             .map(|v| v.into())
+    })
+}
+
+/// Retrieves a file's content from the NATS object store by its name.
+///
+/// # Arguments
+/// * `store` - The name of the object store
+/// * `name` - The name of the file to retrieve
+///
+/// # Returns
+/// * `Ok(Vec<u8>)` - The file content as a byte array if successful
+/// * `Err(PgNatsError)` - If an error occurred during retrieval
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_get_file('documents', 'report.pdf');
+/// ```
+#[pg_extern]
+pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.get_file(store, name))
+    })
+}
+
+/// Uploads a file to the NATS object store.
+///
+/// # Arguments
+/// * `store` - The name of the object store
+/// * `name` - The name under which to store the file
+/// * `content` - The file content as a byte array
+///
+/// # Returns
+/// * `Ok(())` - If the upload was successful
+/// * `Err(PgNatsError)` - If an error occurred during upload
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_put_file('documents', 'report.pdf', 'binary data'::bytea);
+/// ```
+#[pg_extern]
+pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.put_file(store, name, content))
+    })
+}
+
+/// Deletes a file from the NATS object store.
+///
+/// # Arguments
+/// * `store` - The name of the object store
+/// * `name` - The name of the file to delete
+///
+/// # Returns
+/// * `Ok(())` - If the deletion was successful
+/// * `Err(PgNatsError)` - If an error occurred during deletion
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_delete_file('documents', 'old_report.pdf');
+/// ```
+#[pg_extern]
+pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.delete_file(store, name))
+    })
+}
+
+/// Retrieves metadata information for a specific file in the NATS object store.
+///
+/// # Arguments
+/// * `store` - The name of the object store
+/// * `name` - The name of the file
+///
+/// # Returns
+/// * `Ok(_)` - A row with file metadata if successful
+/// * `Err(PgNatsError)` - If an error occurred during retrieval
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT * FROM nats_get_file_info('documents', 'report.pdf');
+/// ```
+#[pg_extern]
+pub fn nats_get_file_info(
+    store: String,
+    name: &str,
+) -> Result<
+    pgrx::iter::TableIterator<
+        'static,
+        (
+            name!(name, String),
+            name!(description, Option<String>),
+            name!(metadata, pgrx::Json),
+            name!(bucket, String),
+            name!(nuid, String),
+            name!(size, i64),
+            name!(chunks, i64),
+            name!(modified, Option<String>),
+            name!(digest, Option<String>),
+            name!(delete, bool),
+        ),
+    >,
+    PgNatsError,
+> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.get_file_info(store, name))
+            .map(|v| map_object_info(std::iter::once(v)))
+    })
+}
+
+/// Retrieves a list of all files in the specified NATS object store.
+///
+/// # Arguments
+/// * `store` - The name of the object store
+///
+/// # Returns
+/// * `Ok(_)` - Iterator with metadata for all files
+/// * `Err(PgNatsError)` - If an error occurred during retrieval
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT * FROM nats_get_file_list('documents');
+#[pg_extern]
+pub fn nats_get_file_list(
+    store: String,
+) -> Result<
+    pgrx::iter::TableIterator<
+        'static,
+        (
+            name!(name, String),
+            name!(description, Option<String>),
+            name!(metadata, pgrx::Json),
+            name!(bucket, String),
+            name!(nuid, String),
+            name!(size, i64),
+            name!(chunks, i64),
+            name!(modified, Option<String>),
+            name!(digest, Option<String>),
+            name!(delete, bool),
+        ),
+    >,
+    PgNatsError,
+> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.get_file_list(store))
+            .map(|v| map_object_info(v))
     })
 }
