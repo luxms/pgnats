@@ -57,6 +57,24 @@ pub enum PgNatsError {
 
     /// Failed to deserialize data from JSON
     Deserialize(String),
+
+    /// Failed to retrieve an object from JetStream object store
+    GetError(#[from] Error<jetstream::object_store::GetErrorKind>),
+
+    /// Failed to store an object in JetStream object store
+    PutError(#[from] Error<jetstream::object_store::PutErrorKind>),
+
+    /// Failed to delete an object from JetStream object store
+    DeleteError(#[from] Error<jetstream::object_store::DeleteErrorKind>),
+
+    /// Failed to retrieve metadata about an object
+    InfoError(#[from] Error<jetstream::object_store::InfoErrorKind>),
+
+    /// Failed to subscribe to watch changes in an object store
+    WatchError(#[from] Error<jetstream::object_store::WatchErrorKind>),
+
+    /// General IO error
+    IoError(#[from] tokio::io::Error),
 }
 
 impl std::fmt::Display for PgNatsError {
@@ -101,6 +119,39 @@ impl std::fmt::Display for PgNatsError {
             }
             PgNatsError::Deserialize(error) => {
                 write!(f, "{MSG_PREFIX}: failed to deserialize json {error}")
+            }
+            PgNatsError::GetError(error) => {
+                write!(
+                    f,
+                    "{MSG_PREFIX}: failed to get object from object store {error}"
+                )
+            }
+            PgNatsError::PutError(error) => {
+                write!(
+                    f,
+                    "{MSG_PREFIX}: failed to put object to object store {error}"
+                )
+            }
+            PgNatsError::DeleteError(error) => {
+                write!(
+                    f,
+                    "{MSG_PREFIX}: failed to delete object from object store {error}"
+                )
+            }
+            PgNatsError::InfoError(error) => {
+                write!(
+                    f,
+                    "{MSG_PREFIX}: failed to retrieve object metadata {error}"
+                )
+            }
+            PgNatsError::WatchError(error) => {
+                write!(
+                    f,
+                    "{MSG_PREFIX}: failed to watch object store changes {error}"
+                )
+            }
+            PgNatsError::IoError(error) => {
+                write!(f, "{MSG_PREFIX}: IO error {error}")
             }
         }
     }

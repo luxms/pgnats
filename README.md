@@ -7,6 +7,7 @@ Provides one-way integration from PostgreSQL to NATS, supporting:
 - Message publishing to core NATS subjects from SQL
 - JetStream persistent message streams
 - Key-Value storage operations from SQL
+- Object Store operations (uploading, downloading, deleting files) from SQL
 
 ## ⚙️ Install
 
@@ -286,9 +287,28 @@ SELECT nats_get_json('bucket', 'key');
 SELECT nats_delete_value('bucket', 'key');
 ```
 
+### 🗂️ Object Storage
+
+```sql
+-- Upload file content to NATS Object Store under a given name
+SELECT nats_put_file('store', 'file_name.txt', 'file content'::bytea);
+
+-- Download file content from NATS Object Store by name
+SELECT nats_get_file('store', 'file_name.txt');
+
+-- Delete a file from the NATS Object Store by name
+SELECT nats_delete_file('store', 'file_name.txt');
+
+-- Get metadata for a specific file in the Object Store
+SELECT * FROM nats_get_file_info('store', 'file_name.txt');
+
+-- List all files in a given NATS Object Store
+SELECT * FROM nats_get_file_list('store');
+```
+
 ### 🛠️ Utils
 
 ```sql
 -- Retrieves information about the NATS server connection.
-SELECT nats_get_server_info();
+SELECT * FROM nats_get_server_info();
 ```
