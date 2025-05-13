@@ -566,3 +566,19 @@ pub fn nats_get_file_list(
             .map(|v| map_object_info(v))
     })
 }
+
+#[pg_extern]
+pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.subscribe(subject, fn_name))
+    })
+}
+
+#[pg_extern]
+pub fn nats_unsubscribe(subject: String) {
+    CTX.with_borrow_mut(|ctx| {
+        ctx.local_set
+            .block_on(&ctx.rt, ctx.nats_connection.unsubscribe(subject))
+    })
+}

@@ -9,8 +9,10 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, BufReader};
+use tokio::task::JoinHandle;
 
 use crate::config::fetch_connection_options;
+use crate::ctx::SUBSCRIBTION_BRIDGE;
 use crate::errors::PgNatsError;
 use crate::info;
 use crate::utils::{extract_headers, FromBytes, ToBytes};
@@ -22,6 +24,7 @@ pub struct NatsConnection {
     cached_buckets: HashMap<String, Store>,
     cached_object_stores: HashMap<String, ObjectStore>,
     current_config: Option<ConnectionOptions>,
+    subscribtions: HashMap<String, JoinHandle<()>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -135,7 +138,12 @@ impl NatsConnection {
     pub async fn invalidate_connection(&mut self) {
         let connection = { self.connection.take() };
 
+        for (_, sub) in &self.subscribtions {
+            sub.abort();
+        }
+
         {
+            self.subscribtions.clear();
             self.cached_buckets.clear();
             let _ = self.jetstream.take();
             let _ = self.current_config.take();
@@ -286,6 +294,46 @@ impl NatsConnection {
         }
 
         Ok(vec)
+    }
+
+    pub async fn subscribe(
+        &mut self,
+        subject: impl ToString,
+        fn_name: impl ToString,
+    ) -> Result<(), PgNatsError> {
+        let subject = subject.to_string();
+        let fn_name = fn_name.to_string();
+        let sender = SUBSCRIBTION_BRIDGE.sender.clone();
+        let client = self.get_connection().await?.clone();
+
+        let thread = {
+            let subject = subject.clone();
+            tokio::spawn(async move {
+                let sub = client.subscribe(subject).await;
+
+                if let Ok(mut sub) = sub {
+                    while let Some(sub) = sub.next().await {
+                        if sender.send((fn_name.clone(), sub.payload.into())).is_err() {
+                            break;
+                        }
+                    }
+                }
+            })
+        };
+
+        if let Some(v) = self.subscribtions.insert(subject, thread) {
+            v.abort();
+        }
+
+        Ok(())
+    }
+
+    pub async fn unsubscribe(&mut self, subject: impl AsRef<str>) {
+        let subject = subject.as_ref();
+
+        if let Some(v) = self.subscribtions.remove(subject) {
+            v.abort();
+        }
     }
 }
 
