@@ -35,10 +35,3 @@ pub struct Context {
     pub sub_rt: tokio::runtime::Runtime,
     pub local_set: tokio::task::LocalSet,
 }
-
-impl Drop for Context {
-    fn drop(&mut self) {
-        self.local_set
-            .block_on(&self.rt, self.nats_connection.invalidate_connection());
-    }
-}
