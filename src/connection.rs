@@ -3,7 +3,7 @@ use async_nats::jetstream::object_store::{ObjectInfo, ObjectStore};
 use async_nats::jetstream::Context;
 use async_nats::{Client, Request};
 use futures::StreamExt;
-use pgrx::warning;
+use pgrx::{warning, Spi};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::PathBuf;
@@ -12,10 +12,9 @@ use tokio::io::{AsyncReadExt, BufReader};
 use tokio::task::JoinHandle;
 
 use crate::config::fetch_connection_options;
-use crate::ctx::SUBSCRIBTION_BRIDGE;
 use crate::errors::PgNatsError;
-use crate::info;
 use crate::utils::{extract_headers, FromBytes, ToBytes};
+use crate::{info, log};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -303,7 +302,6 @@ impl NatsConnection {
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
         let fn_name = fn_name.to_string();
-        let sender = SUBSCRIBTION_BRIDGE.sender.clone();
         let client = self.get_connection().await?.clone();
 
         let thread = {
@@ -313,9 +311,18 @@ impl NatsConnection {
 
                 if let Ok(mut sub) = sub {
                     while let Some(sub) = sub.next().await {
-                        if sender.send((fn_name.clone(), sub.payload.into())).is_err() {
-                            break;
-                        }
+                        let bytes: Vec<u8> = sub.payload.into();
+                        Spi::connect(|client| {
+                            let result = client.select(
+                                &format!("SELECT {fn_name}($1)"),
+                                None,
+                                &[bytes.into()],
+                            );
+
+                            if let Err(err) = result {
+                                log!("Got an error in Background Worker: {err:?}");
+                            }
+                        });
                     }
                 }
             })

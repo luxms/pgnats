@@ -3,8 +3,18 @@ pub const MSG_PREFIX: &str = "[PGNATS]";
 #[macro_export]
 macro_rules! info {
     ($($msg:tt)*) => {
-        $crate::log!(
+        $crate::report!(
             pgrx::PgLogLevel::INFO,
+            $($msg)*
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! log {
+    ($($msg:tt)*) => {
+        $crate::report!(
+            pgrx::PgLogLevel::LOG,
             $($msg)*
         )
     };
@@ -13,7 +23,7 @@ macro_rules! info {
 #[macro_export]
 macro_rules! warn {
     ($($msg:tt)*) => {
-        log!(
+        $crate::report!(
             pgrx::PgLogLevel::WARNING,
             $($msg)*
         )
@@ -23,7 +33,7 @@ macro_rules! warn {
 #[macro_export]
 macro_rules! error {
     ($($msg:tt)*) => {
-        log!(
+        $crate::report!(
             pgrx::PgLogLevel;:ERROR,
             $($msg)*
         )
@@ -32,7 +42,7 @@ macro_rules! error {
 
 #[cfg(not(feature = "pg_test"))]
 #[macro_export]
-macro_rules! log {
+macro_rules! report {
     ($level:expr, $($msg:tt)*) => {
         pgrx::ereport!(
             $level,
@@ -44,7 +54,7 @@ macro_rules! log {
 
 #[cfg(feature = "pg_test")]
 #[macro_export]
-macro_rules! log {
+macro_rules! report {
     ($level:expr, $($msg:tt)*) => {
         /* NO OP */
     };
