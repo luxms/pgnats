@@ -1,8 +1,8 @@
-use pgrx::{name, pg_extern};
+use pgrx::{name, pg_extern, Spi};
 
 use crate::{
     ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put,
-    impl_nats_request,
+    impl_nats_request, log,
 };
 
 use super::types::{map_object_info, map_server_info};
@@ -570,8 +570,24 @@ pub fn nats_get_file_list(
 #[pg_extern]
 pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
+        let (sdr, mut recv) = tokio::sync::mpsc::unbounded_channel();
         ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.subscribe(subject, fn_name))
+            .block_on(&ctx.rt, ctx.nats_connection.subscribe(subject, sdr))?;
+
+        let _ = ctx.sub_rt.spawn(async move {
+            while let Some(bytes) = recv.recv().await {
+                Spi::connect(|client| {
+                    let result =
+                        client.select(&format!("SELECT {fn_name}($1)"), None, &[bytes.into()]);
+
+                    if let Err(err) = result {
+                        log!("Got an error in Background Worker: {err:?}");
+                    }
+                });
+            }
+        });
+
+        Ok(())
     })
 }
 

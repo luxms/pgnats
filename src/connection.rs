@@ -3,7 +3,7 @@ use async_nats::jetstream::object_store::{ObjectInfo, ObjectStore};
 use async_nats::jetstream::Context;
 use async_nats::{Client, Request};
 use futures::StreamExt;
-use pgrx::{warning, Spi};
+use pgrx::warning;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::PathBuf;
@@ -298,10 +298,10 @@ impl NatsConnection {
     pub async fn subscribe(
         &mut self,
         subject: impl ToString,
-        fn_name: impl ToString,
+        sdr: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
     ) -> Result<(), PgNatsError> {
         let subject = subject.to_string();
-        let fn_name = fn_name.to_string();
+        //let fn_name = fn_name.to_string();
         let client = self.get_connection().await?.clone();
 
         let thread = {
@@ -312,17 +312,10 @@ impl NatsConnection {
                 if let Ok(mut sub) = sub {
                     while let Some(sub) = sub.next().await {
                         let bytes: Vec<u8> = sub.payload.into();
-                        Spi::connect(|client| {
-                            let result = client.select(
-                                &format!("SELECT {fn_name}($1)"),
-                                None,
-                                &[bytes.into()],
-                            );
-
-                            if let Err(err) = result {
-                                log!("Got an error in Background Worker: {err:?}");
-                            }
-                        });
+                        if sdr.send(bytes).is_err() {
+                            log!("Failed to send");
+                            return;
+                        }
                     }
                 }
             })
