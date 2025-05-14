@@ -1,8 +1,11 @@
-use pgrx::{name, pg_extern, Spi};
+use std::net::UdpSocket;
+
+use pgrx::{name, pg_extern};
 
 use crate::{
-    ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put,
-    impl_nats_request, log,
+    ctx::{BgMessage, CTX},
+    errors::PgNatsError,
+    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request,
 };
 
 use super::types::{map_object_info, map_server_info};
@@ -574,16 +577,15 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.subscribe(subject, sdr))?;
 
-        let _ = ctx.sub_rt.spawn(async move {
+        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+        let _ = ctx.rt.spawn(async move {
             while let Some(bytes) = recv.recv().await {
-                Spi::connect(|client| {
-                    let result =
-                        client.select(&format!("SELECT {fn_name}($1)"), None, &[bytes.into()]);
-
-                    if let Err(err) = result {
-                        log!("Got an error in Background Worker: {err:?}");
-                    }
-                });
+                let msg = BgMessage {
+                    name: fn_name.clone(),
+                    data: bytes,
+                };
+                let buf = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
+                let _ = socket.send_to(&buf, "0.0.0.0:52525");
             }
         });
 
