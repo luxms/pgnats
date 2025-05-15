@@ -3,6 +3,7 @@ use std::net::UdpSocket;
 use pgrx::bgworkers::*;
 use pgrx::prelude::*;
 
+use crate::config::GUC_SUB_DB_NAME;
 use crate::ctx::BgMessage;
 use crate::{config::initialize_configuration, ctx::CTX};
 
@@ -27,55 +28,73 @@ pub extern "C-unwind" fn background_worker_listener(_arg: pgrx::pg_sys::Datum) {
     log!("Starting background worker listener");
 
     BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
-    BackgroundWorker::connect_worker_to_spi(Some("postgres"), None);
+    BackgroundWorker::connect_worker_to_spi(
+        GUC_SUB_DB_NAME.get().and_then(|v| v.to_str().ok()),
+        None,
+    );
 
-    let Ok(udp) = UdpSocket::bind("0.0.0.0:52525") else {
-        log!("Failed to create UDP socket");
-        return;
+    let udp = match UdpSocket::bind("0.0.0.0:52525") {
+        Ok(sock) => sock,
+        Err(e) => {
+            log!("Failed to bind UDP socket: {}", e);
+            return;
+        }
     };
-    if udp.set_nonblocking(true).is_err() {
-        log!("Failed to set nonblocking");
+
+    if let Err(e) = udp.set_nonblocking(true) {
+        log!("Failed to set UDP socket to non-blocking: {}", e);
     }
 
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_millis(250))) {
-        let result = std::panic::catch_unwind(|| {
-            let mut buf = [0u8; 2048];
-            match udp.recv(&mut buf) {
-                Ok(size) => {
-                    let result: Result<(BgMessage, _), _> =
-                        bincode::decode_from_slice(&buf[0..size], bincode::config::standard());
+        let mut buf = [0u8; 2048];
 
-                    match result {
-                        Ok((msg, _)) => {
-                            let result: Result<(), pgrx::spi::Error> =
+        match udp.recv(&mut buf) {
+            Ok(size) => {
+                let parse_result: Result<(BgMessage, _), _> =
+                    bincode::decode_from_slice(&buf[..size], bincode::config::standard());
+
+                match parse_result {
+                    Ok((msg, _)) => {
+                        let transaction_result: Result<spi::Result<()>, _> =
+                            std::panic::catch_unwind(|| {
                                 BackgroundWorker::transaction(|| {
                                     Spi::connect(|client| {
+                                        let sql = format!("SELECT {}($1)", msg.name);
                                         let _ = client.select(
-                                            &format!("SELECT {}($1)", msg.name),
+                                            &sql,
                                             None,
                                             &[msg.data.to_vec().into()],
                                         )?;
-
                                         Ok(())
                                     })
-                                });
+                                })
+                            });
 
-                            if let Err(err) = result {
-                                log!("Got an error in Background Worker: {err:?}");
+                        match transaction_result {
+                            Ok(Ok(())) => {}
+                            Ok(Err(e)) => {
+                                log!("SPI transaction failed for message '{}': {:?}", msg.name, e);
+                            }
+                            Err(panic) => {
+                                log!(
+                                    "Panic occurred during transaction execution function '{}': {:?}",
+                                    msg.name,
+                                    panic // Message handling
+                                );
                             }
                         }
-                        Err(e) => log!("Got parse error: {}", e),
+                    }
+                    Err(e) => {
+                        log!("Failed to parse incoming message: {}", e);
                     }
                 }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
-                Err(e) => {
-                    log!("Got UDP error: {}", e);
-                }
             }
-        });
-
-        if let Err(err) = result {
-            log!("Got panic: {:?}", err);
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                // No data; continue waiting
+            }
+            Err(e) => {
+                log!("Error receiving UDP packet: {}", e);
+            }
         }
     }
 

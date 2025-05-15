@@ -21,10 +21,6 @@ fn create_context() -> Context {
             .enable_all()
             .build()
             .expect("Failed to initialize Tokio runtime"),
-        sub_rt: tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to initialize Tokio runtime"),
         local_set: tokio::task::LocalSet::new(),
     }
 }
@@ -32,6 +28,5 @@ fn create_context() -> Context {
 pub struct Context {
     pub nats_connection: NatsConnection,
     pub rt: tokio::runtime::Runtime,
-    pub sub_rt: tokio::runtime::Runtime,
     pub local_set: tokio::task::LocalSet,
 }

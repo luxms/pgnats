@@ -577,15 +577,16 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
         ctx.local_set
             .block_on(&ctx.rt, ctx.nats_connection.subscribe(subject, sdr))?;
 
-        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+        let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
         let _ = ctx.rt.spawn(async move {
             while let Some(bytes) = recv.recv().await {
                 let msg = BgMessage {
                     name: fn_name.clone(),
                     data: bytes,
                 };
-                let buf = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
-                let _ = socket.send_to(&buf, "0.0.0.0:52525");
+                if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+                    let _ = socket.send_to(&buf, "0.0.0.0:52525");
+                }
             }
         });
 
