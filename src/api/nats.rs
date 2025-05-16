@@ -5,7 +5,7 @@ use pgrx::{name, pg_extern};
 use crate::{
     ctx::{BgMessage, CTX},
     errors::PgNatsError,
-    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request,
+    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request, log,
 };
 
 use super::types::{map_object_info, map_server_info};
@@ -596,39 +596,42 @@ pub fn nats_get_file_list(
 
 #[pg_extern]
 pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
-    CTX.with_borrow_mut(|ctx| {
-        let (sdr, mut recv) = tokio::sync::mpsc::unbounded_channel();
+    let Some(opt) = CTX.with_borrow_mut(|ctx| ctx.nats_connection.get_connection_options()) else {
+        return Err(PgNatsError::NoConnectionOptions);
+    };
 
-        ctx.rt.block_on(async {
-            let res = ctx.nats_connection.subscribe(subject, sdr).await;
-            tokio::task::yield_now().await;
-            res
-        })?;
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
+    let msg = BgMessage::Subscribe {
+        opt,
+        subject,
+        fn_name,
+    };
+    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+        if let Err(err) = socket.send_to(&buf, "127.0.0.1:52525") {
+            log!("Failed to send data: {}", err);
+        }
+    }
 
-        let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
-        let _ = ctx.rt.spawn(async move {
-            while let Some(bytes) = recv.recv().await {
-                let msg = BgMessage {
-                    name: fn_name.clone(),
-                    data: bytes,
-                };
-                if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-                    let _ = socket.send_to(&buf, "0.0.0.0:52525");
-                }
-            }
-        });
-
-        Ok(())
-    })
+    Ok(())
 }
 
 #[pg_extern]
-pub fn nats_unsubscribe(subject: String) {
-    CTX.with_borrow_mut(|ctx| {
-        ctx.rt.block_on(async {
-            let res = ctx.nats_connection.unsubscribe(subject).await;
-            tokio::task::yield_now().await;
-            res
-        })
-    })
+pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
+    let Some(opt) = CTX.with_borrow_mut(|ctx| ctx.nats_connection.get_connection_options()) else {
+        return Err(PgNatsError::NoConnectionOptions);
+    };
+
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
+    let msg = BgMessage::Unsubscribe {
+        opt,
+        subject,
+        fn_name,
+    };
+    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+        if let Err(err) = socket.send_to(&buf, "127.0.0.1:52525") {
+            log!("Failed to send data: {}", err);
+        }
+    }
+
+    Ok(())
 }

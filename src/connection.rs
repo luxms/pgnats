@@ -2,6 +2,7 @@ use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::object_store::{ObjectInfo, ObjectStore};
 use async_nats::jetstream::Context;
 use async_nats::{Client, Request};
+use bincode::{Decode, Encode};
 use futures::StreamExt;
 use pgrx::warning;
 use std::collections::HashMap;
@@ -9,12 +10,11 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, BufReader};
-use tokio::task::JoinHandle;
 
 use crate::config::fetch_connection_options;
 use crate::errors::PgNatsError;
+use crate::info;
 use crate::utils::{extract_headers, FromBytes, ToBytes};
-use crate::{info, log};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -23,10 +23,9 @@ pub struct NatsConnection {
     cached_buckets: HashMap<String, Store>,
     cached_object_stores: HashMap<String, ObjectStore>,
     current_config: Option<ConnectionOptions>,
-    subscribtions: HashMap<String, JoinHandle<()>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub enum TlsOptions {
     Tls {
         ca: PathBuf,
@@ -38,7 +37,7 @@ pub enum TlsOptions {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub struct ConnectionOptions {
     pub host: String,
     pub port: u16,
@@ -137,12 +136,7 @@ impl NatsConnection {
     pub async fn invalidate_connection(&mut self) {
         let connection = { self.connection.take() };
 
-        for (_, sub) in &self.subscribtions {
-            sub.abort();
-        }
-
         {
-            self.subscribtions.clear();
             self.cached_buckets.clear();
             let _ = self.jetstream.take();
             let _ = self.current_config.take();
@@ -295,45 +289,8 @@ impl NatsConnection {
         Ok(vec)
     }
 
-    pub async fn subscribe(
-        &mut self,
-        subject: impl ToString,
-        sdr: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
-    ) -> Result<(), PgNatsError> {
-        let subject = subject.to_string();
-        //let fn_name = fn_name.to_string();
-        let client = self.get_connection().await?.clone();
-
-        let thread = {
-            let subject = subject.clone();
-            tokio::spawn(async move {
-                let sub = client.subscribe(subject).await;
-
-                if let Ok(mut sub) = sub {
-                    while let Some(sub) = sub.next().await {
-                        let bytes: Vec<u8> = sub.payload.into();
-                        if sdr.send(bytes).is_err() {
-                            log!("Failed to send");
-                            return;
-                        }
-                    }
-                }
-            })
-        };
-
-        if let Some(v) = self.subscribtions.insert(subject, thread) {
-            v.abort();
-        }
-
-        Ok(())
-    }
-
-    pub async fn unsubscribe(&mut self, subject: impl AsRef<str>) {
-        let subject = subject.as_ref();
-
-        if let Some(v) = self.subscribtions.remove(subject) {
-            v.abort();
-        }
+    pub fn get_connection_options(&self) -> Option<ConnectionOptions> {
+        self.current_config.clone()
     }
 }
 

@@ -1,5 +1,6 @@
 ::pgrx::pg_module_magic!();
 
+mod bg_subscribtion;
 mod config;
 mod init;
 mod log;

@@ -2,16 +2,24 @@ use std::cell::RefCell;
 
 use bincode::{Decode, Encode};
 
-use crate::connection::NatsConnection;
+use crate::connection::{ConnectionOptions, NatsConnection};
 
 thread_local! {
     pub static CTX: RefCell<Context> = RefCell::new(create_context())
 }
 
 #[derive(Decode, Encode)]
-pub struct BgMessage {
-    pub name: String,
-    pub data: Vec<u8>,
+pub enum BgMessage {
+    Subscribe {
+        opt: ConnectionOptions,
+        subject: String,
+        fn_name: String,
+    },
+    Unsubscribe {
+        opt: ConnectionOptions,
+        subject: String,
+        fn_name: String,
+    },
 }
 
 fn create_context() -> Context {
