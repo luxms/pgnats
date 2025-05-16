@@ -5,6 +5,7 @@ enabling:
 
 Provides one-way integration from PostgreSQL to NATS, supporting:
 - Message publishing to core NATS subjects from SQL
+- Subscriptions to NATS subjects that invoke PostgreSQL functions on incoming messages
 - JetStream persistent message streams
 - Key-Value storage operations from SQL
 - Object Store operations (uploading, downloading, deleting files) from SQL
@@ -73,6 +74,7 @@ The exported PostgreSQL API is implemented in the `api` module.
 - `nats.tls.ca` – Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
 - `nats.tls.cert` – Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
 - `nats.tls.key` – Path to the client private key corresponding to `nats.tls.cert` (default: unset; required if `nats.tls.cert` is set)
+- `nats.sub.dbname` — Database name to which all queries from subscription callbacks will be routed (default: `postgres`)
 
 ## 📘 Usage
 
@@ -86,6 +88,7 @@ SET nats.capacity = 128;
 SET nats.tls.ca = 'ca';
 SET nats.tls.cert = 'cert';
 SET nats.tls.key = 'key';
+SET nats.sub.dbname = 'postgres';
 ```
 
 ### 🔄 Reload configuration
