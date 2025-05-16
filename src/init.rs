@@ -104,14 +104,12 @@ pub extern "C-unwind" fn background_worker_listener(_arg: pgrx::pg_sys::Datum) {
 #[pg_guard]
 pub extern "C-unwind" fn _PG_fini() {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
+        ctx.rt.block_on(ctx.nats_connection.invalidate_connection());
     });
 }
 
 unsafe extern "C-unwind" fn extension_exit_callback(_: i32, _: pg_sys::Datum) {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
+        ctx.rt.block_on(ctx.nats_connection.invalidate_connection());
     });
 }

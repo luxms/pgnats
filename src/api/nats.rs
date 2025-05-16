@@ -370,8 +370,8 @@ impl_nats_get! {
 #[pg_extern]
 pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.delete_value(bucket, key))
+        ctx.rt
+            .block_on(ctx.nats_connection.delete_value(bucket, key))
     })
 }
 
@@ -412,8 +412,8 @@ pub fn nats_get_server_info() -> Result<
     PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_server_info())
+        ctx.rt
+            .block_on(ctx.nats_connection.get_server_info())
             .map(|v| map_server_info(std::iter::once(v)))
     })
 }
@@ -434,10 +434,7 @@ pub fn nats_get_server_info() -> Result<
 /// ```
 #[pg_extern]
 pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> {
-    CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_file(store, name))
-    })
+    CTX.with_borrow_mut(|ctx| ctx.rt.block_on(ctx.nats_connection.get_file(store, name)))
 }
 
 /// Uploads a file to the NATS object store.
@@ -458,8 +455,8 @@ pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> 
 #[pg_extern]
 pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.put_file(store, name, content))
+        ctx.rt
+            .block_on(ctx.nats_connection.put_file(store, name, content))
     })
 }
 
@@ -480,8 +477,8 @@ pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), 
 #[pg_extern]
 pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.delete_file(store, name))
+        ctx.rt
+            .block_on(ctx.nats_connection.delete_file(store, name))
     })
 }
 
@@ -523,8 +520,8 @@ pub fn nats_get_file_info(
     PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_file_info(store, name))
+        ctx.rt
+            .block_on(ctx.nats_connection.get_file_info(store, name))
             .map(|v| map_object_info(std::iter::once(v)))
     })
 }
@@ -564,8 +561,8 @@ pub fn nats_get_file_list(
     PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_file_list(store))
+        ctx.rt
+            .block_on(ctx.nats_connection.get_file_list(store))
             .map(|v| map_object_info(v))
     })
 }
@@ -574,8 +571,8 @@ pub fn nats_get_file_list(
 pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
         let (sdr, mut recv) = tokio::sync::mpsc::unbounded_channel();
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.subscribe(subject, sdr))?;
+        ctx.rt
+            .block_on(ctx.nats_connection.subscribe(subject, sdr))?;
 
         let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
         let _ = ctx.rt.spawn(async move {
@@ -596,8 +593,5 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
 
 #[pg_extern]
 pub fn nats_unsubscribe(subject: String) {
-    CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.unsubscribe(subject))
-    })
+    CTX.with_borrow_mut(|ctx| ctx.rt.block_on(ctx.nats_connection.unsubscribe(subject)))
 }

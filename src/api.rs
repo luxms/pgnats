@@ -24,10 +24,8 @@ use crate::ctx::CTX;
 #[pg_extern]
 pub fn pgnats_reload_conf() {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set.block_on(
-            &ctx.rt,
-            ctx.nats_connection.check_and_invalidate_connection(),
-        );
+        ctx.rt
+            .block_on(ctx.nats_connection.check_and_invalidate_connection());
     });
 }
 
@@ -41,7 +39,6 @@ pub fn pgnats_reload_conf() {
 #[pg_extern]
 pub fn pgnats_reload_conf_force() {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
+        ctx.rt.block_on(ctx.nats_connection.invalidate_connection());
     });
 }
