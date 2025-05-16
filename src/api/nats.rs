@@ -370,8 +370,11 @@ impl_nats_get! {
 #[pg_extern]
 pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt
-            .block_on(ctx.nats_connection.delete_value(bucket, key))
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.delete_value(bucket, key).await;
+            tokio::task::yield_now().await;
+            res
+        })
     })
 }
 
@@ -413,7 +416,11 @@ pub fn nats_get_server_info() -> Result<
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
-            .block_on(ctx.nats_connection.get_server_info())
+            .block_on(async {
+                let res = ctx.nats_connection.get_server_info().await;
+                tokio::task::yield_now().await;
+                res
+            })
             .map(|v| map_server_info(std::iter::once(v)))
     })
 }
@@ -434,7 +441,13 @@ pub fn nats_get_server_info() -> Result<
 /// ```
 #[pg_extern]
 pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> {
-    CTX.with_borrow_mut(|ctx| ctx.rt.block_on(ctx.nats_connection.get_file(store, name)))
+    CTX.with_borrow_mut(|ctx| {
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.get_file(store, name).await;
+            tokio::task::yield_now().await;
+            res
+        })
+    })
 }
 
 /// Uploads a file to the NATS object store.
@@ -455,8 +468,11 @@ pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> 
 #[pg_extern]
 pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt
-            .block_on(ctx.nats_connection.put_file(store, name, content))
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.put_file(store, name, content).await;
+            tokio::task::yield_now().await;
+            res
+        })
     })
 }
 
@@ -477,8 +493,11 @@ pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), 
 #[pg_extern]
 pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt
-            .block_on(ctx.nats_connection.delete_file(store, name))
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.delete_file(store, name).await;
+            tokio::task::yield_now().await;
+            res
+        })
     })
 }
 
@@ -521,7 +540,11 @@ pub fn nats_get_file_info(
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
-            .block_on(ctx.nats_connection.get_file_info(store, name))
+            .block_on(async {
+                let res = ctx.nats_connection.get_file_info(store, name).await;
+                tokio::task::yield_now().await;
+                res
+            })
             .map(|v| map_object_info(std::iter::once(v)))
     })
 }
@@ -562,7 +585,11 @@ pub fn nats_get_file_list(
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
-            .block_on(ctx.nats_connection.get_file_list(store))
+            .block_on(async {
+                let res = ctx.nats_connection.get_file_list(store).await;
+                tokio::task::yield_now().await;
+                res
+            })
             .map(|v| map_object_info(v))
     })
 }
@@ -571,8 +598,12 @@ pub fn nats_get_file_list(
 pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
         let (sdr, mut recv) = tokio::sync::mpsc::unbounded_channel();
-        ctx.rt
-            .block_on(ctx.nats_connection.subscribe(subject, sdr))?;
+
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.subscribe(subject, sdr).await;
+            tokio::task::yield_now().await;
+            res
+        })?;
 
         let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
         let _ = ctx.rt.spawn(async move {
@@ -593,5 +624,11 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
 
 #[pg_extern]
 pub fn nats_unsubscribe(subject: String) {
-    CTX.with_borrow_mut(|ctx| ctx.rt.block_on(ctx.nats_connection.unsubscribe(subject)))
+    CTX.with_borrow_mut(|ctx| {
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.unsubscribe(subject).await;
+            tokio::task::yield_now().await;
+            res
+        })
+    })
 }

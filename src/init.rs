@@ -23,7 +23,7 @@ pub extern "C-unwind" fn _PG_init() {
 }
 
 #[pgrx::pg_guard]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn background_worker_listener(_arg: pgrx::pg_sys::Datum) {
     log!("Starting background worker listener");
 
@@ -104,12 +104,20 @@ pub extern "C-unwind" fn background_worker_listener(_arg: pgrx::pg_sys::Datum) {
 #[pg_guard]
 pub extern "C-unwind" fn _PG_fini() {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt.block_on(ctx.nats_connection.invalidate_connection());
-    });
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.invalidate_connection().await;
+            tokio::task::yield_now().await;
+            res
+        })
+    })
 }
 
 unsafe extern "C-unwind" fn extension_exit_callback(_: i32, _: pg_sys::Datum) {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt.block_on(ctx.nats_connection.invalidate_connection());
-    });
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.invalidate_connection().await;
+            tokio::task::yield_now().await;
+            res
+        })
+    })
 }
