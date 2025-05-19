@@ -221,20 +221,22 @@ fn handle_unsubscribe(
 }
 
 fn handle_callback(fn_name: String, data: Vec<u8>) {
-    let result: Result<spi::Result<()>, _> = std::panic::catch_unwind(|| {
+    let result = PgTryBuilder::new(|| {
         BackgroundWorker::transaction(|| {
             Spi::connect(|client| {
                 let sql = format!("SELECT {}($1)", fn_name);
-                let _ = client.select(&sql, None, &[data.into()])?;
+                let _ = client
+                    .select(&sql, None, &[data.into()])
+                    .map_err(|e| e.to_string())?;
                 Ok(())
             })
         })
-    });
+    })
+    .catch_others(|e| Err(format!("{:?}", e)))
+    .execute();
 
-    if let Err(panic) = result {
-        log!("Panic during function '{}': {:?}", fn_name, panic);
-    } else if let Ok(Err(e)) = result {
-        log!("Error in SPI call '{}': {:?}", fn_name, e);
+    if let Err(err) = result {
+        log!("Error in SPI call '{}': {:?}", fn_name, err);
     }
 }
 
