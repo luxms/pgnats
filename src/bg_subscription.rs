@@ -277,53 +277,50 @@ fn spawn_udp_listener(
     rt.spawn(async move {
         let mut buf = [0u8; 2048];
         loop {
-            match udp.recv(&mut buf).await {
-                Ok(size) => {
-                    let parse_result: Result<(WorkerMessage, _), _> =
-                        bincode::decode_from_slice(&buf[..size], bincode::config::standard());
-                    let msg = match parse_result {
-                        Ok((msg, _)) => msg,
-                        Err(_) => {
-                            continue;
-                        }
-                    };
+            if let Ok(size) = udp.recv(&mut buf).await {
+                let parse_result: Result<(WorkerMessage, _), _> =
+                    bincode::decode_from_slice(&buf[..size], bincode::config::standard());
+                let msg = match parse_result {
+                    Ok((msg, _)) => msg,
+                    Err(_) => {
+                        continue;
+                    }
+                };
 
-                    match msg {
-                        WorkerMessage::Subscribe {
-                            opt,
-                            subject,
-                            fn_name,
-                        } => {
-                            if sender
-                                .send(InternalWorkerMessage::Subscribe {
-                                    opt,
-                                    subject,
-                                    fn_name,
-                                })
-                                .is_err()
-                            {
-                                return;
-                            }
+                match msg {
+                    WorkerMessage::Subscribe {
+                        opt,
+                        subject,
+                        fn_name,
+                    } => {
+                        if sender
+                            .send(InternalWorkerMessage::Subscribe {
+                                opt,
+                                subject,
+                                fn_name,
+                            })
+                            .is_err()
+                        {
+                            return;
                         }
-                        WorkerMessage::Unsubscribe {
-                            opt,
-                            subject,
-                            fn_name,
-                        } => {
-                            if sender
-                                .send(InternalWorkerMessage::Unsubscribe {
-                                    opt,
-                                    subject,
-                                    fn_name,
-                                })
-                                .is_err()
-                            {
-                                return;
-                            }
+                    }
+                    WorkerMessage::Unsubscribe {
+                        opt,
+                        subject,
+                        fn_name,
+                    } => {
+                        if sender
+                            .send(InternalWorkerMessage::Unsubscribe {
+                                opt,
+                                subject,
+                                fn_name,
+                            })
+                            .is_err()
+                        {
+                            return;
                         }
                     }
                 }
-                Err(_) => {}
             }
         }
     })
