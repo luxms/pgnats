@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use pgrx::guc::*;
 
-use crate::connection::ConnectionOptions;
-use crate::connection::TlsOptions;
+use crate::connection::NatsConnectionOptions;
+use crate::connection::NatsTlsOptions;
 use crate::info;
 
 // configs names
@@ -104,28 +104,28 @@ pub fn initialize_configuration() {
     info!("PGNats has been successfully initialized!");
 }
 
-fn fetch_tls_options() -> Option<TlsOptions> {
+fn fetch_tls_options() -> Option<NatsTlsOptions> {
     let ca = GUC_TLS_CA_PATH.get().and_then(|path| path.to_str().ok())?;
 
     match (
         GUC_TLS_CERT_PATH.get().and_then(|c| c.to_str().ok()),
         GUC_TLS_KEY_PATH.get().and_then(|c| c.to_str().ok()),
     ) {
-        (Some(cert), Some(key)) => Some(TlsOptions::MutualTls {
+        (Some(cert), Some(key)) => Some(NatsTlsOptions::MutualTls {
             ca: PathBuf::from(ca),
             cert: PathBuf::from(cert),
             key: PathBuf::from(key),
         }),
-        _ => Some(TlsOptions::Tls {
+        _ => Some(NatsTlsOptions::Tls {
             ca: PathBuf::from(ca),
         }),
     }
 }
 
-pub fn fetch_connection_options() -> ConnectionOptions {
+pub fn fetch_connection_options() -> NatsConnectionOptions {
     let tls = fetch_tls_options();
 
-    ConnectionOptions {
+    NatsConnectionOptions {
         host: GUC_HOST
             .get()
             .map(|host| host.to_string_lossy().to_string())

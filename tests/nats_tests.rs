@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod nats_tests {
     use futures::StreamExt;
-    use pgnats::connection::{ConnectionOptions, NatsConnection};
+    use pgnats::connection::{NatsConnectionOptions, NatsConnection};
 
     use testcontainers::{
         core::{ContainerPort, WaitFor},
@@ -30,7 +30,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
@@ -60,7 +60,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_request_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
@@ -103,7 +103,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_stream() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
@@ -133,7 +133,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_binary() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
@@ -165,7 +165,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
@@ -197,7 +197,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_json() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,
@@ -224,7 +224,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_delete_value() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(ConnectionOptions {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
             host: "127.0.0.1".to_string(),
             port,
             capacity: 128,

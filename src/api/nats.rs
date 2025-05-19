@@ -3,7 +3,7 @@ use std::net::UdpSocket;
 use pgrx::{name, pg_extern};
 
 use crate::{
-    ctx::{BgMessage, CTX},
+    ctx::{WorkerMessage, CTX},
     errors::PgNatsError,
     impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request, log,
 };
@@ -601,7 +601,7 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
     };
 
     let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
-    let msg = BgMessage::Subscribe {
+    let msg = WorkerMessage::Subscribe {
         opt,
         subject,
         fn_name,
@@ -622,7 +622,7 @@ pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsEr
     };
 
     let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
-    let msg = BgMessage::Unsubscribe {
+    let msg = WorkerMessage::Unsubscribe {
         opt,
         subject,
         fn_name,

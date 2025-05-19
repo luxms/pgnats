@@ -2,21 +2,26 @@ use std::cell::RefCell;
 
 use bincode::{Decode, Encode};
 
-use crate::connection::{ConnectionOptions, NatsConnection};
+use crate::connection::{NatsConnection, NatsConnectionOptions};
 
 thread_local! {
     pub static CTX: RefCell<Context> = RefCell::new(create_context())
 }
 
+pub struct Context {
+    pub nats_connection: NatsConnection,
+    pub rt: tokio::runtime::Runtime,
+}
+
 #[derive(Decode, Encode)]
-pub enum BgMessage {
+pub enum WorkerMessage {
     Subscribe {
-        opt: ConnectionOptions,
+        opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
     },
     Unsubscribe {
-        opt: ConnectionOptions,
+        opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
     },
@@ -30,9 +35,4 @@ fn create_context() -> Context {
             .build()
             .expect("Failed to initialize Tokio runtime"),
     }
-}
-
-pub struct Context {
-    pub nats_connection: NatsConnection,
-    pub rt: tokio::runtime::Runtime,
 }
