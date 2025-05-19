@@ -289,7 +289,8 @@ impl NatsConnection {
         Ok(vec)
     }
 
-    pub fn get_connection_options(&self) -> Option<NatsConnectionOptions> {
+    pub async fn get_connection_options(&mut self) -> Option<NatsConnectionOptions> {
+        let _ = self.get_connection().await;
         self.current_config.clone()
     }
 }

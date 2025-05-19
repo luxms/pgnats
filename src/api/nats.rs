@@ -596,7 +596,10 @@ pub fn nats_get_file_list(
 
 #[pg_extern]
 pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
-    let Some(opt) = CTX.with_borrow_mut(|ctx| ctx.nats_connection.get_connection_options()) else {
+    let Some(opt) = CTX.with_borrow_mut(|ctx| {
+        ctx.rt
+            .block_on(ctx.nats_connection.get_connection_options())
+    }) else {
         return Err(PgNatsError::NoConnectionOptions);
     };
 
@@ -617,7 +620,10 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
 
 #[pg_extern]
 pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
-    let Some(opt) = CTX.with_borrow_mut(|ctx| ctx.nats_connection.get_connection_options()) else {
+    let Some(opt) = CTX.with_borrow_mut(|ctx| {
+        ctx.rt
+            .block_on(ctx.nats_connection.get_connection_options())
+    }) else {
         return Err(PgNatsError::NoConnectionOptions);
     };
 
