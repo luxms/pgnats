@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod nats_tests {
     use futures::StreamExt;
-    use pgnats::connection::{NatsConnectionOptions, NatsConnection};
+    use pgnats::connection::{NatsConnection, NatsConnectionOptions};
 
     use testcontainers::{
         core::{ContainerPort, WaitFor},
