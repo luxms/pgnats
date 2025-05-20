@@ -65,6 +65,8 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
         }
     };
 
+    log!("Tokio runtime initialized");
+
     let udp = match rt.block_on(UdpSocket::bind("127.0.0.1:52525")) {
         Ok(sock) => sock,
         Err(e) => {
@@ -72,6 +74,8 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
             return;
         }
     };
+
+    log!("UDP socket bound to 127.0.0.1:52525");
 
     let mut subscriptions = HashMap::new();
     let (msg_sender, msg_receiver) = channel();
@@ -89,6 +93,11 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                     subject,
                     fn_name,
                 } => {
+                    log!(
+                        "Received subscription: subject='{}', fn='{}'",
+                        subject,
+                        fn_name
+                    );
                     if let Some(dbname) = dbname {
                         connect_to_database(&mut db_name, dbname);
                     }
@@ -107,6 +116,11 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                     subject,
                     fn_name,
                 } => {
+                    log!(
+                        "Received unsubscription: subject='{}', fn='{}'",
+                        subject,
+                        fn_name
+                    );
                     if let Some(dbname) = dbname {
                         connect_to_database(&mut db_name, dbname);
                     }
@@ -117,6 +131,11 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                     subject,
                     data,
                 } => {
+                    log!(
+                        "Received callback for subject '{}' (client='{}')",
+                        subject,
+                        client
+                    );
                     handle_callback(&subscriptions, &client, &subject, data);
                 }
             }
@@ -164,10 +183,20 @@ fn handle_subscribe(
             match connection.subscriptions.entry(subject.clone()) {
                 // Subject already exists; update or add the function handler
                 Entry::Occupied(mut s) => {
+                    log!(
+                        "Adding function '{}' to existing subject '{}'",
+                        fn_name,
+                        subject
+                    );
                     let _ = s.get_mut().funcs.insert(fn_name);
                 }
                 // First time subscribing to this subject
                 Entry::Vacant(se) => {
+                    log!(
+                        "Subscribing new subject '{}' with function `{}`",
+                        subject,
+                        fn_name
+                    );
                     let func = fn_name.clone();
                     // Spawn a new handler task for the function
                     let handler = spawn_subscription_task(
@@ -209,6 +238,13 @@ fn handle_subscribe(
 
             match rt.block_on(opts.connect(&**e.key())) {
                 Ok(connection) => {
+                    log!("Connected to NATS server '{}'", e.key());
+                    log!(
+                        "Subscribing new subject '{}' with function '{}'`",
+                        subject,
+                        fn_name
+                    );
+
                     let handler = spawn_subscription_task(
                         rt,
                         connection.clone(),
@@ -245,10 +281,14 @@ fn handle_unsubscribe(
 ) {
     let source = Arc::from(format!("{}:{}", opt.host, opt.port));
     if let Some(connection) = subs.get_mut(&source) {
-        if let Entry::Occupied(mut e) = connection.subscriptions.entry(subject) {
+        if let Entry::Occupied(mut e) = connection.subscriptions.entry(subject.clone()) {
             let _ = e.get_mut().funcs.remove(fn_name);
 
             if e.get().funcs.is_empty() {
+                log!(
+                    "No functions left; aborting handler for subject '{}'",
+                    subject
+                );
                 let sub = e.remove();
                 sub.handler.abort();
             }
@@ -277,7 +317,15 @@ fn handle_callback(
                         })
                     })
                 })
-                .catch_others(|e| Err(format!("{:?}", e)))
+                .catch_others(|e| match e {
+                    pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+                        "Code '{}': {}. ({:?})",
+                        err.sql_error_code(),
+                        err.message(),
+                        err.hint()
+                    )),
+                    _ => Err(format!("{:?}", e)),
+                })
                 .execute();
 
                 if let Err(err) = result {
