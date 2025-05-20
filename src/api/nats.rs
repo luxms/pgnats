@@ -3,6 +3,7 @@ use std::net::UdpSocket;
 use pgrx::{name, pg_extern};
 
 use crate::{
+    config::GUC_SUB_DB_NAME,
     ctx::{WorkerMessage, CTX},
     errors::PgNatsError,
     impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request, log,
@@ -603,8 +604,15 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
         return Err(PgNatsError::NoConnectionOptions);
     };
 
+    let dbname = GUC_SUB_DB_NAME
+        .get()
+        .and_then(|s| s.to_str().ok())
+        .map(|s| s.to_owned())
+        .expect("Failed to get subscribtion database name");
+
     let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
     let msg = WorkerMessage::Subscribe {
+        dbname,
         opt,
         subject,
         fn_name,
@@ -627,8 +635,15 @@ pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsEr
         return Err(PgNatsError::NoConnectionOptions);
     };
 
+    let dbname = GUC_SUB_DB_NAME
+        .get()
+        .and_then(|s| s.to_str().ok())
+        .map(|s| s.to_owned())
+        .expect("Failed to get subscribtion database name");
+
     let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
     let msg = WorkerMessage::Unsubscribe {
+        dbname,
         opt,
         subject,
         fn_name,

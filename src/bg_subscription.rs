@@ -10,7 +10,6 @@ use tokio::net::UdpSocket;
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 
-use crate::config::GUC_SUB_DB_NAME;
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 use crate::ctx::WorkerMessage;
@@ -18,11 +17,13 @@ use crate::log;
 
 enum InternalWorkerMessage {
     Subscribe {
+        dbname: Option<String>,
         opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
     },
     Unsubscribe {
+        dbname: Option<String>,
         opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
@@ -47,11 +48,7 @@ struct NatsSubscription {
 pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum) {
     log!("Starting background worker subscriber");
 
-    let db_name = GUC_SUB_DB_NAME.get().and_then(|v| v.to_str().ok());
-    log!("Background worker connected to {:?} database", db_name);
-
     BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
-    BackgroundWorker::connect_worker_to_spi(db_name, None);
 
     let rt = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -77,21 +74,31 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
 
     let udp_thread = spawn_udp_listener(&rt, udp, msg_sender.clone());
 
+    let mut db_name = None;
+
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_millis(250))) {
         while let Ok(message) = msg_receiver.try_recv() {
             match message {
                 InternalWorkerMessage::Subscribe {
+                    dbname,
                     opt,
                     subject,
                     fn_name,
                 } => {
+                    if let Some(dbname) = dbname {
+                        connect_to_database(&mut db_name, dbname);
+                    }
                     handle_subscribe(&rt, &mut subscriptions, &msg_sender, opt, subject, fn_name);
                 }
                 InternalWorkerMessage::Unsubscribe {
+                    dbname,
                     opt,
                     subject,
                     fn_name,
                 } => {
+                    if let Some(dbname) = dbname {
+                        connect_to_database(&mut db_name, dbname);
+                    }
                     handle_unsubscribe(&mut subscriptions, &opt, &subject, &fn_name);
                 }
                 InternalWorkerMessage::CallbackCall { fn_name, data } => {
@@ -112,6 +119,17 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     }
 
     log!("Stopping background worker listener");
+}
+
+#[cold]
+fn connect_to_database(src: &mut Option<String>, dst: String) {
+    if src.is_some() {
+        return;
+    }
+
+    BackgroundWorker::connect_worker_to_spi(Some(&dst), None);
+    log!("Background worker connected to '{}' database", dst);
+    *src = Some(dst);
 }
 
 fn handle_subscribe(
@@ -260,6 +278,7 @@ fn spawn_subscription_task(
             }
             Err(_) => {
                 let _ = sender.send(InternalWorkerMessage::Unsubscribe {
+                    dbname: None,
                     opt,
                     subject,
                     fn_name,
@@ -289,12 +308,14 @@ fn spawn_udp_listener(
 
                 match msg {
                     WorkerMessage::Subscribe {
+                        dbname,
                         opt,
                         subject,
                         fn_name,
                     } => {
                         if sender
                             .send(InternalWorkerMessage::Subscribe {
+                                dbname: Some(dbname),
                                 opt,
                                 subject,
                                 fn_name,
@@ -305,12 +326,14 @@ fn spawn_udp_listener(
                         }
                     }
                     WorkerMessage::Unsubscribe {
+                        dbname,
                         opt,
                         subject,
                         fn_name,
                     } => {
                         if sender
                             .send(InternalWorkerMessage::Unsubscribe {
+                                dbname: Some(dbname),
                                 opt,
                                 subject,
                                 fn_name,

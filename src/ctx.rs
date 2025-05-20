@@ -16,11 +16,13 @@ pub struct Context {
 #[derive(Decode, Encode)]
 pub enum WorkerMessage {
     Subscribe {
+        dbname: String,
         opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
     },
     Unsubscribe {
+        dbname: String,
         opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
