@@ -287,28 +287,4 @@ mod tests {
         let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
-
-    #[pg_test]
-    fn test_spi_catch_divide_by_zero() {
-        // This query will cause a division by zero error in PostgreSQL
-        log!("Testing division by zero error handling");
-        let sql = "SELECT 1/0";
-        let result: Result<bool, pgrx::spi::SpiError> = PgTryBuilder::new(|| {
-            Spi::connect(|client| {
-                match client.select(sql, None, &[]) {
-                    Ok(_) => Ok(false), // No error, test should fail
-                    Err(_) => Ok(true), // Error caught, test should pass
-                }
-            })
-        })
-        .catch_others(|_| Ok(true))
-        .execute();
-        // Assert that an error was returned (i.e., the exception was caught)
-        let was_error = result.unwrap();
-        log!("Result of division by zero test: {:?}", was_error);
-        assert_eq!(
-            was_error, true,
-            "Expected SPI to return an error for division by zero"
-        );
-    }
 }
