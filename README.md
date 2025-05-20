@@ -25,7 +25,7 @@ cargo pgrx init --configure-flag='--without-icu'
 ## 📦 Build package
 
 ```sh
-cargo pgrx package
+cargo pgrx package --pg-config <PATH TO PG_CONFIG> [--out-dir <THE DIRECTORY TO OUTPUT THE PACKAGE>]
 ```
 
 ## 🧪 Tests
@@ -241,6 +241,19 @@ SELECT nats_publish_jsonb_stream_with_headers(
   '{}'::jsonb,
   '{}'::json
 );
+```
+
+### 📡 Subscribe to Subjects
+
+```sql
+-- Subscribe a PostgreSQL function to a NATS subject
+SELECT nats_subscribe('events.user.created', 'handle_user_created');
+
+-- Multiple functions can be subscribed to the same subject
+SELECT nats_subscribe('events.user.created', 'log_user_created');
+
+-- Unsubscribe a specific PostgreSQL function from a NATS subject
+SELECT nats_unsubscribe('events.user.created', 'handle_user_created');
 ```
 
 ### 📥 Request

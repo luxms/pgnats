@@ -1,5 +1,11 @@
 # Installation
 
+> [!WARNING]
+> To use the `subscribe` and `unsubscribe` functions, you must add the following to `postgresql.conf`:
+> ```sh
+> shared_preload_libraries = 'pgnats.so'
+> ```
+
 ## Prerequisite
 
 1. Install [rust](https://www.rust-lang.org/tools/install) >= 1.81.0
@@ -57,4 +63,17 @@ cargo pgrx init -pg<POSTGRES_VERSION> <path to pg_config>
 
 # 3. Clone repo
 git clone https://github.com/luxms/pgnats -b pgpro
+```
+
+## Windows
+
+```sh
+# 1. Install cargo-pgrx
+cargo install cargo-pgrx --version 0.14.1 --locked
+
+# 2. Initialize pgrx
+cargo pgrx init [-pg<POSTGRES_VERSION> <path to pg_config>]
+
+# 3. Clone repo
+git clone https://github.com/luxms/pgnats
 ```
