@@ -24,11 +24,12 @@ use crate::ctx::CTX;
 #[pg_extern]
 pub fn pgnats_reload_conf() {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set.block_on(
-            &ctx.rt,
-            ctx.nats_connection.check_and_invalidate_connection(),
-        );
-    });
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.check_and_invalidate_connection().await;
+            tokio::task::yield_now().await;
+            res
+        })
+    })
 }
 
 /// Forces immediate NATS connection reinitialization
@@ -41,7 +42,10 @@ pub fn pgnats_reload_conf() {
 #[pg_extern]
 pub fn pgnats_reload_conf_force() {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.invalidate_connection());
-    });
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.invalidate_connection().await;
+            tokio::task::yield_now().await;
+            res
+        })
+    })
 }

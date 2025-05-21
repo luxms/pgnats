@@ -2,6 +2,7 @@ use async_nats::jetstream::kv::Store;
 use async_nats::jetstream::object_store::{ObjectInfo, ObjectStore};
 use async_nats::jetstream::Context;
 use async_nats::{Client, Request};
+use bincode::{Decode, Encode};
 use futures::StreamExt;
 use pgrx::warning;
 use std::collections::HashMap;
@@ -21,11 +22,11 @@ pub struct NatsConnection {
     jetstream: Option<Context>,
     cached_buckets: HashMap<String, Store>,
     cached_object_stores: HashMap<String, ObjectStore>,
-    current_config: Option<ConnectionOptions>,
+    current_config: Option<NatsConnectionOptions>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TlsOptions {
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+pub enum NatsTlsOptions {
     Tls {
         ca: PathBuf,
     },
@@ -36,16 +37,16 @@ pub enum TlsOptions {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ConnectionOptions {
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+pub struct NatsConnectionOptions {
     pub host: String,
     pub port: u16,
     pub capacity: usize,
-    pub tls: Option<TlsOptions>,
+    pub tls: Option<NatsTlsOptions>,
 }
 
 impl NatsConnection {
-    pub fn new(opt: Option<ConnectionOptions>) -> Self {
+    pub fn new(opt: Option<NatsConnectionOptions>) -> Self {
         Self {
             current_config: opt,
             ..Default::default()
@@ -167,7 +168,7 @@ impl NatsConnection {
         }
     }
 
-    pub async fn set_config(&mut self, opt: ConnectionOptions) {
+    pub async fn set_config(&mut self, opt: NatsConnectionOptions) {
         let (changed, new_config) = {
             let config = &self.current_config;
 
@@ -287,6 +288,11 @@ impl NatsConnection {
 
         Ok(vec)
     }
+
+    pub async fn get_connection_options(&mut self) -> Option<NatsConnectionOptions> {
+        let _ = self.get_connection().await;
+        self.current_config.clone()
+    }
 }
 
 impl NatsConnection {
@@ -371,11 +377,11 @@ impl NatsConnection {
         if let Some(tls) = &config.tls {
             if let Ok(root) = std::env::current_dir() {
                 match tls {
-                    TlsOptions::Tls { ca } => {
+                    NatsTlsOptions::Tls { ca } => {
                         info!("Trying to find CA cert in '{:?}'", root.join(ca));
                         opts = opts.require_tls(true).add_root_certificates(root.join(ca))
                     }
-                    TlsOptions::MutualTls { ca, cert, key } => {
+                    NatsTlsOptions::MutualTls { ca, cert, key } => {
                         info!(
                             "Trying to find CA cert in '{:?}', cert in '{:?}' and key in '{:?}'",
                             root.join(ca),
