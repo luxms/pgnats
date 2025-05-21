@@ -1,10 +1,11 @@
 use core::ffi::CStr;
+use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
 use pgrx::guc::*;
 
-use crate::connection::ConnectionOptions;
-use crate::connection::TlsOptions;
+use crate::connection::NatsConnectionOptions;
+use crate::connection::NatsTlsOptions;
 use crate::info;
 
 // configs names
@@ -14,6 +15,7 @@ pub const CONFIG_CAPACITY: &str = "nats.capacity";
 pub const CONFIG_TLS_CA_PATH: &str = "nats.tls.ca";
 pub const CONFIG_TLS_CERT_PATH: &str = "nats.tls.cert";
 pub const CONFIG_TLS_KEY_PATH: &str = "nats.tls.key";
+pub const CONFIG_SUB_DB_NAME: &str = "nats.sub.dbname";
 
 // configs values
 pub static GUC_HOST: GucSetting<Option<&'static CStr>> =
@@ -27,6 +29,11 @@ pub static GUC_TLS_CERT_PATH: GucSetting<Option<&'static CStr>> =
     GucSetting::<Option<&'static CStr>>::new(None);
 pub static GUC_TLS_KEY_PATH: GucSetting<Option<&'static CStr>> =
     GucSetting::<Option<&'static CStr>>::new(None);
+
+pub static GUC_SUB_DB_NAME: GucSetting<Option<&'static CStr>> =
+    GucSetting::<Option<&'static CStr>>::new(Some(c"postgres"));
+
+pub(crate) const BACKGROUND_WORKER_ADDR: (Ipv4Addr, u16) = (Ipv4Addr::new(127, 0, 0, 1), 52525);
 
 pub fn initialize_configuration() {
     // initialization of postgres userdef configs
@@ -88,31 +95,40 @@ pub fn initialize_configuration() {
         GucFlags::default(),
     );
 
+    GucRegistry::define_string_guc(
+        CONFIG_SUB_DB_NAME,
+        "A database to which all queries from subscriptions will be directed",
+        "A database to which all queries from subscriptions will be directed",
+        &GUC_SUB_DB_NAME,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+
     info!("PGNats has been successfully initialized!");
 }
 
-fn fetch_tls_options() -> Option<TlsOptions> {
+fn fetch_tls_options() -> Option<NatsTlsOptions> {
     let ca = GUC_TLS_CA_PATH.get().and_then(|path| path.to_str().ok())?;
 
     match (
         GUC_TLS_CERT_PATH.get().and_then(|c| c.to_str().ok()),
         GUC_TLS_KEY_PATH.get().and_then(|c| c.to_str().ok()),
     ) {
-        (Some(cert), Some(key)) => Some(TlsOptions::MutualTls {
+        (Some(cert), Some(key)) => Some(NatsTlsOptions::MutualTls {
             ca: PathBuf::from(ca),
             cert: PathBuf::from(cert),
             key: PathBuf::from(key),
         }),
-        _ => Some(TlsOptions::Tls {
+        _ => Some(NatsTlsOptions::Tls {
             ca: PathBuf::from(ca),
         }),
     }
 }
 
-pub fn fetch_connection_options() -> ConnectionOptions {
+pub fn fetch_connection_options() -> NatsConnectionOptions {
     let tls = fetch_tls_options();
 
-    ConnectionOptions {
+    NatsConnectionOptions {
         host: GUC_HOST
             .get()
             .map(|host| host.to_string_lossy().to_string())

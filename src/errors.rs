@@ -75,6 +75,9 @@ pub enum PgNatsError {
 
     /// General IO error
     IoError(#[from] tokio::io::Error),
+
+    /// No connection options
+    NoConnectionOptions,
 }
 
 impl std::fmt::Display for PgNatsError {
@@ -152,6 +155,9 @@ impl std::fmt::Display for PgNatsError {
             }
             PgNatsError::IoError(error) => {
                 write!(f, "{MSG_PREFIX}: IO error {error}")
+            }
+            PgNatsError::NoConnectionOptions => {
+                write!(f, "{MSG_PREFIX}: Failed to get connection options")
             }
         }
     }

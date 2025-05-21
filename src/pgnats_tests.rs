@@ -1,5 +1,3 @@
-// ::pgrx::pg_module_magic!();
-
 #[cfg(any(test, feature = "pg_test"))]
 #[pgrx::prelude::pg_schema]
 mod tests {

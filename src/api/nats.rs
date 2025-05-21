@@ -1,8 +1,12 @@
+use std::net::UdpSocket;
+
 use pgrx::{name, pg_extern};
 
 use crate::{
-    ctx::CTX, errors::PgNatsError, impl_nats_get, impl_nats_publish, impl_nats_put,
-    impl_nats_request,
+    config::{BACKGROUND_WORKER_ADDR, GUC_SUB_DB_NAME},
+    ctx::{WorkerMessage, CTX},
+    errors::PgNatsError,
+    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request, log,
 };
 
 use super::types::{map_object_info, map_server_info};
@@ -367,8 +371,11 @@ impl_nats_get! {
 #[pg_extern]
 pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.delete_value(bucket, key))
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.delete_value(bucket, key).await;
+            tokio::task::yield_now().await;
+            res
+        })
     })
 }
 
@@ -409,8 +416,12 @@ pub fn nats_get_server_info() -> Result<
     PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_server_info())
+        ctx.rt
+            .block_on(async {
+                let res = ctx.nats_connection.get_server_info().await;
+                tokio::task::yield_now().await;
+                res
+            })
             .map(|v| map_server_info(std::iter::once(v)))
     })
 }
@@ -432,8 +443,11 @@ pub fn nats_get_server_info() -> Result<
 #[pg_extern]
 pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_file(store, name))
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.get_file(store, name).await;
+            tokio::task::yield_now().await;
+            res
+        })
     })
 }
 
@@ -455,8 +469,11 @@ pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> 
 #[pg_extern]
 pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.put_file(store, name, content))
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.put_file(store, name, content).await;
+            tokio::task::yield_now().await;
+            res
+        })
     })
 }
 
@@ -477,8 +494,11 @@ pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), 
 #[pg_extern]
 pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.delete_file(store, name))
+        ctx.rt.block_on(async {
+            let res = ctx.nats_connection.delete_file(store, name).await;
+            tokio::task::yield_now().await;
+            res
+        })
     })
 }
 
@@ -520,8 +540,12 @@ pub fn nats_get_file_info(
     PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_file_info(store, name))
+        ctx.rt
+            .block_on(async {
+                let res = ctx.nats_connection.get_file_info(store, name).await;
+                tokio::task::yield_now().await;
+                res
+            })
             .map(|v| map_object_info(std::iter::once(v)))
     })
 }
@@ -561,8 +585,113 @@ pub fn nats_get_file_list(
     PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
-        ctx.local_set
-            .block_on(&ctx.rt, ctx.nats_connection.get_file_list(store))
+        ctx.rt
+            .block_on(async {
+                let res = ctx.nats_connection.get_file_list(store).await;
+                tokio::task::yield_now().await;
+                res
+            })
             .map(|v| map_object_info(v))
     })
+}
+
+/// Subscribes to a NATS subject and associates it with a PostgreSQL callback function.
+///
+/// Multiple callback functions can be subscribed to the same subject — each will be invoked
+/// independently when a matching message is received.
+///
+/// # Arguments
+/// * `subject` - The NATS subject to subscribe to (e.g., "events.user.created")
+/// * `fn_name` - The name of the PostgreSQL function to invoke when a message is received
+///
+/// # Returns
+/// * `Ok(())` - If the subscription request was successfully sent
+/// * `Err(PgNatsError)` - If an error occurred while retrieving options or sending the request
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_subscribe('events.user.created', 'handle_user_created');
+/// SELECT nats_subscribe('events.user.created', 'log_user_created');
+/// ```
+///
+/// # Warning
+/// The specified PostgreSQL function **must accept a single argument of type `bytea`**,
+/// which will contain the message payload received from NATS.
+#[pg_extern]
+pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
+    let Some(opt) = CTX.with_borrow_mut(|ctx| {
+        ctx.rt
+            .block_on(ctx.nats_connection.get_connection_options())
+    }) else {
+        return Err(PgNatsError::NoConnectionOptions);
+    };
+
+    let dbname = GUC_SUB_DB_NAME
+        .get()
+        .and_then(|s| s.to_str().ok())
+        .map(|s| s.to_owned())
+        .expect("Failed to get subscribtion database name");
+
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
+    let msg = WorkerMessage::Subscribe {
+        dbname,
+        opt,
+        subject,
+        fn_name,
+    };
+    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+        if let Err(err) = socket.send_to(&buf, BACKGROUND_WORKER_ADDR) {
+            log!("Failed to send data: {}", err);
+        }
+    }
+
+    Ok(())
+}
+
+/// Unsubscribes from a NATS subject and removes the associated PostgreSQL callback function.
+///
+/// Only the specified callback function will be removed from the subject. Other callbacks
+/// subscribed to the same subject will remain active.
+///
+/// # Arguments
+/// * `subject` - The NATS subject to unsubscribe from
+/// * `fn_name` - The name of the previously registered PostgreSQL function
+///
+/// # Returns
+/// * `Ok(())` - If the unsubscription request was successfully sent
+/// * `Err(PgNatsError)` - If an error occurred while retrieving options or sending the request
+///
+/// # SQL Usage
+/// ```sql
+/// SELECT nats_unsubscribe('events.user.created', 'handle_user_created');
+/// ```
+#[pg_extern]
+pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
+    let Some(opt) = CTX.with_borrow_mut(|ctx| {
+        ctx.rt
+            .block_on(ctx.nats_connection.get_connection_options())
+    }) else {
+        return Err(PgNatsError::NoConnectionOptions);
+    };
+
+    let dbname = GUC_SUB_DB_NAME
+        .get()
+        .and_then(|s| s.to_str().ok())
+        .map(|s| s.to_owned())
+        .expect("Failed to get subscribtion database name");
+
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
+    let msg = WorkerMessage::Unsubscribe {
+        dbname,
+        opt,
+        subject,
+        fn_name,
+    };
+    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+        if let Err(err) = socket.send_to(&buf, BACKGROUND_WORKER_ADDR) {
+            log!("Failed to send data: {}", err);
+        }
+    }
+
+    Ok(())
 }
