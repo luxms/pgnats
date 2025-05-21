@@ -3,7 +3,7 @@ use std::net::UdpSocket;
 use pgrx::{name, pg_extern};
 
 use crate::{
-    config::GUC_SUB_DB_NAME,
+    config::{BACKGROUND_WORKER_ADDR, GUC_SUB_DB_NAME},
     ctx::{WorkerMessage, CTX},
     errors::PgNatsError,
     impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request, log,
@@ -640,7 +640,7 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
         fn_name,
     };
     if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-        if let Err(err) = socket.send_to(&buf, "127.0.0.1:52525") {
+        if let Err(err) = socket.send_to(&buf, BACKGROUND_WORKER_ADDR) {
             log!("Failed to send data: {}", err);
         }
     }
@@ -688,7 +688,7 @@ pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsEr
         fn_name,
     };
     if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-        if let Err(err) = socket.send_to(&buf, "127.0.0.1:52525") {
+        if let Err(err) = socket.send_to(&buf, BACKGROUND_WORKER_ADDR) {
             log!("Failed to send data: {}", err);
         }
     }

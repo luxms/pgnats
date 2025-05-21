@@ -12,6 +12,7 @@ use tokio::net::ToSocketAddrs;
 use tokio::net::UdpSocket;
 use tokio::task::JoinHandle;
 
+use crate::config::BACKGROUND_WORKER_ADDR;
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 use crate::ctx::WorkerMessage;
@@ -321,15 +322,20 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     log!("Tokio runtime initialized");
 
     let (msg_sender, msg_receiver) = channel();
-    let mut worker_context = match rt.block_on(WorkerContext::new(msg_sender, "127.0.0.1:52525")) {
-        Ok(sock) => sock,
-        Err(e) => {
-            log!("{}", e);
-            return;
-        }
-    };
+    let mut worker_context =
+        match rt.block_on(WorkerContext::new(msg_sender, BACKGROUND_WORKER_ADDR)) {
+            Ok(sock) => sock,
+            Err(e) => {
+                log!("{}", e);
+                return;
+            }
+        };
 
-    log!("UDP socket bound to 127.0.0.1:52525");
+    log!(
+        "UDP socket bound to {}:{}",
+        BACKGROUND_WORKER_ADDR.0,
+        BACKGROUND_WORKER_ADDR.1
+    );
 
     let mut db_name = None;
 
