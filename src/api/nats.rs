@@ -613,6 +613,10 @@ pub fn nats_get_file_list(
 /// SELECT nats_subscribe('events.user.created', 'handle_user_created');
 /// SELECT nats_subscribe('events.user.created', 'log_user_created');
 /// ```
+///
+/// # Warning
+/// The specified PostgreSQL function **must accept a single argument of type `bytea`**,
+/// which will contain the message payload received from NATS.
 #[pg_extern]
 pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
     let Some(opt) = CTX.with_borrow_mut(|ctx| {

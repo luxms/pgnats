@@ -245,6 +245,9 @@ SELECT nats_publish_jsonb_stream_with_headers(
 
 ### 📡 Subscribe to Subjects
 
+> [!WARNING]
+> The specified PostgreSQL function **must accept a single argument of type `bytea`**, which contains the message payload from NATS.
+
 ```sql
 -- Subscribe a PostgreSQL function to a NATS subject
 SELECT nats_subscribe('events.user.created', 'handle_user_created');
