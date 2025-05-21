@@ -1,6 +1,5 @@
 ::pgrx::pg_module_magic!();
 
-mod bg_subscription;
 mod config;
 mod init;
 mod log;
@@ -19,6 +18,9 @@ pub mod connection;
 
 #[doc(hidden)]
 pub mod ctx;
+
+#[doc(hidden)]
+pub mod bg_subscription;
 
 /// Error handling types
 ///

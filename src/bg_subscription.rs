@@ -8,6 +8,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use pgrx::bgworkers::*;
 use pgrx::prelude::*;
+use tokio::net::ToSocketAddrs;
 use tokio::net::UdpSocket;
 use tokio::task::JoinHandle;
 
@@ -48,14 +49,14 @@ struct NatsSubscription {
 
 pub struct WorkerContext {
     sender: Sender<InternalWorkerMessage>,
-    udp_thread: JoinHandle<()>,
+    pub udp_thread: JoinHandle<()>,
     subscriptions: HashMap<Arc<str>, NatsConnectionState>,
 }
 
 impl WorkerContext {
     pub async fn new(
         sender: Sender<InternalWorkerMessage>,
-        listen_addr: &str,
+        listen_addr: impl ToSocketAddrs,
     ) -> Result<Self, String> {
         let udp = match UdpSocket::bind(listen_addr).await {
             Ok(sock) => sock,
@@ -158,7 +159,7 @@ impl WorkerContext {
         }
     }
 
-    fn handle_unsubscribe(
+    pub fn handle_unsubscribe(
         &mut self,
         opt: &NatsConnectionOptions,
         subject: Arc<str>,
@@ -177,7 +178,7 @@ impl WorkerContext {
         }
     }
 
-    fn handle_callback(
+    pub fn handle_callback(
         &self,
         client_key: &str,
         subject: &str,
@@ -386,7 +387,6 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                             BackgroundWorker::transaction(|| {
                                 Spi::connect(|client| {
                                     let sql = format!("SELECT {}($1)", callback);
-                                    let data = &*data;
                                     let _ = client
                                         .select(&sql, None, &[data.into()])
                                         .map_err(|e| e.to_string())?;
