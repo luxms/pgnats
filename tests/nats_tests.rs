@@ -367,4 +367,116 @@ mod nats_tests {
         assert_eq!(&*fn_name, "test");
         worker_context.handle_unsubscribe(&opt, Arc::from(subject), &*fn_name);
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_nats_subscribe_with_multiple_fn() {
+        let (_cont, port) = setup().await;
+
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let worker_addr = "127.0.0.1:52530";
+
+        let (msg_sender, msg_receiver) = channel();
+        let mut worker_context =
+            pgnats::bg_subscription::WorkerContext::new(msg_sender, worker_addr)
+                .await
+                .unwrap();
+
+        let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
+
+        let message = pgnats::ctx::WorkerMessage::Subscribe {
+            dbname: "postgres".to_string(),
+            opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            subject: "test.test_nats_subscribe".to_string(),
+            fn_name: "test1".to_string(),
+        };
+        let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
+        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
+
+        let message = pgnats::ctx::WorkerMessage::Subscribe {
+            dbname: "postgres".to_string(),
+            opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            subject: "test.test_nats_subscribe".to_string(),
+            fn_name: "test2".to_string(),
+        };
+        let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
+        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
+
+        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+        let pgnats::bg_subscription::InternalWorkerMessage::Subscribe {
+            opt,
+            subject,
+            fn_name,
+            ..
+        } = message
+        else {
+            panic!("wrong message")
+        };
+
+        assert_eq!(subject.as_str(), "test.test_nats_subscribe");
+        assert_eq!(fn_name.as_str(), "test1");
+        worker_context
+            .handle_subscribe(opt, Arc::from(subject), Arc::from(fn_name))
+            .await;
+
+        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+        let pgnats::bg_subscription::InternalWorkerMessage::Subscribe {
+            opt,
+            subject,
+            fn_name,
+            ..
+        } = message
+        else {
+            panic!("wrong message")
+        };
+
+        assert_eq!(subject.as_str(), "test.test_nats_subscribe");
+        assert_eq!(fn_name.as_str(), "test2");
+        worker_context
+            .handle_subscribe(opt, Arc::from(subject), Arc::from(fn_name))
+            .await;
+
+        nats.publish(
+            "test.test_nats_subscribe",
+            "Hello, subscriber!",
+            None::<String>,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+        let pgnats::bg_subscription::InternalWorkerMessage::CallbackCall {
+            client,
+            subject,
+            data,
+        } = message
+        else {
+            panic!("wrong message")
+        };
+
+        assert_eq!(&*client, &format!("127.0.0.1:{}", port));
+        assert_eq!(&*subject, "test.test_nats_subscribe");
+        assert_eq!(&*data, b"Hello, subscriber!".as_slice());
+
+        worker_context.handle_callback(&*client, &*subject, data, |fn_name, data| {
+            assert!(fn_name == "test1" || fn_name == "test2");
+            assert_eq!(data, b"Hello, subscriber!".as_slice());
+        });
+    }
 }
