@@ -1,6 +1,18 @@
 use std::path::PathBuf;
 
 fn main() {
+    if !std::path::Path::new("tests/certs/server.key").exists()
+        || !std::path::Path::new("tests/certs/server.crt").exists()
+        || !std::path::Path::new("tests/certs/ca.crt").exists()
+    {
+        println!("Generating test certificates...");
+        let status = std::process::Command::new("sh")
+            .arg("generate_test_certs.sh")
+            .status()
+            .expect("failed to run generate_test_certs.sh");
+        assert!(status.success(), "generate_test_certs.sh failed");
+    }
+
     if std::env::var("SKIP_PGNATS_JS_TESTS").is_ok() {
         println!("cargo:rustc-cfg=skip_pgnats_js_tests");
     }
