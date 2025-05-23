@@ -64,6 +64,39 @@ mod nats_tests {
     }
 
     #[tokio::test]
+    async fn test_get_server_info_success() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let info_result = nats.get_server_info().await;
+
+        assert!(
+            info_result.is_ok(),
+            "get_server_info failed: {:?}",
+            info_result
+        );
+
+        let info = info_result.unwrap();
+
+        assert!(!info.server_id.is_empty(), "server_id should not be empty");
+        assert!(
+            info.version.starts_with(|c: char| c.is_numeric()),
+            "version should start with number, got: {}",
+            info.version
+        );
+        assert!(
+            info.host == "127.0.0.1" || info.host == "localhost" || info.host == "0.0.0.0",
+            "unexpected host: {}",
+            info.host
+        );
+    }
+
+    #[tokio::test]
     async fn test_nats_publish() {
         let (_cont, port) = setup().await;
         let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
@@ -511,7 +544,7 @@ mod nats_tests {
     }
 
     #[tokio::test]
-    async fn test_nats_request_text_tls() {
+    async fn test_nats_publish_text_tls() {
         let (_cont, port) = setup_with_tls().await;
 
         // Настройка async_nats клиента с TLS
@@ -524,11 +557,227 @@ mod nats_tests {
             }),
         }));
 
-        let subject = "test.test_nats_request_text_tls";
+        let subject = "test.test_nats_publish_text_tls";
         let message = "Hello, World! 🦀";
 
         let res = nats.publish(subject, message, None::<String>, None).await;
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_nats_publish_with_reply() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let subject = "test.test_nats_publish_with_reply";
+        let reply_to = "test.reply_to";
+        let message = "Ping from 🦀";
+
+        let client = async_nats::connect(format!("127.0.0.1:{port}"))
+            .await
+            .expect("failed to connect to NATS server");
+
+        let mut subscriber = client
+            .subscribe(subject)
+            .await
+            .expect("failed to subscribe to subject");
+
+        let res = nats
+            .publish(subject, message, Some(reply_to.to_string()), None)
+            .await;
+
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        if let Some(msg) = subscriber.next().await {
+            assert_eq!(msg.payload, message.as_bytes());
+            assert_eq!(msg.reply.as_deref(), Some(reply_to));
+        } else {
+            panic!("did not receive a message");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_nats_publish_with_headers() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let subject = "test.test_nats_publish_with_headers";
+        let message = "Hello with headers 🦀";
+
+        let headers = serde_json::json!({
+            "X-Custom": "123",
+            "Content-Type": "text/plain"
+        });
+
+        let client = async_nats::connect(format!("127.0.0.1:{port}"))
+            .await
+            .expect("failed to connect to NATS server");
+
+        let mut subscriber = client
+            .subscribe(subject)
+            .await
+            .expect("failed to subscribe");
+
+        let res = nats
+            .publish(subject, message, None::<String>, Some(headers.clone()))
+            .await;
+
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        if let Some(msg) = subscriber.next().await {
+            assert_eq!(msg.payload, message.as_bytes());
+
+            if let Some(hdrs) = msg.headers {
+                assert_eq!(hdrs.get("X-Custom").map(|v| v.as_str()), Some("123"));
+                assert_eq!(
+                    hdrs.get("Content-Type").map(|v| v.as_str()),
+                    Some("text/plain")
+                );
+            } else {
+                panic!("headers are missing from message");
+            }
+        } else {
+            panic!("did not receive a message");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_nats_publish_with_reply_and_headers() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let subject = "test.test_nats_publish_with_reply_and_headers";
+        let reply_to = "test.reply_combined";
+        let message = "Hello both 🦀";
+
+        let headers = serde_json::json!({
+            "User-Agent": "nats-test",
+            "Accept": "application/json"
+        });
+
+        let client = async_nats::connect(format!("127.0.0.1:{port}"))
+            .await
+            .expect("failed to connect to NATS server");
+
+        let mut subscriber = client
+            .subscribe(subject)
+            .await
+            .expect("failed to subscribe");
+
+        let res = nats
+            .publish(
+                subject,
+                message,
+                Some(reply_to.to_string()),
+                Some(headers.clone()),
+            )
+            .await;
+
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
+
+        if let Some(msg) = subscriber.next().await {
+            assert_eq!(msg.payload, message.as_bytes());
+            assert_eq!(msg.reply.as_deref(), Some(reply_to));
+
+            if let Some(hdrs) = msg.headers {
+                assert_eq!(
+                    hdrs.get("User-Agent").map(|v| v.as_str()),
+                    Some("nats-test")
+                );
+                assert_eq!(
+                    hdrs.get("Accept").map(|v| v.as_str()),
+                    Some("application/json")
+                );
+            } else {
+                panic!("headers are missing from message");
+            }
+        } else {
+            panic!("did not receive a message");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_nats_publish_stream_with_headers() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let subject = "test.test_nats_publish_stream_with_headers";
+        let message = "Streamed message 🦀";
+
+        let headers = serde_json::json!({
+            "X-Stream": "true",
+            "X-Test-ID": "stream123"
+        });
+
+        let client = async_nats::connect(format!("127.0.0.1:{port}"))
+            .await
+            .expect("failed to connect to NATS server");
+
+        let mut subscriber = client
+            .subscribe(subject)
+            .await
+            .expect("failed to subscribe");
+
+        let res = nats
+            .publish_stream(subject, message, Some(headers.clone()))
+            .await;
+
+        assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
+
+        if let Some(msg) = subscriber.next().await {
+            assert_eq!(msg.payload, message.as_bytes());
+
+            if let Some(hdrs) = msg.headers {
+                assert_eq!(hdrs.get("X-Stream").map(|v| v.as_str()), Some("true"));
+                assert_eq!(hdrs.get("X-Test-ID").map(|v| v.as_str()), Some("stream123"));
+            } else {
+                panic!("headers are missing from stream message");
+            }
+        } else {
+            panic!("did not receive a stream message");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_nats_request_timeout() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let subject = "test.test_nats_request_timeout";
+        let request_payload = "Will timeout ⏳";
+
+        let result = nats.request(subject, request_payload, Some(500)).await;
+
+        assert!(
+            result.is_err(),
+            "expected timeout error, got success: {:?}",
+            result
+        );
     }
 }
