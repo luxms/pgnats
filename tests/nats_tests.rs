@@ -6,10 +6,10 @@ mod nats_tests {
     };
 
     use futures::StreamExt;
-    use pgnats::connection::{NatsConnection, NatsConnectionOptions};
+    use pgnats::connection::{NatsConnection, NatsConnectionOptions, NatsTlsOptions};
 
     use testcontainers::{
-        core::{ContainerPort, WaitFor},
+        core::{ContainerPort, Mount, WaitFor},
         runners::AsyncRunner,
         ContainerAsync, GenericImage, ImageExt,
     };
@@ -21,6 +21,36 @@ mod nats_tests {
             .with_exposed_port(ContainerPort::Tcp(4222))
             .with_wait_for(WaitFor::message_on_stderr("Server is ready"))
             .with_cmd(["-js"])
+            .start()
+            .await
+            .expect("Failed to start NATS server");
+
+        let host_port = container
+            .get_host_port_ipv4(ContainerPort::Tcp(4222))
+            .await
+            .expect("Failed to get host port");
+
+        (container, host_port)
+    }
+
+    #[must_use]
+    async fn setup_with_tls() -> (ContainerAsync<GenericImage>, u16) {
+        let certs_path = format!("{}/tests/certs", env!("CARGO_MANIFEST_DIR"));
+
+        let container = testcontainers::GenericImage::new("nats", "latest")
+            .with_exposed_port(ContainerPort::Tcp(4222))
+            .with_wait_for(WaitFor::message_on_stderr("Server is ready"))
+            .with_cmd([
+                "-js",
+                "--tls",
+                "--tlscert",
+                "/certs/server.crt",
+                "--tlskey",
+                "/certs/server.key",
+                "--tlscacert",
+                "/certs/ca.crt",
+            ])
+            .with_mount(Mount::bind_mount(certs_path, "/certs"))
             .start()
             .await
             .expect("Failed to start NATS server");
@@ -478,5 +508,27 @@ mod nats_tests {
             assert!(fn_name == "test1" || fn_name == "test2");
             assert_eq!(data, b"Hello, subscriber!".as_slice());
         });
+    }
+
+    #[tokio::test]
+    async fn test_nats_request_text_tls() {
+        let (_cont, port) = setup_with_tls().await;
+
+        // Настройка async_nats клиента с TLS
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "localhost".to_string(),
+            port,
+            capacity: 128,
+            tls: Some(NatsTlsOptions::Tls {
+                ca: "./tests/certs/ca.crt".into(),
+            }),
+        }));
+
+        let subject = "test.test_nats_request_text_tls";
+        let message = "Hello, World! 🦀";
+
+        let res = nats.publish(subject, message, None::<String>, None).await;
+
+        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 }
