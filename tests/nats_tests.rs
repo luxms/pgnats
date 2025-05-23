@@ -15,6 +15,25 @@ mod nats_tests {
     };
     use tokio::net::UdpSocket;
 
+    const TEST_STORE: &str = "test-store";
+    const TEST_FILE: &str = "file.txt";
+    const TEST_CONTENT: &[u8] = b"Hello, PGNats!";
+
+    async fn setup_nats_with_file(port: u16) -> NatsConnection {
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        nats.put_file(TEST_STORE, TEST_FILE, TEST_CONTENT.to_vec())
+            .await
+            .expect("put_file failed in setup");
+
+        nats
+    }
+
     #[must_use]
     async fn setup() -> (ContainerAsync<GenericImage>, u16) {
         let container = testcontainers::GenericImage::new("nats", "latest")
@@ -779,5 +798,74 @@ mod nats_tests {
             "expected timeout error, got success: {:?}",
             result
         );
+    }
+
+    #[tokio::test]
+    async fn test_put_file() {
+        let (_cont, port) = setup().await;
+        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
+            host: "127.0.0.1".to_string(),
+            port,
+            capacity: 128,
+            tls: None,
+        }));
+
+        let res = nats
+            .put_file(TEST_STORE, TEST_FILE, TEST_CONTENT.to_vec())
+            .await;
+
+        assert!(res.is_ok(), "put_file failed: {:?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_get_file() {
+        let (_cont, port) = setup().await;
+        let mut nats = setup_nats_with_file(port).await;
+
+        let result = nats.get_file(TEST_STORE, TEST_FILE).await;
+        assert!(result.is_ok(), "get_file failed: {:?}", result);
+
+        let content = result.unwrap();
+        assert_eq!(content, TEST_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_get_file_info() {
+        let (_cont, port) = setup().await;
+        let mut nats = setup_nats_with_file(port).await;
+
+        let result = nats.get_file_info(TEST_STORE, TEST_FILE).await;
+        assert!(result.is_ok(), "get_file_info failed: {:?}", result);
+
+        let info = result.unwrap();
+        assert_eq!(info.name, TEST_FILE);
+        assert_eq!(info.size, TEST_CONTENT.len());
+    }
+
+    #[tokio::test]
+    async fn test_get_file_list() {
+        let (_cont, port) = setup().await;
+        let mut nats = setup_nats_with_file(port).await;
+
+        let result = nats.get_file_list(TEST_STORE).await;
+        assert!(result.is_ok(), "get_file_list failed: {:?}", result);
+
+        let list = result.unwrap();
+        assert!(
+            list.iter().any(|f| f.name == TEST_FILE),
+            "file not found in list"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_delete_file() {
+        let (_cont, port) = setup().await;
+        let mut nats = setup_nats_with_file(port).await;
+
+        let res = nats.delete_file(TEST_STORE, TEST_FILE).await;
+        assert!(res.is_ok(), "delete_file failed: {:?}", res);
+
+        let result = nats.get_file(TEST_STORE, TEST_FILE).await;
+        assert!(result.is_err(), "file still exists after delete");
     }
 }

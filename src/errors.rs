@@ -67,6 +67,9 @@ pub enum PgNatsError {
     /// Failed to delete an object from JetStream object store
     DeleteError(#[from] Error<jetstream::object_store::DeleteErrorKind>),
 
+    /// Failed to get deleted file
+    AccessToDeletedFile,
+
     /// Failed to retrieve metadata about an object
     InfoError(#[from] Error<jetstream::object_store::InfoErrorKind>),
 
@@ -140,6 +143,9 @@ impl std::fmt::Display for PgNatsError {
                     f,
                     "{MSG_PREFIX}: failed to delete object from object store {error}"
                 )
+            }
+            PgNatsError::AccessToDeletedFile => {
+                write!(f, "{MSG_PREFIX}: failed to get deleted object from store")
             }
             PgNatsError::InfoError(error) => {
                 write!(

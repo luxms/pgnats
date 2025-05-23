@@ -236,6 +236,11 @@ impl NatsConnection {
         let store = self.get_or_create_object_store(store).await?;
         let mut file = store.get(name).await?;
         let mut content = Vec::with_capacity(file.info().size);
+
+        if file.info().deleted {
+            return Err(PgNatsError::AccessToDeletedFile);
+        }
+
         let _ = file.read_to_end(&mut content).await?;
 
         Ok(content)
