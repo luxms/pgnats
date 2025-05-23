@@ -63,33 +63,42 @@ mod tests {
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
-    fn test_pgnats_put_and_get_binary() {
+    fn test_pgnats_publish_with_reply_and_headers() {
+        use pgrx::Json;
+        use serde_json::json;
+
         Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
             .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
+        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS port");
 
-        let bucket = "test_default".to_string();
-        let key = "binary_key";
-        let data = b"binary data";
+        let subject = "test.test_nats_publish";
+        let reply_to = "test.reply";
+        let message = b"payload".to_vec();
 
-        let put_res = api::nats_put_binary(bucket.clone(), key, data.to_vec());
-        assert!(
-            put_res.is_ok(),
-            "nats_put_binary occurs error: {:?}",
-            put_res
+        let res = api::nats_publish_binary_reply(subject, message.clone(), reply_to);
+        assert!(res.is_ok(), "publish with reply failed: {:?}", res);
+
+        let headers = json!({
+            "x-id": ["123"],
+            "x-type": ["unit-test"]
+        });
+        let res =
+            api::nats_publish_binary_with_headers(subject, message.clone(), Json(headers.clone()));
+        assert!(res.is_ok(), "publish with headers failed: {:?}", res);
+
+        let res = api::nats_publish_binary_reply_with_headers(
+            subject,
+            message.clone(),
+            reply_to,
+            Json(headers),
         );
-
-        let get_res = api::nats_get_binary(bucket.clone(), key);
         assert!(
-            get_res.is_ok(),
-            "nats_get_binary occurs error: {:?}",
-            get_res
+            res.is_ok(),
+            "publish with reply + headers failed: {:?}",
+            res
         );
-
-        let value = get_res.unwrap();
-        assert_eq!(Some(data.as_slice()), value.as_deref());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -152,6 +161,35 @@ mod tests {
         assert!(res.is_ok(), "nats_request_jsonb failed: {:?}", res);
 
         handle.abort();
+    }
+
+    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[pg_test]
+    fn test_pgnats_put_and_get_binary() {
+        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
+            .expect("Failed to set NATS host");
+        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
+
+        let bucket = "test_default".to_string();
+        let key = "binary_key";
+        let data = b"binary data";
+
+        let put_res = api::nats_put_binary(bucket.clone(), key, data.to_vec());
+        assert!(
+            put_res.is_ok(),
+            "nats_put_binary occurs error: {:?}",
+            put_res
+        );
+
+        let get_res = api::nats_get_binary(bucket.clone(), key);
+        assert!(
+            get_res.is_ok(),
+            "nats_get_binary occurs error: {:?}",
+            get_res
+        );
+
+        let value = get_res.unwrap();
+        assert_eq!(Some(data.as_slice()), value.as_deref());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -253,6 +291,96 @@ mod tests {
 
         let value = get_res.unwrap();
         assert_eq!(None, value);
+    }
+
+    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[pg_test]
+    fn test_pgnats_put_and_get_file() {
+        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
+        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
+
+        let bucket = "test_file_io".to_string();
+        let key = "test_file.txt";
+        let content = b"file content for testing".to_vec();
+
+        let put_res = api::nats_put_file(bucket.clone(), key, content.clone());
+        assert!(put_res.is_ok(), "put_file failed: {:?}", put_res);
+
+        let get_res = api::nats_get_file(bucket.clone(), key);
+        assert!(get_res.is_ok(), "get_file failed: {:?}", get_res);
+
+        let returned = get_res.unwrap();
+        assert_eq!(Some(content), returned);
+    }
+
+    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[pg_test]
+    fn test_pgnats_file_info() {
+        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
+        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
+
+        let bucket = "test_file_info".to_string();
+        let key = "info.txt";
+        let content = b"12345".to_vec();
+
+        api::nats_put_file(bucket.clone(), key, content.clone()).unwrap();
+
+        let info_res = api::nats_get_file_info(bucket.clone(), key);
+        assert!(info_res.is_ok(), "get_file_info failed",);
+
+        let mut info = info_res.unwrap();
+        let info = info.next().unwrap();
+        assert_eq!(info.0, key);
+        assert_eq!(info.5 as usize, content.len());
+    }
+
+    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[pg_test]
+    fn test_pgnats_file_list() {
+        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
+        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
+
+        let bucket = "test_file_list".to_string();
+        let files = vec![
+            ("list1.txt", b"one".to_vec()),
+            ("list2.txt", b"two".to_vec()),
+        ];
+
+        for (key, content) in &files {
+            api::nats_put_file(bucket.clone(), key, content.clone()).unwrap();
+        }
+
+        let list_res = api::nats_get_file_list(bucket.clone());
+        assert!(list_res.is_ok(), "get_file_list failed");
+
+        let list = list_res.unwrap();
+        let file_names: Vec<String> = list.into_iter().map(|info| info.0).collect();
+
+        for (key, _) in files {
+            assert!(file_names.contains(&key.to_string()));
+        }
+    }
+
+    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[pg_test]
+    fn test_pgnats_delete_file() {
+        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
+        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
+
+        let bucket = "test_file_delete".to_string();
+        let key = "delete_me.txt";
+        let content = b"goodbye".to_vec();
+
+        api::nats_put_file(bucket.clone(), key, content).unwrap();
+        api::nats_delete_file(bucket.clone(), key).unwrap();
+
+        let get_res = api::nats_get_file(bucket.clone(), key);
+        assert!(
+            get_res.is_ok(),
+            "get_file after delete failed: {:?}",
+            get_res
+        );
+        assert_eq!(None, get_res.unwrap());
     }
 
     #[cfg(not(skip_pgnats_tests))]
