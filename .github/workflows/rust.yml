@@ -130,3 +130,52 @@ jobs:
 
       - name: Run Clippy
         run: cargo clippy -- -D warnings
+
+  package:
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      matrix:
+        pg-version: [13, 14, 15, 16, 17]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore cached dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ~/.cargo/bin
+            ~/.pgrx
+          key: ${{ needs.setup.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Get pg_config and extension output path
+        id: pgpaths
+        run: |
+          PG_CONFIG=$(cargo pgrx info pg-config ${{ matrix.pg-version }})
+          echo "pg_config=$PG_CONFIG" >> $GITHUB_OUTPUT
+
+          PGRX_ROOT=$(dirname "$(dirname "$PG_CONFIG")")
+          echo "pgrx_root=$PGRX_ROOT" >> $GITHUB_OUTPUT
+
+          EXT_PATH=target/release/pgnats-pg${{ matrix.pg-version }}/$PGRX_ROOT/share/postgresql/extension
+          echo "ext_path=$EXT_PATH" >> $GITHUB_OUTPUT
+
+      - name: Package extension
+        run: cargo pgrx package --pg-config "${{ steps.pgpaths.outputs.pg_config }}"
+
+      - name: Copy built extension artifacts
+        run: |
+          mkdir -p staging/pg${{ matrix.pg-version }}
+          cp -v ${{ steps.pgpaths.outputs.ext_path }}/* staging/pg${{ matrix.pg-version }}/
+
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgnats-package-pg${{ matrix.pg-version }}
+          path: staging/pg${{ matrix.pg-version }}
