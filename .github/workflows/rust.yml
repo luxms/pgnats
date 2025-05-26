@@ -166,6 +166,9 @@ jobs:
           EXT_PATH=target/release/pgnats-pg${{ matrix.pg-version }}/$PGRX_ROOT/share/postgresql/extension
           echo "ext_path=$EXT_PATH" >> $GITHUB_OUTPUT
 
+          LIB_PATH=target/release/pgnats-pg${{ matrix.pg-version }}/$PGRX_ROOT/lib/postgresql
+          echo "lib_path=$LIB_PATH" >> $GITHUB_OUTPUT
+
       - name: Package extension
         run: cargo pgrx package --pg-config "${{ steps.pgpaths.outputs.pg_config }}"
 
@@ -173,6 +176,7 @@ jobs:
         run: |
           mkdir -p staging/pg${{ matrix.pg-version }}
           cp -v ${{ steps.pgpaths.outputs.ext_path }}/* staging/pg${{ matrix.pg-version }}/
+          cp -v ${{ steps.pgpaths.outputs.lib_path }}/*.so staging/pg${{ matrix.pg-version }}/
 
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
