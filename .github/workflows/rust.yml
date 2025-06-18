@@ -56,12 +56,12 @@ jobs:
         run: |
           PGRX_VERSION=$(cat .cargo-pgrx-version)
           if ! command -v cargo-pgrx &> /dev/null; then
-            cargo install --locked cargo-pgrx --version "$PGRX_VERSION"
+            cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked --version "$PGRX_VERSION"
           else
             CURRENT_VERSION=$(cargo pgrx --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
             if [ "$CURRENT_VERSION" != "$PGRX_VERSION" ]; then
               echo "Updating cargo-pgrx from $CURRENT_VERSION to $PGRX_VERSION..."
-              cargo install --locked cargo-pgrx --version "$PGRX_VERSION" --force
+              cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked --version "$PGRX_VERSION"
             fi
           fi
           if [ ! -d "$HOME/.pgrx" ]; then
