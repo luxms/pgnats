@@ -628,7 +628,7 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
 
     let dbname = GUC_SUB_DB_NAME
         .get()
-        .and_then(|s| s.to_str().ok())
+        .and_then(|s| s.into_string().ok())
         .map(|s| s.to_owned())
         .expect("Failed to get subscribtion database name");
 
@@ -676,7 +676,7 @@ pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsEr
 
     let dbname = GUC_SUB_DB_NAME
         .get()
-        .and_then(|s| s.to_str().ok())
+        .and_then(|s| s.into_string().ok())
         .map(|s| s.to_owned())
         .expect("Failed to get subscribtion database name");
 

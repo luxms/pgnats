@@ -1,4 +1,5 @@
 use core::ffi::CStr;
+use std::ffi::CString;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
@@ -9,29 +10,27 @@ use crate::connection::NatsTlsOptions;
 use crate::info;
 
 // configs names
-pub const CONFIG_HOST: &str = "nats.host";
-pub const CONFIG_PORT: &str = "nats.port";
-pub const CONFIG_CAPACITY: &str = "nats.capacity";
-pub const CONFIG_TLS_CA_PATH: &str = "nats.tls.ca";
-pub const CONFIG_TLS_CERT_PATH: &str = "nats.tls.cert";
-pub const CONFIG_TLS_KEY_PATH: &str = "nats.tls.key";
-pub const CONFIG_SUB_DB_NAME: &str = "nats.sub.dbname";
+pub const CONFIG_HOST: &CStr = c"nats.host";
+pub const CONFIG_PORT: &CStr = c"nats.port";
+pub const CONFIG_CAPACITY: &CStr = c"nats.capacity";
+pub const CONFIG_TLS_CA_PATH: &CStr = c"nats.tls.ca";
+pub const CONFIG_TLS_CERT_PATH: &CStr = c"nats.tls.cert";
+pub const CONFIG_TLS_KEY_PATH: &CStr = c"nats.tls.key";
+pub const CONFIG_SUB_DB_NAME: &CStr = c"nats.sub.dbname";
 
 // configs values
-pub static GUC_HOST: GucSetting<Option<&'static CStr>> =
-    GucSetting::<Option<&'static CStr>>::new(Some(c"127.0.0.1"));
+pub static GUC_HOST: GucSetting<Option<CString>> =
+    GucSetting::<Option<CString>>::new(Some(c"127.0.0.1"));
 pub static GUC_PORT: GucSetting<i32> = GucSetting::<i32>::new(4222);
 pub static GUC_CAPACITY: GucSetting<i32> = GucSetting::<i32>::new(128);
 
-pub static GUC_TLS_CA_PATH: GucSetting<Option<&'static CStr>> =
-    GucSetting::<Option<&'static CStr>>::new(None);
-pub static GUC_TLS_CERT_PATH: GucSetting<Option<&'static CStr>> =
-    GucSetting::<Option<&'static CStr>>::new(None);
-pub static GUC_TLS_KEY_PATH: GucSetting<Option<&'static CStr>> =
-    GucSetting::<Option<&'static CStr>>::new(None);
+pub static GUC_TLS_CA_PATH: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(None);
+pub static GUC_TLS_CERT_PATH: GucSetting<Option<CString>> =
+    GucSetting::<Option<CString>>::new(None);
+pub static GUC_TLS_KEY_PATH: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(None);
 
-pub static GUC_SUB_DB_NAME: GucSetting<Option<&'static CStr>> =
-    GucSetting::<Option<&'static CStr>>::new(Some(c"postgres"));
+pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
+    GucSetting::<Option<CString>>::new(Some(c"postgres"));
 
 pub(crate) const BACKGROUND_WORKER_ADDR: (Ipv4Addr, u16) = (Ipv4Addr::new(127, 0, 0, 1), 52525);
 
@@ -39,8 +38,8 @@ pub fn initialize_configuration() {
     // initialization of postgres userdef configs
     GucRegistry::define_string_guc(
         CONFIG_HOST,
-        "Address of NATS Server",
-        "Address of NATS Server",
+        c"Address of NATS Server",
+        c"Address of NATS Server",
         &GUC_HOST,
         GucContext::Userset,
         GucFlags::default(),
@@ -48,8 +47,8 @@ pub fn initialize_configuration() {
 
     GucRegistry::define_int_guc(
         CONFIG_PORT,
-        "Port of NATS Server",
-        "Port of NATS Server",
+        c"Port of NATS Server",
+        c"Port of NATS Server",
         &GUC_PORT,
         1024,
         0xFFFF,
@@ -59,8 +58,8 @@ pub fn initialize_configuration() {
 
     GucRegistry::define_int_guc(
         CONFIG_CAPACITY,
-        "Buffer capacity of NATS Client",
-        "Buffer capacity of NATS Client",
+        c"Buffer capacity of NATS Client",
+        c"Buffer capacity of NATS Client",
         &GUC_CAPACITY,
         1,
         0xFFFF,
@@ -70,8 +69,8 @@ pub fn initialize_configuration() {
 
     GucRegistry::define_string_guc(
         CONFIG_TLS_CA_PATH,
-        "Path to TLS CA certificate",
-        "Path to TLS CA certificate",
+        c"Path to TLS CA certificate",
+        c"Path to TLS CA certificate",
         &GUC_TLS_CA_PATH,
         GucContext::Userset,
         GucFlags::default(),
@@ -79,8 +78,8 @@ pub fn initialize_configuration() {
 
     GucRegistry::define_string_guc(
         CONFIG_TLS_CERT_PATH,
-        "Path to TLS certificate",
-        "Path to TLS certificate",
+        c"Path to TLS certificate",
+        c"Path to TLS certificate",
         &GUC_TLS_CERT_PATH,
         GucContext::Userset,
         GucFlags::default(),
@@ -88,8 +87,8 @@ pub fn initialize_configuration() {
 
     GucRegistry::define_string_guc(
         CONFIG_TLS_KEY_PATH,
-        "Path to TLS key",
-        "Path to TLS key",
+        c"Path to TLS key",
+        c"Path to TLS key",
         &GUC_TLS_KEY_PATH,
         GucContext::Userset,
         GucFlags::default(),
@@ -97,8 +96,8 @@ pub fn initialize_configuration() {
 
     GucRegistry::define_string_guc(
         CONFIG_SUB_DB_NAME,
-        "A database to which all queries from subscriptions will be directed",
-        "A database to which all queries from subscriptions will be directed",
+        c"A database to which all queries from subscriptions will be directed",
+        c"A database to which all queries from subscriptions will be directed",
         &GUC_SUB_DB_NAME,
         GucContext::Userset,
         GucFlags::default(),
@@ -108,11 +107,13 @@ pub fn initialize_configuration() {
 }
 
 fn fetch_tls_options() -> Option<NatsTlsOptions> {
-    let ca = GUC_TLS_CA_PATH.get().and_then(|path| path.to_str().ok())?;
+    let ca = GUC_TLS_CA_PATH
+        .get()
+        .and_then(|path| path.into_string().ok())?;
 
     match (
-        GUC_TLS_CERT_PATH.get().and_then(|c| c.to_str().ok()),
-        GUC_TLS_KEY_PATH.get().and_then(|c| c.to_str().ok()),
+        GUC_TLS_CERT_PATH.get().and_then(|c| c.into_string().ok()),
+        GUC_TLS_KEY_PATH.get().and_then(|c| c.into_string().ok()),
     ) {
         (Some(cert), Some(key)) => Some(NatsTlsOptions::MutualTls {
             ca: PathBuf::from(ca),
