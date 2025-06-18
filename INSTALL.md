@@ -38,7 +38,7 @@ git clone https://github.com/luxms/pgnats -b pgpro
 
 ```sh
 # 1. Install cargo-pgrx
-cargo install cargo-pgrx --version 0.14.1 --locked
+cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
 
 # 2. Initialize pgrx
 cargo pgrx init [-pg<POSTGRES_VERSION> <path to pg_config>]
@@ -69,7 +69,7 @@ git clone https://github.com/luxms/pgnats -b pgpro
 
 ```sh
 # 1. Install cargo-pgrx
-cargo install cargo-pgrx --version 0.14.1 --locked
+cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
 
 # 2. Initialize pgrx
 cargo pgrx init [-pg<POSTGRES_VERSION> <path to pg_config>]
