@@ -310,7 +310,7 @@ mod tests {
         assert!(get_res.is_ok(), "get_file failed: {:?}", get_res);
 
         let returned = get_res.unwrap();
-        assert_eq!(Some(content), returned);
+        assert_eq!(content, returned);
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -376,11 +376,10 @@ mod tests {
 
         let get_res = api::nats_get_file(bucket.clone(), key);
         assert!(
-            get_res.is_ok(),
+            get_res.is_err(),
             "get_file after delete failed: {:?}",
             get_res
         );
-        assert_eq!(None, get_res.unwrap());
     }
 
     #[cfg(not(skip_pgnats_tests))]

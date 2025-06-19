@@ -826,7 +826,7 @@ mod nats_tests {
         assert!(result.is_ok(), "get_file failed: {:?}", result);
 
         let content = result.unwrap();
-        assert_eq!(content.as_ref().map(|v| v.as_slice()), Some(TEST_CONTENT));
+        assert_eq!(&content, TEST_CONTENT);
     }
 
     #[tokio::test]
@@ -866,9 +866,6 @@ mod nats_tests {
         assert!(res.is_ok(), "delete_file failed: {:?}", res);
 
         let result = nats.get_file(TEST_STORE, TEST_FILE).await;
-        assert!(result.is_ok(), "file still exists after delete");
-
-        let result = result.unwrap();
-        assert_eq!(result, None);
+        assert!(result.is_err(), "file still exists after delete");
     }
 }

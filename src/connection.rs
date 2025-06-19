@@ -232,18 +232,14 @@ impl NatsConnection {
         &mut self,
         store: impl ToString,
         name: impl AsRef<str> + Send,
-    ) -> Result<Option<Vec<u8>>, PgNatsError> {
+    ) -> Result<Vec<u8>, PgNatsError> {
         let store = self.get_or_create_object_store(store).await?;
         let mut file = store.get(name).await?;
-
-        if file.info().deleted {
-            return Ok(None);
-        }
 
         let mut content = Vec::with_capacity(file.info().size);
         let _ = file.read_to_end(&mut content).await?;
 
-        Ok(Some(content))
+        Ok(content)
     }
 
     pub async fn put_file(

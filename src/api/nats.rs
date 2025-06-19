@@ -441,7 +441,7 @@ pub fn nats_get_server_info() -> Result<
 /// SELECT nats_get_file('documents', 'report.pdf');
 /// ```
 #[pg_extern]
-pub fn nats_get_file(store: String, name: &str) -> Result<Option<Vec<u8>>, PgNatsError> {
+pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
             let res = ctx.nats_connection.get_file(store, name).await;
