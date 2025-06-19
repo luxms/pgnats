@@ -32,6 +32,18 @@ pub fn pgnats_reload_conf() {
     })
 }
 
+/// Returns the current crate version as declared in Cargo.toml
+///
+/// # SQL Usage
+/// ```sql
+/// -- Get the current extension version
+/// SELECT pgnats_version();
+/// ```
+#[pg_extern]
+pub fn pgnats_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 /// Forces immediate NATS connection reinitialization
 ///
 /// # SQL Usage

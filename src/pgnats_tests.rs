@@ -13,6 +13,12 @@ mod tests {
 
     #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
+    fn test_hello_world() {
+        assert_eq!(api::pgnats_version(), env!("CARGO_PKG_VERSION"));
+    }
+
+    #[cfg(not(skip_pgnats_tests))]
+    #[pg_test]
     fn test_pgnats_publish() {
         Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
             .expect("Failed to set NATS host");

@@ -328,6 +328,9 @@ SELECT * FROM nats_get_file_list('store');
 ### 🛠️ Utils
 
 ```sql
+-- Get the current extension version
+SELECT pgnats_version();
+
 -- Retrieves information about the NATS server connection.
 SELECT * FROM nats_get_server_info();
 ```
