@@ -64,9 +64,6 @@ jobs:
               cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked --version "$PGRX_VERSION"
             fi
           fi
-          if [ ! -d "$HOME/.pgrx" ]; then
-            cargo pgrx init
-          fi
 
   tests:
     name: Tests for Postgres-${{ matrix.pg-version }}
@@ -104,6 +101,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Add cargo bin to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Run cargo pgrx init if needed
+        run: |
+          if [ ! -f "$HOME/.pgrx/config.toml" ]; then
+            cargo pgrx init
+          fi
+
       - name: Wait for NATS
         run: timeout 60 sh -c 'until nc -z localhost 4222; do sleep 1; done'
 
@@ -128,6 +134,15 @@ jobs:
           key: ${{ needs.setup.outputs.cache-key }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Add cargo bin to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Run cargo pgrx init if needed
+        run: |
+          if [ ! -f "$HOME/.pgrx/config.toml" ]; then
+            cargo pgrx init
+          fi
 
       - name: Run Clippy
         run: cargo clippy -- -D warnings
@@ -155,6 +170,15 @@ jobs:
           key: ${{ needs.setup.outputs.cache-key }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Add cargo bin to PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Run cargo pgrx init if needed
+        run: |
+          if [ ! -f "$HOME/.pgrx/config.toml" ]; then
+            cargo pgrx init
+          fi
 
       - name: Get pg_config and extension output path
         id: pgpaths
