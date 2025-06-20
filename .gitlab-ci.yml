@@ -97,7 +97,7 @@ buildRpm:
         PG_VERSION:
           - "13"
 
-buildALSE:
+.buildALSE:
   stage: build
   image: ${HARBOR_HOST}/build/alse${ALSE_VER}:debBuild
   variables:
@@ -144,7 +144,7 @@ buildALSE:
           - '1.7'
           - '1.8'
 
-buildAlt10:
+.buildAlt10:
   stage: build
   image: ${HARBOR_HOST}/build/alt10:rpmBuild
   before_script:
@@ -174,7 +174,7 @@ buildAlt10:
       junit:
         - "TRIVY-*.xml"
 
-buildRpmMosOS:
+.buildRpmMosOS:
   stage: build
   image: ${HARBOR_HOST}/build/mosos:rpmBuild
   variables:
@@ -204,3 +204,15 @@ buildRpmMosOS:
     reports:
       junit:
         - "TRIVY-*.xml"
+
+deployToStand:
+  stage: deploy
+  before_script:
+    - eval $(ssh-agent -s)
+    - echo "${SSH_RUNNER_KEY}" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -t ecdsa pgnats-cluster-pg01.spb.luxms.com >> ~/.ssh/known_hosts
+    - ssh-keyscan -t ecdsa pgnats-cluster-pg02.spb.luxms.com >> ~/.ssh/known_hosts
+  script:
+    - ls -la
+    - LEADER=`ssh root@${HOST1} "patronictl list | grep Leader | awk '{print $2}'"`
+    - REPLICA=`ssh root@${HOST2} "patronictl list | grep Replica | awk '{print $2}'"`
