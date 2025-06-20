@@ -306,6 +306,11 @@ impl Drop for WorkerContext {
 pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum) {
     log!("Starting background worker subscriber");
 
+    if unsafe { pg_sys::RecoveryInProgress() } {
+        log!("Exiting: background worker started on a replica");
+        return;
+    }
+
     BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
 
     let rt = match tokio::runtime::Builder::new_multi_thread()
