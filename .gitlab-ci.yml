@@ -9,6 +9,7 @@ variables:
 
 stages:
   - build
+  - deploy
 
 include:
   # trivy-scan
