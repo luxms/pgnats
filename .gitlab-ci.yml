@@ -222,6 +222,6 @@ deployToStand:
     - REPLICA=`ssh root@${HOST2} "patronictl -c /etc/patroni/patroni.yml list | grep Replica" | awk '{print $2}'`
 #    - scp ${PKG_DEPLOY} root@${HOST1}:/root/
 #    - scp ${PKG_DEPLOY} root@${HOST2}:/root/
-    - ssh root@${REPLICA} "patronictl restart pgnats-cluster ${REPLICA} --force"
+    - ssh root@${REPLICA} "patronictl -c /etc/patroni/patroni.yml restart pgnats-cluster ${REPLICA} --force"
 #    - ssh root@${REPLICA} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl restart pgnats-cluster ${REPLICA} --force"
 #    - ssh root@${LEADER} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl restart pgnats-cluster ${LEADER} --force"
