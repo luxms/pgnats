@@ -222,3 +222,6 @@ deployToStand:
     - REPLICA=`ssh root@${HOST2} "patronictl list | grep Replica | awk '{print $2}'"`
     - echo $LEADER
     - echo $REPLICA
+    - echo 1
+    - echo `ssh root@${HOST1} "patronictl list | grep Leader | awk '{print $2}'"`
+    - echo 2
