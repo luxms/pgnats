@@ -62,6 +62,8 @@ cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 %if 0%{?el8} || 0%{?el9}
 cargo pgrx init --pg%{pg_ver} /usr/bin/pg_server_config
 cargo pgrx package --pg-config /usr/bin/pg_server_config
+pwd
+ls -la
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
 %endif
