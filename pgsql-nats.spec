@@ -57,6 +57,9 @@ NATS connect for PostgresPRO-ent
 
 
 %install
+cd %{_topdir}
+pwd
+ls -la
 cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 
 %if 0%{?el8} || 0%{?el9}
