@@ -50,7 +50,7 @@ NATS connect for PostgresPRO
 %package        -n pgpro%{pg_ver}ent-nats
 Summary:        NATS connect for PostgresPro-ent
 Requires:       postgrespro-ent-%{pg_ver}-server policycoreutils-python-utils
-BuildRequires:  postgrespro-ent-%{pg_ver}-devel
+BuildRequires:  postgrespro-ent-%{pg_ver}-devel openssl
 Provides:       pgpro%{pg_ver}ent-nats
 
 %description    -n pgpro%{pg_ver}ent-nats
