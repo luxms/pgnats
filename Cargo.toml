@@ -1,0 +1,59 @@
+[package]
+name = "pgnats"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.81.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "pgrx_embed_pgnats"
+path = "./src/bin/pgrx_embed.rs"
+
+[features]
+default = ["pg13"]
+pg13 = ["pgrx/pg13", "pgrx-tests/pg13"]
+pg14 = ["pgrx/pg14", "pgrx-tests/pg14"]
+pg15 = ["pgrx/pg15", "pgrx-tests/pg15"]
+pg16 = ["pgrx/pg16", "pgrx-tests/pg16"]
+pg17 = ["pgrx/pg17", "pgrx-tests/pg17"]
+pg18 = ["pgrx/pg18", "pgrx-tests/pg18"]
+pg_test = []
+xid8 = ["pgrx/xid8", "pgrx-tests/xid8"]
+
+[dependencies]
+async-nats = "0.42.0"
+bincode = "2.0.1"
+futures = "0.3.31"
+paste = "1.0.15"
+pgrx = { git = "https://github.com/luxms/pgrx", version = "0.14.3", features = [
+    "unsafe-postgres",
+] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.138"
+thiserror = "2.0.11"
+tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread"] }
+
+[dev-dependencies]
+pgrx-tests = { git = "https://github.com/luxms/pgrx", version = "0.14.3" }
+testcontainers = { version = "0.23.1", features = ["blocking"] }
+
+[build-dependencies]
+cargo_toml = "0.21.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(pgrx_embed)'] }
+unused_results = { level = "warn" }
+
+[lints.clippy]
+redundant_field_names = "allow"
+
+[profile.dev]
+panic = "unwind"
+
+[profile.release]
+panic = "unwind"
+opt-level = 3
+lto = "fat"
+codegen-units = 1

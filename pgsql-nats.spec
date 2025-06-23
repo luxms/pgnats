@@ -17,8 +17,6 @@ Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
 
-Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
-
 %if 0%{?redos}
 Requires:       postgresql%{pg_ver}-server
 BuildRequires:  postgresql%{pg_ver}-devel pkg-config unzip openssl-devel
@@ -58,14 +56,7 @@ NATS connect for PostgresPRO-ent
 %endif
 
 
-%prep
-%{__rm} -rf %{name}-%{version}
-unzip %{SOURCE0}
-%{__mv} pgnats-main %{name}-%{version}
-
-
 %install
-cd %{name}-%{version}
 cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 
 %if 0%{?el8} || 0%{?el9}
@@ -76,6 +67,14 @@ cargo pgrx package --pg-config /usr/bin/pg_server_config
 %endif
 
 %if 0%{?redos}
+cargo pgrx init --features xid8 --pg%{pg_ver} /opt/pgpro/ent-%{pg_ver}/bin/pg_config
+cargo pgrx package --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
+%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
+%{__mkdir_p} %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension
+%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/lib/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib/
+%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/share/extension/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension/
+rm -rf target
+
 cargo pgrx init --pg%{pg_ver} /usr/pgsql-%{pg_ver}/bin/pg_config
 cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
@@ -90,14 +89,6 @@ cargo pgrx package --pg-config /opt/pgpro/std-%{pg_ver}/bin/pg_config
 %{__mkdir_p} %{buildroot}/opt/pgpro/std-%{pg_ver}/lib %{buildroot}/opt/pgpro/std-%{pg_ver}/share/extension
 %{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/std-%{pg_ver}/lib/* %{buildroot}/opt/pgpro/std-%{pg_ver}/lib/
 %{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/std-%{pg_ver}/share/extension/* %{buildroot}/opt/pgpro/std-%{pg_ver}/share/extension/
-rm -rf target
-
-cargo pgrx init --pg%{pg_ver} /opt/pgpro/ent-%{pg_ver}/bin/pg_config
-cargo pgrx package --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
-%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
-%{__mkdir_p} %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension
-%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/lib/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib/
-%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/share/extension/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension/
 rm -rf target
 %endif
 
