@@ -67,8 +67,8 @@ cargo pgrx package --pg-config /usr/bin/pg_server_config
 %endif
 
 %if 0%{?redos}
-cargo pgrx init --features xid8 --pg%{pg_ver} /opt/pgpro/ent-%{pg_ver}/bin/pg_config
-cargo pgrx package --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
+cargo pgrx init --pg%{pg_ver} /opt/pgpro/ent-%{pg_ver}/bin/pg_config
+cargo pgrx package --features xid8 --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
 %{__mkdir_p} %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension
 %{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/lib/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib/
