@@ -45,7 +45,7 @@ defVersion:
     reports:
       dotenv: variables.env
 
-buildRpm:
+.buildRpm:
   stage: build
   image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
   before_script:
@@ -208,11 +208,14 @@ buildRpm:
 
 deployToStand:
   stage: deploy
+  variables:
+    HOST1: pgnats-cluster-pg01.spb.luxms.com
+    HOST2: pgnats-cluster-pg02.spb.luxms.com
   before_script:
     - eval $(ssh-agent -s)
     - echo "${SSH_RUNNER_KEY}" | tr -d '\r' | ssh-add -
-    - ssh-keyscan -t ecdsa pgnats-cluster-pg01.spb.luxms.com >> ~/.ssh/known_hosts
-    - ssh-keyscan -t ecdsa pgnats-cluster-pg02.spb.luxms.com >> ~/.ssh/known_hosts
+    - ssh-keyscan -t ecdsa ${HOST1}  >> ~/.ssh/known_hosts
+    - ssh-keyscan -t ecdsa ${HOST2}  >> ~/.ssh/known_hosts
   script:
     - ls -la
     - LEADER=`ssh root@${HOST1} "patronictl list | grep Leader | awk '{print $2}'"`
