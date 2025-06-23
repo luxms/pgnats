@@ -45,7 +45,7 @@ defVersion:
     reports:
       dotenv: variables.env
 
-.buildRpm:
+buildRpm:
   stage: build
   image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
   before_script:
@@ -220,8 +220,3 @@ deployToStand:
     - ls -la
     - LEADER=`ssh root@${HOST1} "patronictl -c /etc/patroni/patroni.yml list | grep Leader" | awk '{print $2}'`
     - REPLICA=`ssh root@${HOST2} "patronictl -c /etc/patroni/patroni.yml list | grep Replica" | awk '{print $2}'`
-    - echo $LEADER
-    - echo $REPLICA
-    - echo 1
-    - echo `ssh root@${HOST1} "patronictl list | grep Leader | awk '{print $2}'"`
-    - echo 2
