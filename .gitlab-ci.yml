@@ -45,7 +45,7 @@ defVersion:
     reports:
       dotenv: variables.env
 
-.buildRpm:
+buildRpm:
   stage: build
   image: ${HARBOR_HOST}/build/${OS_VER}:rpmBuild
   before_script:
@@ -220,8 +220,7 @@ deployToStand:
   script:
     - LEADER=`ssh root@${HOST1} "patronictl -c /etc/patroni/patroni.yml list | grep Leader" | awk '{print $2}'`
     - REPLICA=`ssh root@${HOST2} "patronictl -c /etc/patroni/patroni.yml list | grep Replica" | awk '{print $2}'`
-#    - scp ${PKG_DEPLOY} root@${HOST1}:/root/
-#    - scp ${PKG_DEPLOY} root@${HOST2}:/root/
-    - ssh root@${REPLICA} "patronictl -c /etc/patroni/patroni.yml restart pgnats-cluster ${REPLICA} --force"
-#    - ssh root@${REPLICA} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl restart pgnats-cluster ${REPLICA} --force"
-#    - ssh root@${LEADER} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl restart pgnats-cluster ${LEADER} --force"
+    - scp ${PKG_DEPLOY} root@${HOST1}:/root/
+    - scp ${PKG_DEPLOY} root@${HOST2}:/root/
+    - ssh root@${REPLICA} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl -c /etc/patroni/patroni.yml restart pgnats-cluster ${REPLICA} --force"
+    - ssh root@${LEADER} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl -c /etc/patroni/patroni.yml restart pgnats-cluster ${LEADER} --force"
