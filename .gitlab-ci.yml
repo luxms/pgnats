@@ -87,16 +87,16 @@ buildRpm:
     matrix:
       - OS_VER:
           - "rocky9"
-          - "rocky8"
-          - "redos7"
-          - "redos8"
+          #- "rocky8"
+          #- "redos7"
+          #- "redos8"
         PG_VERSION:
           - "15"
-      - OS_VER:
-          - "rocky8"
-          - "redos7"
-        PG_VERSION:
-          - "13"
+      #- OS_VER:
+      #    - "rocky8"
+      #    - "redos7"
+      #  PG_VERSION:
+      #    - "13"
 
 .buildALSE:
   stage: build
