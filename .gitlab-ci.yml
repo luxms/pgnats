@@ -88,7 +88,7 @@ buildRpm:
       - OS_VER:
           - "rocky9"
           #- "rocky8"
-          #- "redos7"
+          - "redos7"
           #- "redos8"
         PG_VERSION:
           - "15"
