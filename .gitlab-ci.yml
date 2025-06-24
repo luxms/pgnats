@@ -224,3 +224,26 @@ deployToStand:
     - scp ${PKG_DEPLOY} root@${HOST2}:/root/
     - ssh root@${REPLICA} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl -c /etc/patroni/patroni.yml restart pgnats-cluster ${REPLICA} --force"
     - ssh root@${LEADER} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && patronictl -c /etc/patroni/patroni.yml restart pgnats-cluster ${LEADER} --force"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+deployToStand:
+  stage: deploy
+  variables:
+    HOST1: pgnats-cluster-pg01.spb.luxms.com
+    HOST2: pgnats-cluster-pg02.spb.luxms.com
+    PKG_DEPLOY: pgsql15-nats-${VERSION}-1.el9.x86_64.rpm
+  before_script:
+    - eval $(ssh-agent -s)
+    - echo "${SSH_RUNNER_KEY}" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -t ecdsa ${HOST1}  >> ~/.ssh/known_hosts
+    - ssh-keyscan -t ecdsa ${HOST2}  >> ~/.ssh/known_hosts
+  script:
+    - LEADER=`ssh root@${HOST1} "patronictl -c /etc/patroni/patroni.yml list | grep Leader" | awk '{print $2}'`
+    - REPLICA=`ssh root@${HOST2} "patronictl -c /etc/patroni/patroni.yml list | grep Replica" | awk '{print $2}'`
+    - scp ${PKG_DEPLOY} root@${HOST1}:/root/
+    - scp ${PKG_DEPLOY} root@${HOST2}:/root/
+    - ssh root@${REPLICA} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && ALTER EXTENSION"
+    - ssh root@${LEADER} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && ALTER EXTENSION"
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/'
