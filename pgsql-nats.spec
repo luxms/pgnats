@@ -45,14 +45,14 @@ Provides:       pgpro%{pg_ver}-nats
 %description    -n pgpro%{pg_ver}-nats
 NATS connect for PostgresPRO
 
-#%package        -n pgpro%{pg_ver}ent-nats
-#Summary:        NATS connect for PostgresPro-ent
-#Requires:       postgrespro-ent-%{pg_ver}-server policycoreutils-python-utils
-#BuildRequires:  postgrespro-ent-%{pg_ver}-devel
-#Provides:       pgpro%{pg_ver}ent-nats
+%package        -n pgpro%{pg_ver}ent-nats
+Summary:        NATS connect for PostgresPro-ent
+Requires:       postgrespro-ent-%{pg_ver}-server policycoreutils-python-utils
+BuildRequires:  postgrespro-ent-%{pg_ver}-devel
+Provides:       pgpro%{pg_ver}ent-nats
 
-#%description    -n pgpro%{pg_ver}ent-nats
-#NATS connect for PostgresPRO-ent
+%description    -n pgpro%{pg_ver}ent-nats
+NATS connect for PostgresPRO-ent
 %endif
 
 
@@ -84,13 +84,13 @@ cargo pgrx package --pg-config /opt/pgpro/std-%{pg_ver}/bin/pg_config
 %{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/std-%{pg_ver}/share/extension/* %{buildroot}/opt/pgpro/std-%{pg_ver}/share/extension/
 rm -rf target
 
-#cargo pgrx init --pg%{pg_ver} /opt/pgpro/ent-%{pg_ver}/bin/pg_config
-#cargo pgrx package --features xid8 --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
-#%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
-#%{__mkdir_p} %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension
-#%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/lib/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib/
-#%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/share/extension/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension/
-#rm -rf target
+cargo pgrx init --pg%{pg_ver} /opt/pgpro/ent-%{pg_ver}/bin/pg_config
+cargo pgrx package --features xid8 --pg-config /opt/pgpro/ent-%{pg_ver}/bin/pg_config
+%{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}ent-nats%{dist}
+%{__mkdir_p} %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension
+%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/lib/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/lib/
+%{__mv} target/release/pgnats-pg%{pg_ver}/opt/pgpro/ent-%{pg_ver}/share/extension/* %{buildroot}/opt/pgpro/ent-%{pg_ver}/share/extension/
+rm -rf target
 %endif
 
 
@@ -108,9 +108,9 @@ rm -rf target
 /opt/pgpro/std-%{pg_ver}/lib/
 /opt/pgpro/std-%{pg_ver}/share/extension
 
-#%files -n pgpro%{pg_ver}ent-nats
-#/opt/pgpro/ent-%{pg_ver}/lib/
-#/opt/pgpro/ent-%{pg_ver}/share/extension
+%files -n pgpro%{pg_ver}ent-nats
+/opt/pgpro/ent-%{pg_ver}/lib/
+/opt/pgpro/ent-%{pg_ver}/share/extension
 %endif
 
 %changelog
