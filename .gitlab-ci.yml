@@ -227,7 +227,7 @@ deployToStand:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
-deployToStand:
+deployNewVersionToStand:
   stage: deploy
   variables:
     HOST1: pgnats-cluster-pg01.spb.luxms.com
@@ -243,7 +243,7 @@ deployToStand:
     - REPLICA=`ssh root@${HOST2} "patronictl -c /etc/patroni/patroni.yml list | grep Replica" | awk '{print $2}'`
     - scp ${PKG_DEPLOY} root@${HOST1}:/root/
     - scp ${PKG_DEPLOY} root@${HOST2}:/root/
-    - ssh root@${REPLICA} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && ALTER EXTENSION"
-    - ssh root@${LEADER} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && ALTER EXTENSION"
+    - ssh root@${REPLICA} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && sudo -iu postgres psql mi -c 'ALTER EXTENSION pgnats UPDATE'"
+    - ssh root@${LEADER} "dnf -y install /root/${PKG_DEPLOY} && rm -f /root/${PKG_DEPLOY} && sudo -iu postgres psql mi -c 'ALTER EXTENSION pgnats UPDATE'"
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/'
