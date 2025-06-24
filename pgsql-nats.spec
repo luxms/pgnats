@@ -19,7 +19,7 @@ License:        CorpGPL
 
 %if 0%{?redos}
 Requires:       postgresql%{pg_ver}-server
-BuildRequires:  postgresql%{pg_ver}-devel pkg-config unzip openssl-devel
+BuildRequires:  postgresql%{pg_ver}-devel pkg-config unzip openssl-devel openssl
 Disttag:        redos%{redos_ver}
 Distribution:   redos/%{redos_ver}/x86_64
 %endif
@@ -27,7 +27,7 @@ Distribution:   redos/%{redos_ver}/x86_64
 %if 0%{?el8} || 0%{?el9}
 Requires:       postgresql-server >= %{pg_ver} postgresql-server < %(echo $((%{pg_ver} + 1)))
 BuildRequires:  postgresql-server-devel >= %{pg_ver} postgresql-server-devel < %(echo $((%{pg_ver} + 1)))
-BuildRequires:  pkg-config unzip openssl-devel clang
+BuildRequires:  pkg-config unzip openssl-devel clang openssl
 Disttag:        el%{rhel}
 Distribution:   el/%{rhel}/x86_64
 %endif
@@ -48,7 +48,7 @@ NATS connect for PostgresPRO
 #%package        -n pgpro%{pg_ver}ent-nats
 #Summary:        NATS connect for PostgresPro-ent
 #Requires:       postgrespro-ent-%{pg_ver}-server policycoreutils-python-utils
-#BuildRequires:  postgrespro-ent-%{pg_ver}-devel openssl
+#BuildRequires:  postgrespro-ent-%{pg_ver}-devel
 #Provides:       pgpro%{pg_ver}ent-nats
 
 #%description    -n pgpro%{pg_ver}ent-nats
