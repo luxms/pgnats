@@ -351,13 +351,10 @@ mod nats_tests {
             tls: None,
         }));
 
-        let worker_addr = "127.0.0.1:52529";
-
         let (msg_sender, msg_receiver) = channel();
-        let mut worker_context =
-            pgnats::bg_subscription::WorkerContext::new(msg_sender, worker_addr)
-                .await
-                .unwrap();
+        let mut worker_context = pgnats::bg_subscription::WorkerContext::new(msg_sender)
+            .await
+            .unwrap();
 
         let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
 
@@ -373,7 +370,10 @@ mod nats_tests {
             fn_name: "test".to_string(),
         };
         let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
+        let _ = socket
+            .send_to(&buf, format!("localhost:{}", worker_context.port))
+            .await
+            .unwrap();
 
         let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
         let pgnats::bg_subscription::InternalWorkerMessage::Subscribe {
@@ -432,7 +432,10 @@ mod nats_tests {
             fn_name: "test".to_string(),
         };
         let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
+        let _ = socket
+            .send_to(&buf, format!("localhost:{}", worker_context.port))
+            .await
+            .unwrap();
 
         let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
         let pgnats::bg_subscription::InternalWorkerMessage::Unsubscribe {
@@ -461,13 +464,10 @@ mod nats_tests {
             tls: None,
         }));
 
-        let worker_addr = "127.0.0.1:52530";
-
         let (msg_sender, msg_receiver) = channel();
-        let mut worker_context =
-            pgnats::bg_subscription::WorkerContext::new(msg_sender, worker_addr)
-                .await
-                .unwrap();
+        let mut worker_context = pgnats::bg_subscription::WorkerContext::new(msg_sender)
+            .await
+            .unwrap();
 
         let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
 
@@ -483,7 +483,10 @@ mod nats_tests {
             fn_name: "test1".to_string(),
         };
         let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
+        let _ = socket
+            .send_to(&buf, format!("localhost:{}", worker_context.port))
+            .await
+            .unwrap();
 
         let message = pgnats::ctx::WorkerMessage::Subscribe {
             dbname: "postgres".to_string(),
@@ -497,7 +500,10 @@ mod nats_tests {
             fn_name: "test2".to_string(),
         };
         let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
+        let _ = socket
+            .send_to(&buf, format!("localhost:{}", worker_context.port))
+            .await
+            .unwrap();
 
         let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
         let pgnats::bg_subscription::InternalWorkerMessage::Subscribe {

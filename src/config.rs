@@ -1,6 +1,5 @@
 use core::ffi::CStr;
 use std::ffi::CString;
-use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
 use pgrx::guc::*;
@@ -31,8 +30,6 @@ pub static GUC_TLS_KEY_PATH: GucSetting<Option<CString>> = GucSetting::<Option<C
 
 pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
     GucSetting::<Option<CString>>::new(Some(c"postgres"));
-
-pub(crate) const BACKGROUND_WORKER_ADDR: (Ipv4Addr, u16) = (Ipv4Addr::new(127, 0, 0, 1), 52525);
 
 pub fn initialize_configuration() {
     // initialization of postgres userdef configs

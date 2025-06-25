@@ -1,11 +1,16 @@
 use pgrx::bgworkers::*;
+use pgrx::pg_shmem_init;
 use pgrx::prelude::*;
+use pgrx::shmem::*;
 
+use crate::bg_subscription::BG_SOCKET_PORT;
 use crate::{config::initialize_configuration, ctx::CTX};
 
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
     initialize_configuration();
+
+    pg_shmem_init!(BG_SOCKET_PORT);
 
     BackgroundWorkerBuilder::new("Background Worker Subscribtion")
         .set_function("background_worker_subscriber")

@@ -8,15 +8,16 @@ use std::sync::Arc;
 use futures::StreamExt;
 use pgrx::bgworkers::*;
 use pgrx::prelude::*;
-use tokio::net::ToSocketAddrs;
+use pgrx::PgLwLock;
 use tokio::net::UdpSocket;
 use tokio::task::JoinHandle;
 
-use crate::config::BACKGROUND_WORKER_ADDR;
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 use crate::ctx::WorkerMessage;
 use crate::log;
+
+pub static BG_SOCKET_PORT: PgLwLock<u16> = PgLwLock::new(c"shmem_bg_scoket_port");
 
 pub enum InternalWorkerMessage {
     Subscribe {
@@ -49,28 +50,33 @@ struct NatsSubscription {
 }
 
 pub struct WorkerContext {
-    sender: Sender<InternalWorkerMessage>,
     pub udp_thread: JoinHandle<()>,
+    pub port: u16,
+    sender: Sender<InternalWorkerMessage>,
     subscriptions: HashMap<Arc<str>, NatsConnectionState>,
 }
 
 impl WorkerContext {
-    pub async fn new(
-        sender: Sender<InternalWorkerMessage>,
-        listen_addr: impl ToSocketAddrs,
-    ) -> Result<Self, String> {
-        let udp = match UdpSocket::bind(listen_addr).await {
+    pub async fn new(sender: Sender<InternalWorkerMessage>) -> Result<Self, String> {
+        let udp = match UdpSocket::bind("localhost:0").await {
             Ok(sock) => sock,
             Err(e) => {
                 return Err(format!("Failed to bind UDP socket: {}", e));
             }
         };
 
+        let port = udp.local_addr().expect("failed to get port").port();
+
+        log!("UDP socket bound to localhost:{}", port);
+
         let udp_thread = Self::spawn_udp_listener(udp, sender.clone()).await;
 
+        *BG_SOCKET_PORT.exclusive() = port;
+
         Ok(Self {
-            sender,
             udp_thread,
+            port,
+            sender,
             subscriptions: HashMap::new(),
         })
     }
@@ -327,20 +333,13 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     log!("Tokio runtime initialized");
 
     let (msg_sender, msg_receiver) = channel();
-    let mut worker_context =
-        match rt.block_on(WorkerContext::new(msg_sender, BACKGROUND_WORKER_ADDR)) {
-            Ok(sock) => sock,
-            Err(e) => {
-                log!("{}", e);
-                return;
-            }
-        };
-
-    log!(
-        "UDP socket bound to {}:{}",
-        BACKGROUND_WORKER_ADDR.0,
-        BACKGROUND_WORKER_ADDR.1
-    );
+    let mut worker_context = match rt.block_on(WorkerContext::new(msg_sender)) {
+        Ok(sock) => sock,
+        Err(e) => {
+            log!("{}", e);
+            return;
+        }
+    };
 
     let mut db_name = None;
 
