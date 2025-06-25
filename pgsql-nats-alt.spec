@@ -46,7 +46,7 @@ cargo pgrx package --pg-config /usr/bin/pg_config
 %{__mv} target/release/pgnats-pg%{pg_ver}/usr/share/pgsql/extension/* %{buildroot}/usr/share/pgsql/extension/
 rm -rf target
 
-cargo pgrx init --pg%{pg_ver} /opt/pgpro/std-%{pg_ver}/bin/pg_config
+cargo pgrx init --pg%{pg_ver} /opt/pgpro/std-%{pg_ver}/bin/pg_config --skip-version-check
 cargo pgrx package --pg-config /opt/pgpro/std-%{pg_ver}/bin/pg_config
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgpro%{pg_ver}-nats%{dist}
 %{__mkdir_p} %{buildroot}/opt/pgpro/std-%{pg_ver}/lib %{buildroot}/opt/pgpro/std-%{pg_ver}/share/extension
