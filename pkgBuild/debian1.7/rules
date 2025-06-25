@@ -26,10 +26,13 @@ override_dh_strip:
 	,)
 
 override_dh_auto_install:
+	ls -la
+	pwd
 	$(foreach pkg,$(PKG_LIST), \
 		cd src/ \
 		&& /root/.cargo/bin/cargo pgrx init --pg13 $(PGCONFIG_$(pkg)) \
 		&& /root/.cargo/bin/cargo pgrx package --pg-config $(PGCONFIG_$(pkg)) \
+		&& ls -la && pwd \
 		&& $(if $(filter true,$(CI)),../trivy-scan.sh src $(pkg),:) \
 		&& mv target/release/pgnats-pg13 ../debian/$(pkg) \
 		${\n} \
