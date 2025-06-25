@@ -2,7 +2,7 @@ Source: pgsql-nats
 Section: database
 Priority: optional
 Maintainer: Luxms Package Manager <repo@luxms.com>
-Build-Depends: debhelper (>= 12), curl, pkg-config, unzip, cargo-pgrx, libcurl4-openssl-dev, postgresql-server-dev-15, postgrespro-std-15-dev, postgrespro-ent-15-dev
+Build-Depends: debhelper (>= 12), curl, unzip, cargo-pgrx, postgresql-server-dev-15, postgrespro-std-15-dev, postgrespro-ent-15-dev
 Standards-Version: 10.0.0
 Homepage: https://github.com/luxms/pgnats/
 
