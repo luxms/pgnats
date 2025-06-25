@@ -17,7 +17,7 @@ Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
 
-BuildRequires:  cargo-pgrx
+BuildRequires:  cargo-pgrx openssl
 
 %if 0%{?redos}
 Requires:       postgresql%{pg_ver}-server
