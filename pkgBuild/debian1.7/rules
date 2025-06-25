@@ -26,7 +26,6 @@ override_dh_strip:
 	,)
 
 override_dh_auto_install:
-	/root/.cargo/bin/cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 	$(foreach pkg,$(PKG_LIST), \
 		cd src/ \
 		&& /root/.cargo/bin/cargo pgrx init --pg13 $(PGCONFIG_$(pkg)) \

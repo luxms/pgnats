@@ -17,6 +17,7 @@ Group:		    Databases
 Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
 Requires:       postgresql%{pg_ver}-server
 BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel
+BuildRequires:  cargo-pgrx
 
 Disttag:        alt10
 Distribution:   alt/p10/x86_64/RPMS.thirdparty/
@@ -43,7 +44,6 @@ unzip %{SOURCE0}
 
 %install
 cd %{name}-%{version}
-cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 
 cargo pgrx init --pg%{pg_ver} /usr/bin/pg_config --skip-version-check
 cargo pgrx package --pg-config /usr/bin/pg_config
