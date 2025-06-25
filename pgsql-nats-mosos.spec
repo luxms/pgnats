@@ -15,10 +15,9 @@ Release:        1%{?dist}
 Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/pramsey/pgsql-nats
 License:        CorpGPL
-Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
 Requires:       postgresql%{pg_ver}-server
-BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel clang
-BuildRequires:  cargo-pgrx
+BuildRequires:  postgresql%{pg_ver}-server-devel
+BuildRequires:  cargo-pgrx openssl clang
 Disttag:        mosos
 Distribution:   mosos/15.5/x86_64
 
@@ -27,14 +26,8 @@ Distribution:   mosos/15.5/x86_64
 NATS connect for PostgresPRO
 
 
-%prep
-%{__rm} -rf %{name}-%{version}
-unzip %{SOURCE0}
-%{__mv} pgnats-main %{name}-%{version}
-
-
 %install
-cd %{name}-%{version}
+cd %{_topdir}
 
 cargo pgrx init --pg%{pg_ver} /usr/lib/postgresql%{pg_ver}/bin/pg_config --skip-version-check
 cargo pgrx package --pg-config /usr/lib/postgresql%{pg_ver}/bin/pg_config

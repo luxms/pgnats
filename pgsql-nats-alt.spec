@@ -14,10 +14,9 @@ Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
 Group:		    Databases
-Source0:        https://github.com/luxms/pgnats/archive/refs/heads/main.zip
 Requires:       postgresql%{pg_ver}-server
-BuildRequires:  postgresql%{pg_ver}-server-devel pkg-config unzip openssl-devel
-BuildRequires:  cargo-pgrx
+BuildRequires:  postgresql%{pg_ver}-server-devel
+BuildRequires:  cargo-pgrx openssl
 
 Disttag:        alt10
 Distribution:   alt/p10/x86_64/RPMS.thirdparty/
@@ -36,14 +35,8 @@ Provides:       pgpro%{pg_ver}-nats
 NATS connect for PostgresPRO
 
 
-%prep
-%{__rm} -rf %{name}-%{version}
-unzip %{SOURCE0}
-%{__mv} pgnats-main %{name}-%{version}
-
-
 %install
-cd %{name}-%{version}
+cd %{_topdir}
 
 cargo pgrx init --pg%{pg_ver} /usr/bin/pg_config --skip-version-check
 cargo pgrx package --pg-config /usr/bin/pg_config
