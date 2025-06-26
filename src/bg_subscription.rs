@@ -312,11 +312,6 @@ impl Drop for WorkerContext {
 pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum) {
     log!("Starting background worker subscriber");
 
-    if unsafe { pg_sys::RecoveryInProgress() } {
-        log!("Exiting: background worker started on a replica");
-        return;
-    }
-
     BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
 
     let rt = match tokio::runtime::Builder::new_multi_thread()
@@ -344,7 +339,14 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     let mut db_name = None;
 
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_millis(250))) {
+        // Cache result
+        let is_slave = unsafe { pg_sys::RecoveryInProgress() };
+
         while let Ok(message) = msg_receiver.try_recv() {
+            if is_slave {
+                continue;
+            }
+
             match message {
                 InternalWorkerMessage::Subscribe {
                     dbname,
