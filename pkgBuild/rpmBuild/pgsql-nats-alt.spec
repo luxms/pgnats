@@ -1,5 +1,6 @@
 %global         __brp_check_rpaths %{nil}
 %define         _build_id_links   none
+%global         __find_debuginfo_files %{nil}
 %define         debug_package  %{nil}
 
 %{!?version:    %define version %{VERSION}}
