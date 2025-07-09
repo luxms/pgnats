@@ -74,7 +74,6 @@ The exported PostgreSQL API is implemented in the `api` module.
 - `nats.tls.ca` – Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
 - `nats.tls.cert` – Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
 - `nats.tls.key` – Path to the client private key corresponding to `nats.tls.cert` (default: unset; required if `nats.tls.cert` is set)
-- `nats.sub.dbname` — Database name to which all queries from subscription callbacks will be routed (default: `postgres`)
 
 ## 📘 Usage
 

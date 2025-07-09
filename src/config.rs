@@ -15,7 +15,6 @@ pub const CONFIG_CAPACITY: &CStr = c"nats.capacity";
 pub const CONFIG_TLS_CA_PATH: &CStr = c"nats.tls.ca";
 pub const CONFIG_TLS_CERT_PATH: &CStr = c"nats.tls.cert";
 pub const CONFIG_TLS_KEY_PATH: &CStr = c"nats.tls.key";
-pub const CONFIG_SUB_DB_NAME: &CStr = c"nats.sub.dbname";
 
 // configs values
 pub static GUC_HOST: GucSetting<Option<CString>> =
@@ -27,9 +26,6 @@ pub static GUC_TLS_CA_PATH: GucSetting<Option<CString>> = GucSetting::<Option<CS
 pub static GUC_TLS_CERT_PATH: GucSetting<Option<CString>> =
     GucSetting::<Option<CString>>::new(None);
 pub static GUC_TLS_KEY_PATH: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(None);
-
-pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
-    GucSetting::<Option<CString>>::new(Some(c"postgres"));
 
 pub fn initialize_configuration() {
     // initialization of postgres userdef configs
@@ -87,15 +83,6 @@ pub fn initialize_configuration() {
         c"Path to TLS key",
         c"Path to TLS key",
         &GUC_TLS_KEY_PATH,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
-
-    GucRegistry::define_string_guc(
-        CONFIG_SUB_DB_NAME,
-        c"A database to which all queries from subscriptions will be directed",
-        c"A database to which all queries from subscriptions will be directed",
-        &GUC_SUB_DB_NAME,
         GucContext::Userset,
         GucFlags::default(),
     );

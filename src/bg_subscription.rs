@@ -21,13 +21,11 @@ pub static BG_SOCKET_PORT: PgLwLock<u16> = PgLwLock::new(c"shmem_bg_scoket_port"
 
 pub enum InternalWorkerMessage {
     Subscribe {
-        dbname: Option<String>,
         opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
     },
     Unsubscribe {
-        dbname: Option<String>,
         opt: NatsConnectionOptions,
         subject: Arc<str>,
         fn_name: Arc<str>,
@@ -224,7 +222,6 @@ impl WorkerContext {
                 }
                 Err(_) => {
                     let _ = sender.send(InternalWorkerMessage::Unsubscribe {
-                        dbname: None,
                         opt,
                         subject,
                         fn_name,
@@ -253,14 +250,12 @@ impl WorkerContext {
 
                     match msg {
                         WorkerMessage::Subscribe {
-                            dbname,
                             opt,
                             subject,
                             fn_name,
                         } => {
                             if sender
                                 .send(InternalWorkerMessage::Subscribe {
-                                    dbname: Some(dbname),
                                     opt,
                                     subject,
                                     fn_name,
@@ -271,14 +266,12 @@ impl WorkerContext {
                             }
                         }
                         WorkerMessage::Unsubscribe {
-                            dbname,
                             opt,
                             subject,
                             fn_name,
                         } => {
                             if sender
                                 .send(InternalWorkerMessage::Unsubscribe {
-                                    dbname: Some(dbname),
                                     opt,
                                     subject: Arc::from(subject),
                                     fn_name: Arc::from(fn_name),
@@ -336,7 +329,9 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
         }
     };
 
-    let mut db_name = None;
+    let db_name = std::env::var("PGNATS_SUB_DBNAME").unwrap_or("mi".to_string());
+    BackgroundWorker::connect_worker_to_spi(Some(&db_name), None);
+    log!("Background worker connected to '{}' database", db_name);
 
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_millis(250))) {
         // Cache result
@@ -349,7 +344,6 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
 
             match message {
                 InternalWorkerMessage::Subscribe {
-                    dbname,
                     opt,
                     subject,
                     fn_name,
@@ -359,9 +353,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                         subject,
                         fn_name
                     );
-                    if let Some(dbname) = dbname {
-                        connect_to_database(&mut db_name, dbname);
-                    }
+
                     rt.block_on(worker_context.handle_subscribe(
                         opt,
                         Arc::from(subject),
@@ -369,7 +361,6 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                     ));
                 }
                 InternalWorkerMessage::Unsubscribe {
-                    dbname,
                     opt,
                     subject,
                     fn_name,
@@ -379,9 +370,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                         subject,
                         fn_name
                     );
-                    if let Some(dbname) = dbname {
-                        connect_to_database(&mut db_name, dbname);
-                    }
+
                     worker_context.handle_unsubscribe(&opt, subject.clone(), &fn_name);
                 }
                 InternalWorkerMessage::CallbackCall {
@@ -427,15 +416,4 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     }
 
     log!("Stopping background worker listener");
-}
-
-#[cold]
-fn connect_to_database(src: &mut Option<String>, dst: String) {
-    if src.is_some() {
-        return;
-    }
-
-    BackgroundWorker::connect_worker_to_spi(Some(&dst), None);
-    log!("Background worker connected to '{}' database", dst);
-    *src = Some(dst);
 }
