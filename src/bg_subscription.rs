@@ -333,7 +333,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     BackgroundWorker::connect_worker_to_spi(Some(&db_name), None);
     log!("Background worker connected to '{}' database", db_name);
 
-    while BackgroundWorker::wait_latch(Some(std::time::Duration::from_millis(250))) {
+    while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
         // Cache result
         let is_slave = unsafe { pg_sys::RecoveryInProgress() };
 

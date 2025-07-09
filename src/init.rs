@@ -6,6 +6,18 @@ use pgrx::shmem::*;
 use crate::bg_subscription::BG_SOCKET_PORT;
 use crate::{config::initialize_configuration, ctx::CTX};
 
+extension_sql!(
+    r#"
+    CREATE SCHEMA IF NOT EXISTS pgnats;
+
+    CREATE TABLE IF NOT EXISTS pgnats.subscriptions (
+        subject TEXT NOT NULL,
+        callback TEXT NOT NULL
+    );
+    "#,
+    name = "create_subscriptions_table",
+);
+
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
     initialize_configuration();
