@@ -359,7 +359,6 @@ mod nats_tests {
         let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
 
         let message = pgnats::ctx::WorkerMessage::Subscribe {
-            dbname: "postgres".to_string(),
             opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -421,7 +420,6 @@ mod nats_tests {
         });
 
         let message = pgnats::ctx::WorkerMessage::Unsubscribe {
-            dbname: "postgres".to_string(),
             opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -472,7 +470,6 @@ mod nats_tests {
         let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
 
         let message = pgnats::ctx::WorkerMessage::Subscribe {
-            dbname: "postgres".to_string(),
             opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -489,7 +486,6 @@ mod nats_tests {
             .unwrap();
 
         let message = pgnats::ctx::WorkerMessage::Subscribe {
-            dbname: "postgres".to_string(),
             opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
