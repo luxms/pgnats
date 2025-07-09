@@ -15,6 +15,7 @@ use tokio::task::JoinHandle;
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 use crate::ctx::WorkerMessage;
+use crate::init::SUBSCRIPTIONS_TABLE_NAME;
 use crate::log;
 
 pub static BG_SOCKET_PORT: PgLwLock<u16> = PgLwLock::new(c"shmem_bg_scoket_port");
@@ -314,6 +315,15 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                         fn_name
                     );
 
+                    if let Err(error) = insert_subject_callback(&subject, &fn_name) {
+                        log!(
+                            "Got an error while unsubscribing from subject '{}' and callback '{}': {}",
+                            subject,
+                            fn_name,
+                            error,
+                        );
+                    }
+
                     rt.block_on(worker_context.handle_subscribe(
                         opt,
                         Arc::from(subject),
@@ -327,6 +337,15 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                         fn_name
                     );
 
+                    if let Err(error) = delete_subject_callback(&subject, &fn_name) {
+                        log!(
+                            "Got an error while unsubscribing from subject '{}' and callback '{}': {}",
+                            subject,
+                            fn_name,
+                            error,
+                        );
+                    }
+
                     worker_context.handle_unsubscribe(subject.clone(), &fn_name);
                 }
                 InternalWorkerMessage::CallbackCall { subject, data } => {
@@ -334,10 +353,10 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                     worker_context.handle_callback(&subject, data, |callback, data| {
                         let result = PgTryBuilder::new(|| {
                             BackgroundWorker::transaction(|| {
-                                Spi::connect(|client| {
+                                Spi::connect_mut(|client| {
                                     let sql = format!("SELECT {}($1)", callback);
                                     let _ = client
-                                        .select(&sql, None, &[data.into()])
+                                        .update(&sql, None, &[data.into()])
                                         .map_err(|e| e.to_string())?;
                                     Ok(())
                                 })
@@ -364,4 +383,89 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     }
 
     log!("Stopping background worker listener");
+}
+
+fn _fetch_subject_with_callbacks() -> Result<Vec<(String, String)>, String> {
+    PgTryBuilder::new(|| {
+        BackgroundWorker::transaction(|| {
+            Spi::connect_mut(|client| {
+                let sql = format!("SELECT subject, callback FROM {}", SUBSCRIPTIONS_TABLE_NAME);
+                let tuples = client.select(&sql, None, &[]).map_err(|e| e.to_string())?;
+                let subject_callbacks = tuples
+                    .into_iter()
+                    .filter_map(|tuple| {
+                        let subject = tuple.get_by_name::<String, _>("subject");
+                        let callback = tuple.get_by_name::<String, _>("callback");
+
+                        match (subject, callback) {
+                            (Ok(Some(subject)), Ok(Some(callback))) => Some((subject, callback)),
+                            _ => None,
+                        }
+                    })
+                    .collect();
+                Ok(subject_callbacks)
+            })
+        })
+    })
+    .catch_others(|e| match e {
+        pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+            "Code '{}': {}. ({:?})",
+            err.sql_error_code(),
+            err.message(),
+            err.hint()
+        )),
+        _ => Err(format!("{:?}", e)),
+    })
+    .execute()
+}
+
+fn insert_subject_callback(subject: &str, callback: &str) -> Result<(), String> {
+    PgTryBuilder::new(|| {
+        BackgroundWorker::transaction(|| {
+            Spi::connect_mut(|client| {
+                let sql = format!("INSERT INTO {} VALUES ($1, $2)", SUBSCRIPTIONS_TABLE_NAME);
+                let _ = client
+                    .update(&sql, None, &[subject.into(), callback.into()])
+                    .map_err(|e| e.to_string())?;
+                Ok(())
+            })
+        })
+    })
+    .catch_others(|e| match e {
+        pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+            "Code '{}': {}. ({:?})",
+            err.sql_error_code(),
+            err.message(),
+            err.hint()
+        )),
+        _ => Err(format!("{:?}", e)),
+    })
+    .execute()
+}
+
+fn delete_subject_callback(subject: &str, callback: &str) -> Result<(), String> {
+    PgTryBuilder::new(|| {
+        BackgroundWorker::transaction(|| {
+            Spi::connect_mut(|client| {
+                let sql = format!(
+                    "DELETE FROM {} WHERE subject = $1 AND callback = $2",
+                    SUBSCRIPTIONS_TABLE_NAME
+                );
+                let _ = client
+                    .update(&sql, None, &[subject.into(), callback.into()])
+                    .map_err(|e| e.to_string())?;
+                Ok(())
+            })
+        })
+    })
+    .catch_others(|e| match e {
+        pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+            "Code '{}': {}. ({:?})",
+            err.sql_error_code(),
+            err.message(),
+            err.hint()
+        )),
+        _ => Err(format!("{:?}", e)),
+    })
+    .execute()
 }

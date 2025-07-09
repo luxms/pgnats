@@ -6,6 +6,8 @@ use pgrx::shmem::*;
 use crate::bg_subscription::BG_SOCKET_PORT;
 use crate::{config::initialize_configuration, ctx::CTX};
 
+pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
+
 extension_sql!(
     r#"
     CREATE SCHEMA IF NOT EXISTS pgnats;
