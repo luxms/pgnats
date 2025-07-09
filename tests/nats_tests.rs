@@ -401,31 +401,21 @@ mod nats_tests {
         .unwrap();
 
         let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::CallbackCall {
-            client,
-            subject,
-            data,
-        } = message
+        let pgnats::bg_subscription::InternalWorkerMessage::CallbackCall { subject, data } =
+            message
         else {
             panic!("wrong message")
         };
 
-        assert_eq!(&*client, &format!("127.0.0.1:{}", port));
         assert_eq!(&*subject, "test.test_nats_subscribe");
         assert_eq!(&*data, b"Hello, subscriber!".as_slice());
 
-        worker_context.handle_callback(&*client, &*subject, data, |fn_name, data| {
+        worker_context.handle_callback(&*subject, data, |fn_name, data| {
             assert_eq!(fn_name, "test");
             assert_eq!(data, b"Hello, subscriber!".as_slice());
         });
 
         let message = pgnats::ctx::WorkerMessage::Unsubscribe {
-            opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
             subject: "test.test_nats_subscribe".to_string(),
             fn_name: "test".to_string(),
         };
@@ -437,10 +427,7 @@ mod nats_tests {
 
         let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
         let pgnats::bg_subscription::InternalWorkerMessage::Unsubscribe {
-            opt,
-            subject,
-            fn_name,
-            ..
+            subject, fn_name, ..
         } = message
         else {
             panic!("wrong message")
@@ -448,7 +435,7 @@ mod nats_tests {
 
         assert_eq!(&*subject, "test.test_nats_subscribe");
         assert_eq!(&*fn_name, "test");
-        worker_context.handle_unsubscribe(&opt, Arc::from(subject), &*fn_name);
+        worker_context.handle_unsubscribe(Arc::from(subject), &*fn_name);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -545,20 +532,16 @@ mod nats_tests {
         .unwrap();
 
         let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::CallbackCall {
-            client,
-            subject,
-            data,
-        } = message
+        let pgnats::bg_subscription::InternalWorkerMessage::CallbackCall { subject, data } =
+            message
         else {
             panic!("wrong message")
         };
 
-        assert_eq!(&*client, &format!("127.0.0.1:{}", port));
         assert_eq!(&*subject, "test.test_nats_subscribe");
         assert_eq!(&*data, b"Hello, subscriber!".as_slice());
 
-        worker_context.handle_callback(&*client, &*subject, data, |fn_name, data| {
+        worker_context.handle_callback(&*subject, data, |fn_name, data| {
             assert!(fn_name == "test1" || fn_name == "test2");
             assert_eq!(data, b"Hello, subscriber!".as_slice());
         });

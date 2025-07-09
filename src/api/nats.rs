@@ -660,19 +660,8 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
 /// ```
 #[pg_extern]
 pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
-    let Some(opt) = CTX.with_borrow_mut(|ctx| {
-        ctx.rt
-            .block_on(ctx.nats_connection.get_connection_options())
-    }) else {
-        return Err(PgNatsError::NoConnectionOptions);
-    };
-
     let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
-    let msg = WorkerMessage::Unsubscribe {
-        opt,
-        subject,
-        fn_name,
-    };
+    let msg = WorkerMessage::Unsubscribe { subject, fn_name };
     if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
         if let Err(err) = socket.send_to(&buf, format!("localhost:{}", *BG_SOCKET_PORT.share())) {
             log!("Failed to send data: {}", err);

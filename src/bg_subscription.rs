@@ -26,12 +26,10 @@ pub enum InternalWorkerMessage {
         fn_name: String,
     },
     Unsubscribe {
-        opt: NatsConnectionOptions,
         subject: Arc<str>,
         fn_name: Arc<str>,
     },
     CallbackCall {
-        client: Arc<str>,
         subject: Arc<str>,
         data: Arc<[u8]>,
     },
@@ -51,7 +49,7 @@ pub struct WorkerContext {
     pub udp_thread: JoinHandle<()>,
     pub port: u16,
     sender: Sender<InternalWorkerMessage>,
-    subscriptions: HashMap<Arc<str>, NatsConnectionState>,
+    nats_state: Option<NatsConnectionState>,
 }
 
 impl WorkerContext {
@@ -75,7 +73,7 @@ impl WorkerContext {
             udp_thread,
             port,
             sender,
-            subscriptions: HashMap::new(),
+            nats_state: None,
         })
     }
 
@@ -85,94 +83,74 @@ impl WorkerContext {
         subject: Arc<str>,
         fn_name: Arc<str>,
     ) {
-        let source: Arc<str> = Arc::from(format!("{}:{}", opt.host, opt.port));
-
-        match self.subscriptions.entry(source.clone()) {
-            // Reuse existing NATS connection
-            Entry::Occupied(mut e) => {
-                let connection = e.get_mut();
-                let client = connection.client.clone();
-
-                match connection.subscriptions.entry(subject.clone()) {
-                    // Subject already exists; update or add the function handler
-                    Entry::Occupied(mut s) => {
-                        let _ = s.get_mut().funcs.insert(fn_name);
-                    }
-                    // First time subscribing to this subject
-                    Entry::Vacant(se) => {
-                        let func = fn_name.clone();
-                        // Spawn a new handler task for the function
-                        let handler = Self::spawn_subscription_task(
-                            client.clone(),
-                            source,
-                            subject.clone(),
-                            func,
-                            self.sender.clone(),
-                            opt,
-                        )
-                        .await;
-
-                        let _ = se.insert(NatsSubscription {
-                            handler,
-                            funcs: HashSet::from([fn_name]),
-                        });
-                    }
+        if let Some(connection) = &mut self.nats_state {
+            match connection.subscriptions.entry(subject.clone()) {
+                // Subject already exists; update or add the function handler
+                Entry::Occupied(mut s) => {
+                    let _ = s.get_mut().funcs.insert(fn_name);
                 }
-            }
-            // Establish new NATS connection
-            Entry::Vacant(e) => {
-                let mut opts = async_nats::ConnectOptions::new().client_capacity(opt.capacity);
-
-                if let Some(tls) = &opt.tls {
-                    if let Ok(root) = std::env::current_dir() {
-                        match tls {
-                            NatsTlsOptions::Tls { ca } => {
-                                opts = opts.require_tls(true).add_root_certificates(root.join(ca));
-                            }
-                            NatsTlsOptions::MutualTls { ca, cert, key } => {
-                                opts = opts
-                                    .require_tls(true)
-                                    .add_root_certificates(root.join(ca))
-                                    .add_client_certificate(root.join(cert), root.join(key));
-                            }
-                        }
-                    }
-                }
-
-                if let Ok(connection) = opts.connect(&**e.key()).await {
+                // First time subscribing to this subject
+                Entry::Vacant(se) => {
+                    let func = fn_name.clone();
+                    // Spawn a new handler task for the function
                     let handler = Self::spawn_subscription_task(
-                        connection.clone(),
-                        source,
+                        connection.client.clone(),
                         subject.clone(),
-                        fn_name.clone(),
+                        func,
                         self.sender.clone(),
-                        opt,
                     )
                     .await;
 
-                    let sub = NatsSubscription {
+                    let _ = se.insert(NatsSubscription {
                         handler,
                         funcs: HashSet::from([fn_name]),
-                    };
-
-                    let _ = e.insert(NatsConnectionState {
-                        client: connection,
-                        subscriptions: HashMap::from([(subject, sub)]),
                     });
                 }
+            }
+        } else {
+            let mut opts = async_nats::ConnectOptions::new().client_capacity(opt.capacity);
+
+            if let Some(tls) = &opt.tls {
+                if let Ok(root) = std::env::current_dir() {
+                    match tls {
+                        NatsTlsOptions::Tls { ca } => {
+                            opts = opts.require_tls(true).add_root_certificates(root.join(ca));
+                        }
+                        NatsTlsOptions::MutualTls { ca, cert, key } => {
+                            opts = opts
+                                .require_tls(true)
+                                .add_root_certificates(root.join(ca))
+                                .add_client_certificate(root.join(cert), root.join(key));
+                        }
+                    }
+                }
+            }
+
+            if let Ok(connection) = opts.connect(format!("{}:{}", opt.host, opt.port)).await {
+                let handler = Self::spawn_subscription_task(
+                    connection.clone(),
+                    subject.clone(),
+                    fn_name.clone(),
+                    self.sender.clone(),
+                )
+                .await;
+
+                let sub = NatsSubscription {
+                    handler,
+                    funcs: HashSet::from([fn_name]),
+                };
+
+                self.nats_state = Some(NatsConnectionState {
+                    client: connection,
+                    subscriptions: HashMap::from([(subject, sub)]),
+                });
             }
         }
     }
 
-    pub fn handle_unsubscribe(
-        &mut self,
-        opt: &NatsConnectionOptions,
-        subject: Arc<str>,
-        fn_name: &str,
-    ) {
-        let source = Arc::from(format!("{}:{}", opt.host, opt.port));
-        if let Some(connection) = self.subscriptions.get_mut(&source) {
-            if let Entry::Occupied(mut e) = connection.subscriptions.entry(subject.clone()) {
+    pub fn handle_unsubscribe(&mut self, subject: Arc<str>, fn_name: &str) {
+        if let Some(nats_state) = &mut self.nats_state {
+            if let Entry::Occupied(mut e) = nats_state.subscriptions.entry(subject.clone()) {
                 let _ = e.get_mut().funcs.remove(fn_name);
 
                 if e.get().funcs.is_empty() {
@@ -183,15 +161,9 @@ impl WorkerContext {
         }
     }
 
-    pub fn handle_callback(
-        &self,
-        client_key: &str,
-        subject: &str,
-        data: Arc<[u8]>,
-        callback: impl Fn(&str, &[u8]),
-    ) {
-        if let Some(subjects) = self.subscriptions.get(client_key) {
-            if let Some(subject) = subjects.subscriptions.get(subject) {
+    pub fn handle_callback(&self, subject: &str, data: Arc<[u8]>, callback: impl Fn(&str, &[u8])) {
+        if let Some(nats_state) = &self.nats_state {
+            if let Some(subject) = nats_state.subscriptions.get(subject) {
                 for fnname in subject.funcs.iter() {
                     callback(fnname, &data);
                 }
@@ -203,29 +175,22 @@ impl WorkerContext {
 impl WorkerContext {
     async fn spawn_subscription_task(
         client: async_nats::Client,
-        client_key: Arc<str>,
         subject: Arc<str>,
         fn_name: Arc<str>,
         sender: Sender<InternalWorkerMessage>,
-        opt: NatsConnectionOptions,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
             match client.subscribe(subject.to_string()).await {
                 Ok(mut sub) => {
                     while let Some(msg) = sub.next().await {
                         let _ = sender.send(InternalWorkerMessage::CallbackCall {
-                            client: client_key.clone(),
                             subject: subject.clone(),
                             data: Arc::from(msg.payload.to_vec()),
                         });
                     }
                 }
                 Err(_) => {
-                    let _ = sender.send(InternalWorkerMessage::Unsubscribe {
-                        opt,
-                        subject,
-                        fn_name,
-                    });
+                    let _ = sender.send(InternalWorkerMessage::Unsubscribe { subject, fn_name });
                 }
             }
         })
@@ -265,14 +230,9 @@ impl WorkerContext {
                                 return;
                             }
                         }
-                        WorkerMessage::Unsubscribe {
-                            opt,
-                            subject,
-                            fn_name,
-                        } => {
+                        WorkerMessage::Unsubscribe { subject, fn_name } => {
                             if sender
                                 .send(InternalWorkerMessage::Unsubscribe {
-                                    opt,
                                     subject: Arc::from(subject),
                                     fn_name: Arc::from(fn_name),
                                 })
@@ -292,8 +252,8 @@ impl Drop for WorkerContext {
     fn drop(&mut self) {
         self.udp_thread.abort();
 
-        for (_, connection) in std::mem::take(&mut self.subscriptions) {
-            for (_, sub) in connection.subscriptions {
+        if let Some(mut nats_state) = self.nats_state.take() {
+            for (_, sub) in std::mem::take(&mut nats_state.subscriptions) {
                 sub.handler.abort();
             }
         }
@@ -360,30 +320,18 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                         Arc::from(fn_name),
                     ));
                 }
-                InternalWorkerMessage::Unsubscribe {
-                    opt,
-                    subject,
-                    fn_name,
-                } => {
+                InternalWorkerMessage::Unsubscribe { subject, fn_name } => {
                     log!(
                         "Received unsubscription: subject='{}', fn='{}'",
                         subject,
                         fn_name
                     );
 
-                    worker_context.handle_unsubscribe(&opt, subject.clone(), &fn_name);
+                    worker_context.handle_unsubscribe(subject.clone(), &fn_name);
                 }
-                InternalWorkerMessage::CallbackCall {
-                    client,
-                    subject,
-                    data,
-                } => {
-                    log!(
-                        "Received callback for subject '{}' (client='{}')",
-                        subject,
-                        client
-                    );
-                    worker_context.handle_callback(&client, &subject, data, |callback, data| {
+                InternalWorkerMessage::CallbackCall { subject, data } => {
+                    log!("Received callback for subject '{}", subject,);
+                    worker_context.handle_callback(&subject, data, |callback, data| {
                         let result = PgTryBuilder::new(|| {
                             BackgroundWorker::transaction(|| {
                                 Spi::connect(|client| {

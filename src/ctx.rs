@@ -21,7 +21,6 @@ pub enum WorkerMessage {
         fn_name: String,
     },
     Unsubscribe {
-        opt: NatsConnectionOptions,
         subject: String,
         fn_name: String,
     },
