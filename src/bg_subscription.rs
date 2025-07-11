@@ -8,17 +8,14 @@ use std::sync::Arc;
 use futures::StreamExt;
 use pgrx::bgworkers::*;
 use pgrx::prelude::*;
-use pgrx::PgLwLock;
-use tokio::net::UdpSocket;
 use tokio::task::JoinHandle;
 
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
-use crate::ctx::WorkerMessage;
 use crate::init::SUBSCRIPTIONS_TABLE_NAME;
 use crate::log;
-
-pub static BG_SOCKET_PORT: PgLwLock<u16> = PgLwLock::new(c"shmem_bg_scoket_port");
+use crate::shm::WorkerMessage;
+use crate::shm::WORKER_MESSAGE_QUEUE;
 
 pub enum InternalWorkerMessage {
     Subscribe {
@@ -47,32 +44,13 @@ struct NatsSubscription {
 }
 
 pub struct WorkerContext {
-    pub udp_thread: JoinHandle<()>,
-    pub port: u16,
     sender: Sender<InternalWorkerMessage>,
     nats_state: Option<NatsConnectionState>,
 }
 
 impl WorkerContext {
-    pub async fn new(sender: Sender<InternalWorkerMessage>) -> Result<Self, String> {
-        let udp = match UdpSocket::bind("localhost:0").await {
-            Ok(sock) => sock,
-            Err(e) => {
-                return Err(format!("Failed to bind UDP socket: {}", e));
-            }
-        };
-
-        let port = udp.local_addr().expect("failed to get port").port();
-
-        log!("UDP socket bound to localhost:{}", port);
-
-        let udp_thread = Self::spawn_udp_listener(udp, sender.clone()).await;
-
-        *BG_SOCKET_PORT.exclusive() = port;
-
+    pub fn new(sender: Sender<InternalWorkerMessage>) -> Result<Self, String> {
         Ok(Self {
-            udp_thread,
-            port,
             sender,
             nats_state: None,
         })
@@ -196,63 +174,10 @@ impl WorkerContext {
             }
         })
     }
-
-    async fn spawn_udp_listener(
-        udp: UdpSocket,
-        sender: Sender<InternalWorkerMessage>,
-    ) -> JoinHandle<()> {
-        tokio::spawn(async move {
-            let mut buf = [0u8; 2048];
-            loop {
-                if let Ok(size) = udp.recv(&mut buf).await {
-                    let parse_result: Result<(WorkerMessage, _), _> =
-                        bincode::decode_from_slice(&buf[..size], bincode::config::standard());
-                    let msg = match parse_result {
-                        Ok((msg, _)) => msg,
-                        Err(_) => {
-                            continue;
-                        }
-                    };
-
-                    match msg {
-                        WorkerMessage::Subscribe {
-                            opt,
-                            subject,
-                            fn_name,
-                        } => {
-                            if sender
-                                .send(InternalWorkerMessage::Subscribe {
-                                    opt,
-                                    subject,
-                                    fn_name,
-                                })
-                                .is_err()
-                            {
-                                return;
-                            }
-                        }
-                        WorkerMessage::Unsubscribe { subject, fn_name } => {
-                            if sender
-                                .send(InternalWorkerMessage::Unsubscribe {
-                                    subject: Arc::from(subject),
-                                    fn_name: Arc::from(fn_name),
-                                })
-                                .is_err()
-                            {
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        })
-    }
 }
 
 impl Drop for WorkerContext {
     fn drop(&mut self) {
-        self.udp_thread.abort();
-
         if let Some(mut nats_state) = self.nats_state.take() {
             for (_, sub) in std::mem::take(&mut nats_state.subscriptions) {
                 sub.handler.abort();
@@ -282,7 +207,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     log!("Tokio runtime initialized");
 
     let (msg_sender, msg_receiver) = channel();
-    let mut worker_context = match rt.block_on(WorkerContext::new(msg_sender)) {
+    let mut worker_context = match WorkerContext::new(msg_sender.clone()) {
         Ok(sock) => sock,
         Err(e) => {
             log!("{}", e);
@@ -297,6 +222,43 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
         // Cache result
         let is_slave = unsafe { pg_sys::RecoveryInProgress() };
+
+        {
+            let mut deq = WORKER_MESSAGE_QUEUE.exclusive();
+
+            while let Some(msg) = deq.pop_front() {
+                match msg {
+                    WorkerMessage::Subscribe {
+                        opt,
+                        subject,
+                        fn_name,
+                    } => {
+                        if msg_sender
+                            .send(InternalWorkerMessage::Subscribe {
+                                opt: opt.into(),
+                                subject: subject.to_string(),
+                                fn_name: fn_name.to_string(),
+                            })
+                            .is_err()
+                        {
+                            return;
+                        }
+                    }
+                    WorkerMessage::Unsubscribe { subject, fn_name } => {
+                        if msg_sender
+                            .send(InternalWorkerMessage::Unsubscribe {
+                                subject: Arc::from(subject.as_str()),
+                                fn_name: Arc::from(fn_name.as_str()),
+                            })
+                            .is_err()
+                        {
+                            return;
+                        }
+                    }
+                    WorkerMessage::Config { .. } => {}
+                }
+            }
+        }
 
         while let Ok(message) = msg_receiver.try_recv() {
             if is_slave {

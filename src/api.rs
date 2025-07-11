@@ -4,11 +4,17 @@ mod types;
 #[macro_use]
 mod macros;
 
+use std::str::FromStr;
+
 use pgrx::pg_extern;
 
 pub use nats::*;
 
-use crate::ctx::CTX;
+use crate::{
+    ctx::CTX,
+    log,
+    shm::{WorkerMessage, WORKER_MESSAGE_QUEUE},
+};
 
 /// Reloads NATS connection if configuration has changed
 ///
@@ -60,4 +66,15 @@ pub fn pgnats_reload_conf_force() {
             res
         })
     })
+}
+
+#[pg_extern]
+pub fn send_options_change(name: &str) {
+    WORKER_MESSAGE_QUEUE
+        .exclusive()
+        .push_back(WorkerMessage::Config {
+            name: heapless::String::from_str(name).unwrap(),
+        })
+        .unwrap();
+    log!("PUshed");
 }

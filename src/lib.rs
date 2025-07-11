@@ -22,6 +22,9 @@ pub mod ctx;
 #[doc(hidden)]
 pub mod bg_subscription;
 
+#[doc(hidden)]
+pub mod shm;
+
 /// Error handling types
 ///
 /// Defines all error types used in the crate including:

@@ -1669,6 +1669,7 @@ dependencies = [
  "bincode",
  "cargo_toml 0.21.0",
  "futures",
+ "heapless",
  "paste",
  "pgrx",
  "pgrx-tests",
