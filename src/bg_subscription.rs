@@ -226,7 +226,17 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
         {
             let mut deq = WORKER_MESSAGE_QUEUE.exclusive();
 
-            while let Some(msg) = deq.pop_front() {
+            while let Some(buf) = deq.try_recv() {
+                log!("Got msg from ring buffer: {:?}", buf);
+                let parse_result: Result<(WorkerMessage, _), _> =
+                    bincode::decode_from_slice(&buf[..], bincode::config::standard());
+                let msg = match parse_result {
+                    Ok((msg, _)) => msg,
+                    Err(_) => {
+                        continue;
+                    }
+                };
+
                 match msg {
                     WorkerMessage::Subscribe {
                         opt,

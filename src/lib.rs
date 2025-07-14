@@ -4,6 +4,7 @@ mod config;
 mod init;
 mod log;
 mod pgnats_tests;
+mod shared_queue;
 mod utils;
 
 /// Main public API for PostgreSQL extensions

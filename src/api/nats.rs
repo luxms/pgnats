@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use pgrx::{name, pg_extern};
 
 use crate::{
@@ -618,7 +616,7 @@ pub fn nats_get_file_list(
 /// The specified PostgreSQL function **must accept a single argument of type `bytea`**,
 /// which will contain the message payload received from NATS.
 #[pg_extern]
-pub fn nats_subscribe(subject: &str, fn_name: &str) -> Result<(), PgNatsError> {
+pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
     let Some(opt) = CTX.with_borrow_mut(|ctx| {
         ctx.rt
             .block_on(ctx.nats_connection.get_connection_options())
@@ -627,13 +625,15 @@ pub fn nats_subscribe(subject: &str, fn_name: &str) -> Result<(), PgNatsError> {
     };
 
     let msg = WorkerMessage::Subscribe {
-        opt: opt.try_into().unwrap(),
-        subject: heapless::String::from_str(subject).unwrap(),
-        fn_name: heapless::String::from_str(fn_name).unwrap(),
+        opt,
+        subject,
+        fn_name,
     };
 
-    if WORKER_MESSAGE_QUEUE.exclusive().push_back(msg).is_err() {
-        log!("Shared queue is full");
+    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+        if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
+            log!("Shared queue is full");
+        }
     }
 
     Ok(())
@@ -657,14 +657,13 @@ pub fn nats_subscribe(subject: &str, fn_name: &str) -> Result<(), PgNatsError> {
 /// SELECT nats_unsubscribe('events.user.created', 'handle_user_created');
 /// ```
 #[pg_extern]
-pub fn nats_unsubscribe(subject: &str, fn_name: &str) -> Result<(), PgNatsError> {
-    let msg = WorkerMessage::Unsubscribe {
-        subject: heapless::String::from_str(subject).unwrap(),
-        fn_name: heapless::String::from_str(fn_name).unwrap(),
-    };
+pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
+    let msg = WorkerMessage::Unsubscribe { subject, fn_name };
 
-    if WORKER_MESSAGE_QUEUE.exclusive().push_back(msg).is_err() {
-        log!("Shared queue is full");
+    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+        if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
+            log!("Shared queue is full");
+        }
     }
 
     Ok(())

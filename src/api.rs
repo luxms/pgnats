@@ -4,8 +4,6 @@ mod types;
 #[macro_use]
 mod macros;
 
-use std::str::FromStr;
-
 use pgrx::pg_extern;
 
 pub use nats::*;
@@ -69,12 +67,12 @@ pub fn pgnats_reload_conf_force() {
 }
 
 #[pg_extern]
-pub fn send_options_change(name: &str) {
-    WORKER_MESSAGE_QUEUE
-        .exclusive()
-        .push_back(WorkerMessage::Config {
-            name: heapless::String::from_str(name).unwrap(),
-        })
-        .unwrap();
-    log!("PUshed");
+pub fn send_options_change(name: String) {
+    let msg = WorkerMessage::Config { name };
+
+    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
+        if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
+            log!("Shared queue is full");
+        }
+    }
 }
