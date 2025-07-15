@@ -245,7 +245,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                     } => {
                         if msg_sender
                             .send(InternalWorkerMessage::Subscribe {
-                                opt: opt.into(),
+                                opt,
                                 subject: subject.to_string(),
                                 fn_name: fn_name.to_string(),
                             })

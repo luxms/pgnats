@@ -1,6 +1,6 @@
 use pgrx::PGRXSharedMemory;
 
-const PTR_SIZE: usize = size_of::<usize>();
+const HEADER_SIZE: usize = size_of::<usize>();
 
 #[repr(C)]
 pub struct SharedRingQueue<const CAPACITY: usize> {
@@ -28,45 +28,64 @@ impl<const CAPACITY: usize> SharedRingQueue<CAPACITY> {
         }
 
         let msg_len = msg.len();
-        if msg_len > (CAPACITY - PTR_SIZE) {
+        if msg_len > (CAPACITY - HEADER_SIZE) {
             return Err(());
         }
 
-        let total_len = PTR_SIZE + msg_len;
+        // | |<--------total len-------->|<----------free---------->|        |
+        // │ |<---header--->|<---data--->|<----------free---------->|        │
+        // | read                        write                      capacity |
+        let total_len = HEADER_SIZE + msg_len;
         let read = self.read;
         let write = self.write;
 
         if write >= read {
-            if CAPACITY - (write - read) < total_len {
+            // │ |<---data--->|<-------free------>|        │
+            // | read         write               capacity |
+
+            let free = CAPACITY - (write - read);
+            if free < total_len {
                 return Err(());
             }
 
-            let header = msg_len.to_le_bytes();
+            let header = write + HEADER_SIZE;
+            let header_data = msg_len.to_le_bytes();
+
             let end_space = CAPACITY - write;
-            if end_space >= PTR_SIZE {
-                self.buffer[write..write + PTR_SIZE].copy_from_slice(&header);
+            if end_space >= HEADER_SIZE {
+                self.buffer[write..header].copy_from_slice(&header_data);
             } else {
-                self.buffer[write..].copy_from_slice(&header[..end_space]);
-                self.buffer[..PTR_SIZE - end_space].copy_from_slice(&header[end_space..]);
+                // wrap header
+                self.buffer[write..].copy_from_slice(&header_data[..end_space]);
+                self.buffer[..HEADER_SIZE - end_space].copy_from_slice(&header_data[end_space..]);
             }
 
-            let payload_start = (write + PTR_SIZE) % CAPACITY;
-            let payload_end_space = CAPACITY - payload_start;
-            if payload_end_space >= msg_len {
-                self.buffer[payload_start..payload_start + msg_len].copy_from_slice(msg);
+            let header = header % CAPACITY;
+            let end_space = CAPACITY - header;
+            if end_space >= msg_len {
+                self.buffer[header..header + msg_len].copy_from_slice(msg);
             } else {
-                self.buffer[payload_start..].copy_from_slice(&msg[..payload_end_space]);
-                self.buffer[..msg_len - payload_end_space]
-                    .copy_from_slice(&msg[payload_end_space..]);
+                // wrap data
+                self.buffer[header..].copy_from_slice(&msg[..end_space]);
+                self.buffer[..msg_len - end_space].copy_from_slice(&msg[end_space..]);
             }
         } else {
-            if read - write < total_len {
+            // │ |<---data--->|<---free--->|<---data--->|        │
+            // |              write        read         capacity |
+
+            let free = read - write;
+            if free < total_len {
                 return Err(());
             }
-            let header = msg_len.to_le_bytes();
-            self.buffer[write..(write + PTR_SIZE)].copy_from_slice(&header);
-            self.buffer[(write + PTR_SIZE)..(write + total_len)].copy_from_slice(msg);
+
+            // continuous memory
+            let header = write + HEADER_SIZE;
+            let header_data = msg_len.to_le_bytes();
+
+            self.buffer[write..header].copy_from_slice(&header_data);
+            self.buffer[header..header + msg.len()].copy_from_slice(msg);
         }
+
         self.write = (write + total_len) % CAPACITY;
         self.is_full = self.write == self.read;
 
@@ -76,57 +95,64 @@ impl<const CAPACITY: usize> SharedRingQueue<CAPACITY> {
     pub fn try_recv(&mut self) -> Option<Vec<u8>> {
         let read = self.read;
         let write = self.write;
+        let header = read + HEADER_SIZE;
 
         if read == write && !self.is_full {
             return None;
         }
 
         if write >= read {
-            let mut len_bytes = [0u8; PTR_SIZE];
-            len_bytes.copy_from_slice(&self.buffer[read..read + PTR_SIZE]);
+            let mut len_bytes = [0u8; HEADER_SIZE];
+            len_bytes.copy_from_slice(&self.buffer[read..header]);
             let msg_len = usize::from_le_bytes(len_bytes);
 
-            if !self.is_full && write - read < PTR_SIZE + msg_len {
+            if !self.is_full && write - read < HEADER_SIZE + msg_len {
+                // corrupted data?
                 return None;
             }
 
+            // continuous memory
             let mut msg = vec![0u8; msg_len];
-            msg.copy_from_slice(&self.buffer[read + PTR_SIZE..read + PTR_SIZE + msg_len]);
+            msg.copy_from_slice(&self.buffer[header..header + msg_len]);
 
-            self.read = read + PTR_SIZE + msg_len;
+            self.read = header + msg_len;
             self.is_full = false;
 
-            return Some(msg);
+            Some(msg)
         } else {
-            let mut len_bytes = [0u8; PTR_SIZE];
+            let mut len_bytes = [0u8; HEADER_SIZE];
             let end_space = CAPACITY - read;
-            if PTR_SIZE <= end_space {
-                len_bytes.copy_from_slice(&self.buffer[read..read + PTR_SIZE]);
+
+            if HEADER_SIZE <= end_space {
+                len_bytes.copy_from_slice(&self.buffer[read..header]);
             } else {
+                // read wrapped header
                 len_bytes[..end_space].copy_from_slice(&self.buffer[read..]);
-                len_bytes[end_space..].copy_from_slice(&self.buffer[..PTR_SIZE - end_space]);
+                len_bytes[end_space..].copy_from_slice(&self.buffer[..HEADER_SIZE - end_space]);
             }
 
             let msg_len = usize::from_le_bytes(len_bytes);
 
-            if !self.is_full && CAPACITY - (read - write) < PTR_SIZE + msg_len {
+            if !self.is_full && CAPACITY - (read - write) < HEADER_SIZE + msg_len {
+                // courrupted data?
                 return None;
             }
 
-            let payload_start = (read + PTR_SIZE) % CAPACITY;
+            let header = header % CAPACITY;
             let mut msg = vec![0u8; msg_len];
-            let end_space = CAPACITY - payload_start;
+            let end_space = CAPACITY - header;
             if msg_len <= end_space {
-                msg.copy_from_slice(&self.buffer[payload_start..payload_start + msg_len]);
+                msg.copy_from_slice(&self.buffer[header..header + msg_len]);
             } else {
-                msg[..end_space].copy_from_slice(&self.buffer[payload_start..]);
+                // read wrapped data
+                msg[..end_space].copy_from_slice(&self.buffer[header..]);
                 msg[end_space..].copy_from_slice(&self.buffer[..msg_len - end_space]);
             }
 
-            self.read = (read + PTR_SIZE + msg_len) % CAPACITY;
+            self.read = (read + HEADER_SIZE + msg_len) % CAPACITY;
             self.is_full = false;
 
-            return Some(msg);
+            Some(msg)
         }
     }
 }
@@ -156,7 +182,7 @@ mod tests {
         while queue.try_send(&msg).is_ok() {
             count += 1;
         }
-        assert_eq!(count, TEST_CAPACITY / (10 + PTR_SIZE));
+        assert_eq!(count, TEST_CAPACITY / (10 + HEADER_SIZE));
         assert!(queue.try_send(&msg).is_err());
         assert!(queue.try_recv().is_some());
         assert!(queue.try_send(&msg).is_ok());
@@ -207,7 +233,7 @@ mod tests {
         let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
 
         let msg = [42u8; 10];
-        let max_msgs = TEST_CAPACITY / (PTR_SIZE + msg.len());
+        let max_msgs = TEST_CAPACITY / (HEADER_SIZE + msg.len());
         let mut sent = 0;
         while queue.try_send(&msg).is_ok() {
             sent += 1;
@@ -227,7 +253,7 @@ mod tests {
     fn test_wrap_around_capacity() {
         let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
         let msg = [7u8; 10];
-        let max_msgs = TEST_CAPACITY / (PTR_SIZE + msg.len());
+        let max_msgs = TEST_CAPACITY / (HEADER_SIZE + msg.len());
 
         for _ in 0..3 {
             let mut sent = 0;
@@ -249,9 +275,9 @@ mod tests {
     #[test]
     fn test_fill_queue_exactly_and_recv_all() {
         const COUNT: usize = 4;
-        let mut queue = SharedRingQueue::<{ 2 * PTR_SIZE * COUNT }>::default();
-        let msg = [0xABu8; PTR_SIZE];
-        let max_msgs = 2 * PTR_SIZE * COUNT / (PTR_SIZE + msg.len());
+        let mut queue = SharedRingQueue::<{ 2 * HEADER_SIZE * COUNT }>::default();
+        let msg = [0xABu8; HEADER_SIZE];
+        let max_msgs = 2 * HEADER_SIZE * COUNT / (HEADER_SIZE + msg.len());
         let mut sent = 0;
         for _ in 0..max_msgs {
             assert!(queue.try_send(&msg).is_ok());
@@ -267,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_message_split_across_wrap() {
-        const BUF_SIZE: usize = PTR_SIZE + 2 + PTR_SIZE / 2;
+        const BUF_SIZE: usize = HEADER_SIZE + 2 + HEADER_SIZE / 2;
         let mut queue = SharedRingQueue::<BUF_SIZE>::default();
         let msg1 = [0x11u8; 2];
         let msg2 = [0x22u8; 2];
