@@ -3,8 +3,8 @@ use pgrx::{name, pg_extern};
 use crate::{
     ctx::CTX,
     errors::PgNatsError,
-    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request, log,
-    shm::{WorkerMessage, WORKER_MESSAGE_QUEUE},
+    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request,
+    shared::{WorkerMessage, WORKER_MESSAGE_QUEUE},
 };
 
 use super::types::{map_object_info, map_server_info};
@@ -632,11 +632,13 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
 
     if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
         if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
-            log!("Shared queue is full");
+            Err(PgNatsError::SharedQueueIsFull)
+        } else {
+            Ok(())
         }
+    } else {
+        Err(PgNatsError::EncodingError)
     }
-
-    Ok(())
 }
 
 /// Unsubscribes from a NATS subject and removes the associated PostgreSQL callback function.
@@ -662,9 +664,11 @@ pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsEr
 
     if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
         if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
-            log!("Shared queue is full");
+            Err(PgNatsError::SharedQueueIsFull)
+        } else {
+            Ok(())
         }
+    } else {
+        Err(PgNatsError::EncodingError)
     }
-
-    Ok(())
 }

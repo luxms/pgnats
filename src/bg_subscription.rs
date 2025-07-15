@@ -14,8 +14,8 @@ use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 use crate::init::SUBSCRIPTIONS_TABLE_NAME;
 use crate::log;
-use crate::shm::WorkerMessage;
-use crate::shm::WORKER_MESSAGE_QUEUE;
+use crate::shared::WorkerMessage;
+use crate::shared::WORKER_MESSAGE_QUEUE;
 
 pub enum InternalWorkerMessage {
     Subscribe {
@@ -227,7 +227,10 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
             let mut deq = WORKER_MESSAGE_QUEUE.exclusive();
 
             while let Some(buf) = deq.try_recv() {
-                log!("Got msg from ring buffer: {:?}", buf);
+                log!(
+                    "Got msg from shared queue: {:?}",
+                    String::from_utf8_lossy(&buf)
+                );
                 let parse_result: Result<(WorkerMessage, _), _> =
                     bincode::decode_from_slice(&buf[..], bincode::config::standard());
                 let msg = match parse_result {
@@ -289,7 +292,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
 
                     if let Err(error) = insert_subject_callback(&subject, &fn_name) {
                         log!(
-                            "Got an error while unsubscribing from subject '{}' and callback '{}': {}",
+                            "Got an error while subscribing from subject '{}' and callback '{}': {}",
                             subject,
                             fn_name,
                             error,

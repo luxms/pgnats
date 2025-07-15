@@ -10,8 +10,8 @@ pub use nats::*;
 
 use crate::{
     ctx::CTX,
-    log,
-    shm::{WorkerMessage, WORKER_MESSAGE_QUEUE},
+    errors::PgNatsError,
+    shared::{WorkerMessage, WORKER_MESSAGE_QUEUE},
 };
 
 /// Reloads NATS connection if configuration has changed
@@ -67,12 +67,16 @@ pub fn pgnats_reload_conf_force() {
 }
 
 #[pg_extern]
-pub fn send_options_change(name: String) {
+pub fn send_options_change(name: String) -> Result<(), PgNatsError> {
     let msg = WorkerMessage::Config { name };
 
     if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
         if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
-            log!("Shared queue is full");
+            Err(PgNatsError::SharedQueueIsFull)
+        } else {
+            Ok(())
         }
+    } else {
+        Err(PgNatsError::EncodingError)
     }
 }

@@ -24,7 +24,7 @@ pub mod ctx;
 pub mod bg_subscription;
 
 #[doc(hidden)]
-pub mod shm;
+pub mod shared;
 
 /// Error handling types
 ///

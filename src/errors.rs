@@ -78,6 +78,12 @@ pub enum PgNatsError {
 
     /// No connection options
     NoConnectionOptions,
+
+    /// Encoding
+    EncodingError,
+
+    /// Shared Queue is full
+    SharedQueueIsFull,
 }
 
 impl std::fmt::Display for PgNatsError {
@@ -158,6 +164,12 @@ impl std::fmt::Display for PgNatsError {
             }
             PgNatsError::NoConnectionOptions => {
                 write!(f, "{MSG_PREFIX}: Failed to get connection options")
+            }
+            PgNatsError::EncodingError => {
+                write!(f, "{MSG_PREFIX}: Failed to encode structure")
+            }
+            PgNatsError::SharedQueueIsFull => {
+                write!(f, "{MSG_PREFIX}: Shared queue is full")
             }
         }
     }

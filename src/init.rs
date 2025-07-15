@@ -3,7 +3,7 @@ use pgrx::pg_shmem_init;
 use pgrx::prelude::*;
 use pgrx::shmem::*;
 
-use crate::shm::WORKER_MESSAGE_QUEUE;
+use crate::shared::WORKER_MESSAGE_QUEUE;
 use crate::{config::initialize_configuration, ctx::CTX};
 
 pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
@@ -14,7 +14,8 @@ extension_sql!(
 
     CREATE TABLE IF NOT EXISTS pgnats.subscriptions (
         subject TEXT NOT NULL,
-        callback TEXT NOT NULL
+        callback TEXT NOT NULL,
+        UNIQUE(subject, callback)
     );
     "#,
     name = "create_subscriptions_table",
