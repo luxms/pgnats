@@ -7,6 +7,7 @@ use pgrx::PgList;
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 
+#[cfg(not(feature = "pg_test"))]
 pub fn fetch_connection_options() -> NatsConnectionOptions {
     let name =
         std::env::var("PGNATS_FDW_SERVER_NAME").unwrap_or_else(|_| "nats_fdw_server".to_string());
@@ -54,6 +55,11 @@ pub fn fetch_connection_options() -> NatsConnectionOptions {
     };
 
     parse_connection_options(&options)
+}
+
+#[cfg(feature = "pg_test")]
+pub fn fetch_connection_options() -> NatsConnectionOptions {
+    parse_connection_options(&HashMap::new())
 }
 
 pub fn parse_connection_options(

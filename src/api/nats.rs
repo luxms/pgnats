@@ -617,18 +617,7 @@ pub fn nats_get_file_list(
 /// which will contain the message payload received from NATS.
 #[pg_extern]
 pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
-    let Some(opt) = CTX.with_borrow_mut(|ctx| {
-        ctx.rt
-            .block_on(ctx.nats_connection.get_connection_options())
-    }) else {
-        return Err(PgNatsError::NoConnectionOptions);
-    };
-
-    let msg = WorkerMessage::Subscribe {
-        opt,
-        subject,
-        fn_name,
-    };
+    let msg = WorkerMessage::Subscribe { subject, fn_name };
 
     if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
         if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {

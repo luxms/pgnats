@@ -8,9 +8,6 @@ mod tests {
     const NATS_HOST: &str = "127.0.0.1";
     const NATS_PORT: u16 = 4222;
 
-    const NATS_HOST_CONF: &str = "nats.host";
-    const NATS_PORT_CONF: &str = "nats.port";
-
     #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
     fn test_hello_world() {
@@ -20,10 +17,6 @@ mod tests {
     #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
     fn test_pgnats_publish() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
         let subject = "test.test_nats_publish";
         let message = "Hello, World! 🦀".to_string();
 
@@ -46,10 +39,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_publish_stream() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
         let subject = "test.test_nats_publish_stream";
         let message = "Hello, World! 🦀".to_string();
 
@@ -74,10 +63,6 @@ mod tests {
     fn test_pgnats_publish_with_reply_and_headers() {
         use pgrx::Json;
         use serde_json::json;
-
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS port");
 
         let subject = "test.test_nats_publish";
         let reply_to = "test.reply";
@@ -110,13 +95,8 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_request() {
-        use std::sync::mpsc::channel;
-
         use futures::StreamExt;
-
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS port");
+        use std::sync::mpsc::channel;
 
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -172,10 +152,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_put_and_get_binary() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
         let bucket = "test_default".to_string();
         let key = "binary_key";
         let data = b"binary data";
@@ -201,10 +177,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_put_and_get_text() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
         let bucket = "test_default".to_string();
         let key = "text_key";
         let text = "Hello, text!";
@@ -222,10 +194,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_put_and_get_json() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
         let bucket = "test_default".to_string();
         let key = "json_key";
         let json_value = serde_json::json!({"key": "value"});
@@ -244,10 +212,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_put_and_get_jsonb() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
         let bucket = "test_default".to_string();
         let key = "jsonb_key";
         let json_value = serde_json::json!({"key": "value"});
@@ -274,10 +238,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_delete_value() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
         let bucket = "test_default".to_string();
         let key = "delete_key";
         let text = "to be deleted";
@@ -302,9 +262,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_put_and_get_file() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
-
         let bucket = "test_file_io".to_string();
         let key = "test_file.txt";
         let content = b"file content for testing".to_vec();
@@ -322,9 +279,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_file_info() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
-
         let bucket = "test_file_info".to_string();
         let key = "info.txt";
         let content = b"12345".to_vec();
@@ -343,9 +297,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_file_list() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
-
         let bucket = "test_file_list".to_string();
         let files = vec![
             ("list1.txt", b"one".to_vec()),
@@ -370,9 +321,6 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_delete_file() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'")).unwrap();
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).unwrap();
-
         let bucket = "test_file_delete".to_string();
         let key = "delete_me.txt";
         let content = b"goodbye".to_vec();
@@ -386,38 +334,5 @@ mod tests {
             "get_file after delete failed: {:?}",
             get_res
         );
-    }
-
-    #[cfg(not(skip_pgnats_tests))]
-    #[pg_test]
-    fn test_pgnats_reload_conf() {
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        Spi::run(&format!("SET {NATS_PORT_CONF} = {NATS_PORT}")).expect("Failed to set NATS host");
-
-        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
-        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
-
-        api::pgnats_reload_conf();
-
-        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
-        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
-
-        Spi::run(&format!("SET {NATS_HOST_CONF} = 'localhost1'")).expect("Failed to set NATS host");
-        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
-        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
-
-        api::pgnats_reload_conf();
-
-        assert!(
-            api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string()).is_err()
-        );
-
-        Spi::run(&format!("SET {NATS_HOST_CONF} = '{NATS_HOST}'"))
-            .expect("Failed to set NATS host");
-        api::pgnats_reload_conf_force();
-
-        let res = api::nats_publish_text("test.test_pgnats_reload_conf", "test".to_string());
-        assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 }

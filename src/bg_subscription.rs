@@ -10,6 +10,7 @@ use pgrx::bgworkers::*;
 use pgrx::prelude::*;
 use tokio::task::JoinHandle;
 
+use crate::config::fetch_connection_options;
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 use crate::init::SUBSCRIPTIONS_TABLE_NAME;
@@ -19,7 +20,7 @@ use crate::shared::WORKER_MESSAGE_QUEUE;
 
 pub enum InternalWorkerMessage {
     Subscribe {
-        opt: NatsConnectionOptions,
+        register: bool,
         subject: String,
         fn_name: String,
     },
@@ -56,9 +57,9 @@ impl WorkerContext {
         })
     }
 
-    pub async fn handle_subscribe(
+    pub fn handle_subscribe(
         &mut self,
-        opt: NatsConnectionOptions,
+        rt: &tokio::runtime::Runtime,
         subject: Arc<str>,
         fn_name: Arc<str>,
     ) {
@@ -73,12 +74,12 @@ impl WorkerContext {
                     let func = fn_name.clone();
                     // Spawn a new handler task for the function
                     let handler = Self::spawn_subscription_task(
+                        rt,
                         connection.client.clone(),
                         subject.clone(),
                         func,
                         self.sender.clone(),
-                    )
-                    .await;
+                    );
 
                     let _ = se.insert(NatsSubscription {
                         handler,
@@ -87,43 +88,7 @@ impl WorkerContext {
                 }
             }
         } else {
-            let mut opts = async_nats::ConnectOptions::new().client_capacity(opt.capacity);
-
-            if let Some(tls) = &opt.tls {
-                if let Ok(root) = std::env::current_dir() {
-                    match tls {
-                        NatsTlsOptions::Tls { ca } => {
-                            opts = opts.require_tls(true).add_root_certificates(root.join(ca));
-                        }
-                        NatsTlsOptions::MutualTls { ca, cert, key } => {
-                            opts = opts
-                                .require_tls(true)
-                                .add_root_certificates(root.join(ca))
-                                .add_client_certificate(root.join(cert), root.join(key));
-                        }
-                    }
-                }
-            }
-
-            if let Ok(connection) = opts.connect(format!("{}:{}", opt.host, opt.port)).await {
-                let handler = Self::spawn_subscription_task(
-                    connection.clone(),
-                    subject.clone(),
-                    fn_name.clone(),
-                    self.sender.clone(),
-                )
-                .await;
-
-                let sub = NatsSubscription {
-                    handler,
-                    funcs: HashSet::from([fn_name]),
-                };
-
-                self.nats_state = Some(NatsConnectionState {
-                    client: connection,
-                    subscriptions: HashMap::from([(subject, sub)]),
-                });
-            }
+            log!("Can not subscribe, because connection is not established");
         }
     }
 
@@ -152,13 +117,14 @@ impl WorkerContext {
 }
 
 impl WorkerContext {
-    async fn spawn_subscription_task(
+    fn spawn_subscription_task(
+        rt: &tokio::runtime::Runtime,
         client: async_nats::Client,
         subject: Arc<str>,
         fn_name: Arc<str>,
         sender: Sender<InternalWorkerMessage>,
     ) -> JoinHandle<()> {
-        tokio::spawn(async move {
+        rt.spawn(async move {
             match client.subscribe(subject.to_string()).await {
                 Ok(mut sub) => {
                     while let Some(msg) = sub.next().await {
@@ -176,12 +142,10 @@ impl WorkerContext {
     }
 }
 
-impl Drop for WorkerContext {
+impl Drop for NatsConnectionState {
     fn drop(&mut self) {
-        if let Some(mut nats_state) = self.nats_state.take() {
-            for (_, sub) in std::mem::take(&mut nats_state.subscriptions) {
-                sub.handler.abort();
-            }
+        for (_, sub) in std::mem::take(&mut self.subscriptions) {
+            sub.handler.abort();
         }
     }
 }
@@ -219,6 +183,9 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     BackgroundWorker::connect_worker_to_spi(Some(&db_name), None);
     log!("Background worker connected to '{}' database", db_name);
 
+    let opt = BackgroundWorker::transaction(fetch_connection_options);
+    restore_state(&rt, msg_sender.clone(), &mut worker_context, opt);
+
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
         // Cache result
         let is_slave = unsafe { pg_sys::RecoveryInProgress() };
@@ -241,14 +208,10 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                 };
 
                 match msg {
-                    WorkerMessage::Subscribe {
-                        opt,
-                        subject,
-                        fn_name,
-                    } => {
+                    WorkerMessage::Subscribe { subject, fn_name } => {
                         if msg_sender
                             .send(InternalWorkerMessage::Subscribe {
-                                opt,
+                                register: true,
                                 subject: subject.to_string(),
                                 fn_name: fn_name.to_string(),
                             })
@@ -268,8 +231,8 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                             return;
                         }
                     }
-                    WorkerMessage::NewConnectionConfig(cfg) => {
-                        log!("Got new connection config: {:?}", cfg)
+                    WorkerMessage::NewConnectionConfig(opt) => {
+                        restore_state(&rt, msg_sender.clone(), &mut worker_context, opt);
                     }
                 }
             }
@@ -282,7 +245,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
 
             match message {
                 InternalWorkerMessage::Subscribe {
-                    opt,
+                    register,
                     subject,
                     fn_name,
                 } => {
@@ -292,20 +255,18 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                         fn_name
                     );
 
-                    if let Err(error) = insert_subject_callback(&subject, &fn_name) {
-                        log!(
-                            "Got an error while subscribing from subject '{}' and callback '{}': {}",
-                            subject,
-                            fn_name,
-                            error,
-                        );
+                    if register {
+                        if let Err(error) = insert_subject_callback(&subject, &fn_name) {
+                            log!(
+                                "Got an error while subscribing from subject '{}' and callback '{}': {}",
+                                subject,
+                                fn_name,
+                                error,
+                            );
+                        }
                     }
 
-                    rt.block_on(worker_context.handle_subscribe(
-                        opt,
-                        Arc::from(subject),
-                        Arc::from(fn_name),
-                    ));
+                    worker_context.handle_subscribe(&rt, Arc::from(subject), Arc::from(fn_name));
                 }
                 InternalWorkerMessage::Unsubscribe { subject, fn_name } => {
                     log!(
@@ -328,8 +289,8 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                 InternalWorkerMessage::CallbackCall { subject, data } => {
                     log!("Received callback for subject '{}", subject,);
                     worker_context.handle_callback(&subject, data, |callback, data| {
-                        let result = PgTryBuilder::new(|| {
-                            BackgroundWorker::transaction(|| {
+                        let result = BackgroundWorker::transaction(|| {
+                            PgTryBuilder::new(|| {
                                 Spi::connect_mut(|client| {
                                     let sql = format!("SELECT {}($1)", callback);
                                     let _ = client
@@ -338,17 +299,17 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                                     Ok(())
                                 })
                             })
-                        })
-                        .catch_others(|e| match e {
-                            pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
-                                "Code '{}': {}. ({:?})",
-                                err.sql_error_code(),
-                                err.message(),
-                                err.hint()
-                            )),
-                            _ => Err(format!("{:?}", e)),
-                        })
-                        .execute();
+                            .catch_others(|e| match e {
+                                pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+                                    "Code '{}': {}. ({:?})",
+                                    err.sql_error_code(),
+                                    err.message(),
+                                    err.hint()
+                                )),
+                                _ => Err(format!("{:?}", e)),
+                            })
+                            .execute()
+                        });
 
                         if let Err(err) = result {
                             log!("Error in SPI call '{}': {:?}", callback, err);
@@ -362,9 +323,9 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     log!("Stopping background worker listener");
 }
 
-fn _fetch_subject_with_callbacks() -> Result<Vec<(String, String)>, String> {
-    PgTryBuilder::new(|| {
-        BackgroundWorker::transaction(|| {
+fn fetch_subject_with_callbacks() -> Result<Vec<(String, String)>, String> {
+    BackgroundWorker::transaction(|| {
+        PgTryBuilder::new(|| {
             Spi::connect_mut(|client| {
                 let sql = format!("SELECT subject, callback FROM {}", SUBSCRIPTIONS_TABLE_NAME);
                 let tuples = client.select(&sql, None, &[]).map_err(|e| e.to_string())?;
@@ -383,22 +344,22 @@ fn _fetch_subject_with_callbacks() -> Result<Vec<(String, String)>, String> {
                 Ok(subject_callbacks)
             })
         })
+        .catch_others(|e| match e {
+            pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+                "Code '{}': {}. ({:?})",
+                err.sql_error_code(),
+                err.message(),
+                err.hint()
+            )),
+            _ => Err(format!("{:?}", e)),
+        })
+        .execute()
     })
-    .catch_others(|e| match e {
-        pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
-            "Code '{}': {}. ({:?})",
-            err.sql_error_code(),
-            err.message(),
-            err.hint()
-        )),
-        _ => Err(format!("{:?}", e)),
-    })
-    .execute()
 }
 
 fn insert_subject_callback(subject: &str, callback: &str) -> Result<(), String> {
-    PgTryBuilder::new(|| {
-        BackgroundWorker::transaction(|| {
+    BackgroundWorker::transaction(|| {
+        PgTryBuilder::new(|| {
             Spi::connect_mut(|client| {
                 let sql = format!("INSERT INTO {} VALUES ($1, $2)", SUBSCRIPTIONS_TABLE_NAME);
                 let _ = client
@@ -407,22 +368,22 @@ fn insert_subject_callback(subject: &str, callback: &str) -> Result<(), String> 
                 Ok(())
             })
         })
+        .catch_others(|e| match e {
+            pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+                "Code '{}': {}. ({:?})",
+                err.sql_error_code(),
+                err.message(),
+                err.hint()
+            )),
+            _ => Err(format!("{:?}", e)),
+        })
+        .execute()
     })
-    .catch_others(|e| match e {
-        pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
-            "Code '{}': {}. ({:?})",
-            err.sql_error_code(),
-            err.message(),
-            err.hint()
-        )),
-        _ => Err(format!("{:?}", e)),
-    })
-    .execute()
 }
 
 fn delete_subject_callback(subject: &str, callback: &str) -> Result<(), String> {
-    PgTryBuilder::new(|| {
-        BackgroundWorker::transaction(|| {
+    BackgroundWorker::transaction(|| {
+        PgTryBuilder::new(|| {
             Spi::connect_mut(|client| {
                 let sql = format!(
                     "DELETE FROM {} WHERE subject = $1 AND callback = $2",
@@ -434,15 +395,72 @@ fn delete_subject_callback(subject: &str, callback: &str) -> Result<(), String> 
                 Ok(())
             })
         })
+        .catch_others(|e| match e {
+            pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+                "Code '{}': {}. ({:?})",
+                err.sql_error_code(),
+                err.message(),
+                err.hint()
+            )),
+            _ => Err(format!("{:?}", e)),
+        })
+        .execute()
     })
-    .catch_others(|e| match e {
-        pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
-            "Code '{}': {}. ({:?})",
-            err.sql_error_code(),
-            err.message(),
-            err.hint()
-        )),
-        _ => Err(format!("{:?}", e)),
-    })
-    .execute()
+}
+
+async fn connect_nats(opt: &NatsConnectionOptions) -> Option<async_nats::Client> {
+    let mut opts = async_nats::ConnectOptions::new().client_capacity(opt.capacity);
+
+    if let Some(tls) = &opt.tls {
+        if let Ok(root) = std::env::current_dir() {
+            match tls {
+                NatsTlsOptions::Tls { ca } => {
+                    opts = opts.require_tls(true).add_root_certificates(root.join(ca));
+                }
+                NatsTlsOptions::MutualTls { ca, cert, key } => {
+                    opts = opts
+                        .require_tls(true)
+                        .add_root_certificates(root.join(ca))
+                        .add_client_certificate(root.join(cert), root.join(key));
+                }
+            }
+        }
+    }
+
+    opts.connect(format!("{}:{}", opt.host, opt.port))
+        .await
+        .ok()
+}
+
+fn restore_state(
+    rt: &tokio::runtime::Runtime,
+    sender: Sender<InternalWorkerMessage>,
+    worker_context: &mut WorkerContext,
+    opt: NatsConnectionOptions,
+) {
+    if let Some(client) = rt.block_on(connect_nats(&opt)) {
+        worker_context.nats_state = Some(NatsConnectionState {
+            client,
+            subscriptions: HashMap::new(),
+        });
+
+        match fetch_subject_with_callbacks() {
+            Ok(subscriptions) => {
+                log!("Registered {} callbacks", subscriptions.len());
+
+                for (subject, fn_name) in subscriptions {
+                    let _ = sender.send(InternalWorkerMessage::Subscribe {
+                        register: false,
+                        subject,
+                        fn_name,
+                    });
+                }
+            }
+            Err(err) => {
+                log!("Failed to fetch subscriptions: {err}");
+            }
+        }
+    } else {
+        log!("Failed to connect to NATS, options: {:?}", opt);
+    }
 }
