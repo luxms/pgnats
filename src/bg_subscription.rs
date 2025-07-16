@@ -268,7 +268,9 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                             return;
                         }
                     }
-                    WorkerMessage::Config { .. } => {}
+                    WorkerMessage::NewConnectionConfig(cfg) => {
+                        log!("Got new connection config: {:?}", cfg)
+                    }
                 }
             }
         }

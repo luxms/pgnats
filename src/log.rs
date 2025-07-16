@@ -34,7 +34,7 @@ macro_rules! warn {
 macro_rules! error {
     ($($msg:tt)*) => {
         $crate::report!(
-            pgrx::PgLogLevel;:ERROR,
+            pgrx::PgLogLevel::ERROR,
             $($msg)*
         )
     };

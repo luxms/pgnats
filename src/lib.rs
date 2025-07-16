@@ -1,6 +1,7 @@
 ::pgrx::pg_module_magic!();
 
 mod config;
+mod fdw;
 mod init;
 mod log;
 mod pgnats_tests;

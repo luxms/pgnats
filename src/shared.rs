@@ -8,9 +8,7 @@ pub static WORKER_MESSAGE_QUEUE: PgLwLock<SharedRingQueue<65536>> =
 
 #[derive(Debug, Decode, Encode)]
 pub enum WorkerMessage {
-    Config {
-        name: String,
-    },
+    NewConnectionConfig(NatsConnectionOptions),
     Subscribe {
         opt: NatsConnectionOptions,
         subject: String,

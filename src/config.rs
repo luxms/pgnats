@@ -1,4 +1,5 @@
 use core::ffi::CStr;
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::path::PathBuf;
 
@@ -120,6 +121,53 @@ pub fn fetch_connection_options() -> NatsConnectionOptions {
             .unwrap_or("127.0.0.1".to_string()),
         port: GUC_PORT.get() as u16,
         capacity: GUC_CAPACITY.get() as usize,
+        tls,
+    }
+}
+
+pub fn parse_connection_options(options: &[String]) -> NatsConnectionOptions {
+    let options = options
+        .iter()
+        .filter_map(|opt| opt.split_once('='))
+        .collect::<HashMap<_, _>>();
+
+    let host = options
+        .get("host")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "127.0.0.1".to_string());
+
+    let port = options
+        .get("port")
+        .and_then(|port| port.parse::<u16>().ok())
+        .unwrap_or(4222);
+
+    let capacity = options
+        .get("capacity")
+        .and_then(|c| c.parse::<usize>().ok())
+        .unwrap_or(128);
+
+    let tls = if let Some(ca) = options.get("tls_ca_path") {
+        let tls_cert_part = options.get("tls_cert_path");
+        let tls_key_path = options.get("tls_key_path");
+
+        match (tls_cert_part, tls_key_path) {
+            (Some(cert), Some(key)) => Some(NatsTlsOptions::MutualTls {
+                ca: PathBuf::from(ca),
+                cert: PathBuf::from(cert),
+                key: PathBuf::from(key),
+            }),
+            _ => Some(NatsTlsOptions::Tls {
+                ca: PathBuf::from(ca),
+            }),
+        }
+    } else {
+        None
+    };
+
+    NatsConnectionOptions {
+        host,
+        port,
+        capacity,
         tls,
     }
 }

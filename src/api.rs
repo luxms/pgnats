@@ -8,11 +8,7 @@ use pgrx::pg_extern;
 
 pub use nats::*;
 
-use crate::{
-    ctx::CTX,
-    errors::PgNatsError,
-    shared::{WorkerMessage, WORKER_MESSAGE_QUEUE},
-};
+use crate::ctx::CTX;
 
 /// Reloads NATS connection if configuration has changed
 ///
@@ -64,19 +60,4 @@ pub fn pgnats_reload_conf_force() {
             res
         })
     })
-}
-
-#[pg_extern]
-pub fn send_options_change(name: String) -> Result<(), PgNatsError> {
-    let msg = WorkerMessage::Config { name };
-
-    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-        if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
-            Err(PgNatsError::SharedQueueIsFull)
-        } else {
-            Ok(())
-        }
-    } else {
-        Err(PgNatsError::EncodingError)
-    }
 }
