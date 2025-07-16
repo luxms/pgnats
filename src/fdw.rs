@@ -9,11 +9,7 @@ use crate::{
 // extension_sql!(
 //     r#"
 //     CREATE FOREIGN DATA WRAPPER nats_fdw HANDLER nats_fdw_handler VALIDATOR nats_fdw_validator;
-//     CREATE SERVER nats_server FOREIGN DATA WRAPPER nats_fdw
-//     OPTIONS (
-//          host 'localhost',
-//          port '4222'
-//     );
+//     CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER nats_fdw OPTIONS (host 'localhost', port '4222');
 //     "#,
 //     name = "create_fdw",
 //     requires = [nats_fdw_handler, nats_fdw_validator]
@@ -22,6 +18,12 @@ use crate::{
 #[pg_extern]
 fn nats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
     if oid == sys::ForeignServerRelationId {
+        let options = options
+            .iter()
+            .filter_map(|opt| opt.split_once('='))
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
+
         let options = parse_connection_options(&options);
 
         let msg = WorkerMessage::NewConnectionConfig(options);

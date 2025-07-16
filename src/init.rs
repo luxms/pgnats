@@ -3,8 +3,8 @@ use pgrx::pg_shmem_init;
 use pgrx::prelude::*;
 use pgrx::shmem::*;
 
+use crate::ctx::CTX;
 use crate::shared::WORKER_MESSAGE_QUEUE;
-use crate::{config::initialize_configuration, ctx::CTX};
 
 pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
 
@@ -23,8 +23,6 @@ extension_sql!(
 
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
-    initialize_configuration();
-
     pg_shmem_init!(WORKER_MESSAGE_QUEUE);
 
     BackgroundWorkerBuilder::new("Background Worker Subscribtion")
