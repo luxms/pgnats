@@ -17,9 +17,11 @@ Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
 
+BuildRequires:  cargo-pgrx openssl
+
 %if 0%{?redos}
 Requires:       postgresql%{pg_ver}-server
-BuildRequires:  postgresql%{pg_ver}-devel pkg-config unzip openssl-devel openssl
+BuildRequires:  postgresql%{pg_ver}-devel
 Disttag:        redos%{redos_ver}
 Distribution:   redos/%{redos_ver}/x86_64
 %endif
@@ -27,7 +29,7 @@ Distribution:   redos/%{redos_ver}/x86_64
 %if 0%{?el8} || 0%{?el9}
 Requires:       postgresql-server >= %{pg_ver} postgresql-server < %(echo $((%{pg_ver} + 1)))
 BuildRequires:  postgresql-server-devel >= %{pg_ver} postgresql-server-devel < %(echo $((%{pg_ver} + 1)))
-BuildRequires:  pkg-config unzip openssl-devel clang openssl
+BuildRequires:  clang
 Disttag:        el%{rhel}
 Distribution:   el/%{rhel}/x86_64
 %endif
@@ -58,7 +60,6 @@ NATS connect for PostgresPRO-ent
 
 %install
 cd %{_topdir}
-cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 
 %if 0%{?el8} || 0%{?el9}
 cargo pgrx init --pg%{pg_ver} /usr/bin/pg_server_config

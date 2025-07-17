@@ -1,0 +1,15 @@
+Package: libpq5
+Pin: version 15.*
+Pin-Priority: 1001
+
+Package: libpq5-devel
+Pin: version 15.*
+Pin-Priority: 1001
+
+Package: libecpg6-devel
+Pin: version 15.*
+Pin-Priority: 1001
+
+Package: libecpg6
+Pin: version 15.*
+Pin-Priority: 1001

@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 export DH_VERBOSE = 1
 
-URL="https://github.com/luxms/pgnats/archive/refs/heads/main.zip"
 GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key=08C82543B30BE336
 
 PGCONFIG_pgsql15-nats := /usr/lib/postgresql/15/bin/pg_config
@@ -16,9 +15,6 @@ define \n
 
 endef
 
-override_dh_prep:
-	if [ ! -f "src/Cargo.toml" ]; then curl -sLO $(URL); unzip main.zip; mv pgnats-main src; fi
-
 override_dh_strip:
 	dh_strip
 	$(if $(filter true,$(CI)),\
@@ -27,13 +23,11 @@ override_dh_strip:
 	,)
 
 override_dh_auto_install:
-	/root/.cargo/bin/cargo install cargo-pgrx --git https://github.com/luxms/pgrx
 	$(foreach pkg,$(PKG_LIST), \
-		cd src/ \
-		&& /root/.cargo/bin/cargo pgrx init --pg15 $(PGCONFIG_$(pkg)) \
-		&& /root/.cargo/bin/cargo pgrx package --pg-config $(PGCONFIG_$(pkg)) \
-		&& $(if $(filter true,$(CI)),../trivy-scan.sh src $(pkg),:) \
-		&& mv target/release/pgnats-pg15 ../debian/$(pkg) \
+		/root/.cargo/bin/cargo pgrx init --pg15 $(PGCONFIG_$(pkg)) \
+		&& /root/.cargo/bin/cargo pgrx package --features xid8 --pg-config $(PGCONFIG_$(pkg)) \
+		&& $(if $(filter true,$(CI)),./trivy-scan.sh src $(pkg),:) \
+		&& mv target/release/pgnats-pg15 debian/$(pkg) \
 		${\n} \
 	)
 
