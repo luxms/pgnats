@@ -1,24 +1,28 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Sender;
-use std::sync::Arc;
+use std::{
+    collections::{hash_map::Entry, HashMap, HashSet},
+    sync::{
+        mpsc::{channel, Sender},
+        Arc,
+    },
+};
 
 use futures::StreamExt;
-use pgrx::PgTryBuilder;
-use pgrx::Spi;
-use pgrx::{bgworkers::*, pg_sys as sys};
+use pgrx::{bgworkers::*, pg_sys as sys, PgTryBuilder, Spi};
 use tokio::task::JoinHandle;
 
-use crate::config::fetch_connection_options;
-use crate::config::GUC_SUB_DB_NAME;
-use crate::connection::NatsConnectionOptions;
-use crate::connection::NatsTlsOptions;
-use crate::init::SUBSCRIPTIONS_TABLE_NAME;
-use crate::log;
-use crate::shared::WorkerMessage;
-use crate::shared::WORKER_MESSAGE_QUEUE;
+use crate::{
+    config::{fetch_connection_options, GUC_SUB_DB_NAME},
+    connection::{NatsConnectionOptions, NatsTlsOptions},
+    init::SUBSCRIPTIONS_TABLE_NAME,
+    log,
+    shared::{WorkerMessage, WORKER_MESSAGE_QUEUE},
+};
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum WorkerState {
+    Master,
+    Slave,
+}
 
 pub enum InternalWorkerMessage {
     Subscribe {
@@ -49,13 +53,15 @@ struct NatsSubscription {
 pub struct WorkerContext {
     sender: Sender<InternalWorkerMessage>,
     nats_state: Option<NatsConnectionState>,
+    state: WorkerState,
 }
 
 impl WorkerContext {
-    pub fn new(sender: Sender<InternalWorkerMessage>) -> Result<Self, String> {
+    pub fn new(sender: Sender<InternalWorkerMessage>, state: WorkerState) -> Result<Self, String> {
         Ok(Self {
             sender,
             nats_state: None,
+            state,
         })
     }
 
@@ -173,7 +179,14 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     log!("Tokio runtime initialized");
 
     let (msg_sender, msg_receiver) = channel();
-    let mut worker_context = match WorkerContext::new(msg_sender.clone()) {
+    let mut worker_context = match WorkerContext::new(
+        msg_sender.clone(),
+        if unsafe { sys::RecoveryInProgress() } {
+            WorkerState::Master
+        } else {
+            WorkerState::Slave
+        },
+    ) {
         Ok(sock) => sock,
         Err(e) => {
             log!("{}", e);
@@ -193,12 +206,26 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
     BackgroundWorker::connect_worker_to_spi(Some(&db_name), None);
     log!("Background worker connected to '{}' database", db_name);
 
-    let opt = BackgroundWorker::transaction(fetch_connection_options);
-    restore_state(&rt, msg_sender.clone(), &mut worker_context, opt);
+    if worker_context.state == WorkerState::Master {
+        let opt = BackgroundWorker::transaction(fetch_connection_options);
+        restore_state(&rt, msg_sender.clone(), &mut worker_context, opt);
+    }
 
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
         // Cache result
         let is_slave = unsafe { sys::RecoveryInProgress() };
+
+        match (is_slave, worker_context.state) {
+            (true, WorkerState::Master) => {
+                worker_context.state = WorkerState::Slave;
+                let _ = worker_context.nats_state.take();
+            }
+            (false, WorkerState::Slave) => {
+                let opt = BackgroundWorker::transaction(fetch_connection_options);
+                restore_state(&rt, msg_sender.clone(), &mut worker_context, opt);
+            }
+            _ => { /* NO OP */ }
+        }
 
         {
             let mut deq = WORKER_MESSAGE_QUEUE.exclusive();

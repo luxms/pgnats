@@ -1,19 +1,23 @@
-use async_nats::jetstream::kv::Store;
-use async_nats::jetstream::object_store::{ObjectInfo, ObjectStore};
-use async_nats::jetstream::Context;
-use async_nats::{Client, Request};
+use std::{collections::HashMap, io::Cursor, path::PathBuf, time::Duration};
+
+use async_nats::{
+    jetstream::{
+        kv::Store,
+        object_store::{ObjectInfo, ObjectStore},
+        Context,
+    },
+    Client, Request,
+};
 use bincode::{Decode, Encode};
 use futures::StreamExt;
 use pgrx::warning;
-use std::collections::HashMap;
-use std::io::Cursor;
-use std::path::PathBuf;
-use std::time::Duration;
 use tokio::io::{AsyncReadExt, BufReader};
 
-use crate::config::fetch_connection_options;
-use crate::info;
-use crate::utils::{extract_headers, FromBytes, ToBytes};
+use crate::{
+    config::fetch_connection_options,
+    info,
+    utils::{extract_headers, FromBytes, ToBytes},
+};
 
 #[derive(Default)]
 pub struct NatsConnection {

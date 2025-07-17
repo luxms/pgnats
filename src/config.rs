@@ -1,13 +1,13 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::ffi::CStr;
-use std::ffi::CString;
-use std::path::PathBuf;
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    ffi::{CStr, CString},
+    path::PathBuf,
+};
 
 use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting};
 
-use crate::connection::NatsConnectionOptions;
-use crate::connection::NatsTlsOptions;
+use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
 
 pub const CONFIG_SUB_DB_NAME: &CStr = c"nats.sub_dbname";
 pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =

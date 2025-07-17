@@ -2,7 +2,6 @@
 mod nats_tests {
     use futures::StreamExt;
     use pgnats::connection::{NatsConnection, NatsConnectionOptions, NatsTlsOptions};
-
     use testcontainers::{
         core::{ContainerPort, Mount, WaitFor},
         runners::AsyncRunner,

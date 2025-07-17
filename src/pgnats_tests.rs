@@ -95,8 +95,9 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_request() {
-        use futures::StreamExt;
         use std::sync::mpsc::channel;
+
+        use futures::StreamExt;
 
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()

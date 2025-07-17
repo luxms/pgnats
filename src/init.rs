@@ -1,11 +1,6 @@
-use pgrx::bgworkers::*;
-use pgrx::pg_shmem_init;
-use pgrx::prelude::*;
-use pgrx::shmem::*;
+use pgrx::{bgworkers::*, pg_shmem_init, prelude::*, shmem::*};
 
-use crate::config::init_guc;
-use crate::ctx::CTX;
-use crate::shared::WORKER_MESSAGE_QUEUE;
+use crate::{config::init_guc, ctx::CTX, shared::WORKER_MESSAGE_QUEUE};
 
 pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
 

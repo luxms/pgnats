@@ -1,12 +1,11 @@
 use pgrx::{name, pg_extern};
 
+use super::types::{map_object_info, map_server_info};
 use crate::{
     ctx::CTX,
     impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request,
     shared::{WorkerMessage, WORKER_MESSAGE_QUEUE},
 };
-
-use super::types::{map_object_info, map_server_info};
 
 impl_nats_publish! {
     /// Publishes a raw binary message to the specified NATS subject.

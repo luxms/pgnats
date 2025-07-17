@@ -4,9 +4,8 @@ mod types;
 #[macro_use]
 mod macros;
 
-use pgrx::pg_extern;
-
 pub use nats::*;
+use pgrx::pg_extern;
 
 use crate::ctx::CTX;
 
