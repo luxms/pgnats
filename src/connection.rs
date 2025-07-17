@@ -12,7 +12,6 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::config::fetch_connection_options;
-use crate::errors::PgNatsError;
 use crate::info;
 use crate::utils::{extract_headers, FromBytes, ToBytes};
 
@@ -59,7 +58,7 @@ impl NatsConnection {
         message: impl ToBytes,
         reply: Option<impl ToString>,
         headers: Option<serde_json::Value>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
         let conn = self.get_connection().await?;
@@ -90,7 +89,7 @@ impl NatsConnection {
         subject: impl ToString,
         message: impl ToBytes,
         timeout: Option<u64>,
-    ) -> Result<Vec<u8>, PgNatsError> {
+    ) -> anyhow::Result<Vec<u8>> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
 
@@ -116,7 +115,7 @@ impl NatsConnection {
         subject: impl ToString,
         message: impl ToBytes,
         headers: Option<serde_json::Value>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
         let headers = headers.map(extract_headers);
@@ -189,7 +188,7 @@ impl NatsConnection {
         bucket: impl ToString,
         key: impl AsRef<str>,
         data: impl ToBytes,
-    ) -> Result<u64, PgNatsError> {
+    ) -> anyhow::Result<u64> {
         let bucket = self.get_or_create_bucket(bucket).await?;
         let data: Vec<u8> = data.to_bytes()?;
         let version = bucket.put(key, data.into()).await?;
@@ -201,7 +200,7 @@ impl NatsConnection {
         &mut self,
         bucket: impl ToString,
         key: impl Into<String>,
-    ) -> Result<Option<T>, PgNatsError> {
+    ) -> anyhow::Result<Option<T>> {
         let bucket = self.get_or_create_bucket(bucket).await?;
 
         bucket
@@ -216,14 +215,14 @@ impl NatsConnection {
         &mut self,
         bucket: impl ToString,
         key: impl AsRef<str>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let bucket = self.get_or_create_bucket(bucket).await?;
         bucket.delete(key).await?;
 
         Ok(())
     }
 
-    pub async fn get_server_info(&mut self) -> Result<async_nats::ServerInfo, PgNatsError> {
+    pub async fn get_server_info(&mut self) -> anyhow::Result<async_nats::ServerInfo> {
         let connection = self.get_connection().await?;
         Ok(connection.server_info())
     }
@@ -232,7 +231,7 @@ impl NatsConnection {
         &mut self,
         store: impl ToString,
         name: impl AsRef<str> + Send,
-    ) -> Result<Vec<u8>, PgNatsError> {
+    ) -> anyhow::Result<Vec<u8>> {
         let store = self.get_or_create_object_store(store).await?;
         let mut file = store.get(name).await?;
 
@@ -247,7 +246,7 @@ impl NatsConnection {
         store: impl ToString,
         name: impl AsRef<str>,
         content: Vec<u8>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let store = self.get_or_create_object_store(store).await?;
         let mut reader = BufReader::new(Cursor::new(content));
         let _ = store.put(name.as_ref(), &mut reader).await?;
@@ -259,7 +258,7 @@ impl NatsConnection {
         &mut self,
         store: impl ToString,
         name: impl AsRef<str>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let store = self.get_or_create_object_store(store).await?;
         store.delete(name).await.map_err(|e| e.into())
     }
@@ -268,15 +267,12 @@ impl NatsConnection {
         &mut self,
         store: impl ToString,
         name: impl AsRef<str>,
-    ) -> Result<ObjectInfo, PgNatsError> {
+    ) -> anyhow::Result<ObjectInfo> {
         let store = self.get_or_create_object_store(store).await?;
         store.info(name).await.map_err(|e| e.into())
     }
 
-    pub async fn get_file_list(
-        &mut self,
-        store: impl ToString,
-    ) -> Result<Vec<ObjectInfo>, PgNatsError> {
+    pub async fn get_file_list(&mut self, store: impl ToString) -> anyhow::Result<Vec<ObjectInfo>> {
         let store = self.get_or_create_object_store(store).await?;
         let mut vec = vec![];
         let mut list = store.list().await?;
@@ -297,7 +293,7 @@ impl NatsConnection {
 }
 
 impl NatsConnection {
-    async fn get_connection(&mut self) -> Result<&Client, PgNatsError> {
+    async fn get_connection(&mut self) -> anyhow::Result<&Client> {
         if self.connection.is_none() {
             self.initialize_connection().await?;
         }
@@ -308,7 +304,7 @@ impl NatsConnection {
             .expect("unreachable, must be initialized"))
     }
 
-    async fn get_jetstream(&mut self) -> Result<&Context, PgNatsError> {
+    async fn get_jetstream(&mut self) -> anyhow::Result<&Context> {
         if self.connection.is_none() {
             self.initialize_connection().await?;
         }
@@ -319,7 +315,7 @@ impl NatsConnection {
             .expect("unreachable, must be initialized"))
     }
 
-    async fn get_or_create_bucket(&mut self, bucket: impl ToString) -> Result<&Store, PgNatsError> {
+    async fn get_or_create_bucket(&mut self, bucket: impl ToString) -> anyhow::Result<&Store> {
         let bucket = bucket.to_string();
 
         if !self.cached_buckets.contains_key(&bucket) {
@@ -345,7 +341,7 @@ impl NatsConnection {
     async fn get_or_create_object_store(
         &mut self,
         store: impl ToString,
-    ) -> Result<&ObjectStore, PgNatsError> {
+    ) -> anyhow::Result<&ObjectStore> {
         let bucket = store.to_string();
 
         if !self.cached_object_stores.contains_key(&bucket) {
@@ -368,7 +364,7 @@ impl NatsConnection {
             .expect("unreachable, must be initialized"))
     }
 
-    async fn initialize_connection(&mut self) -> Result<(), PgNatsError> {
+    async fn initialize_connection(&mut self) -> anyhow::Result<()> {
         let config = self
             .current_config
             .get_or_insert_with(fetch_connection_options);
@@ -401,11 +397,6 @@ impl NatsConnection {
         let connection = opts
             .connect(format!("{0}:{1}", config.host, config.port))
             .await
-            .map_err(|io_error| PgNatsError::Connection {
-                host: config.host.clone(),
-                port: config.port,
-                io_error,
-            })
             .inspect_err(|_| {
                 self.current_config = None;
             })?;

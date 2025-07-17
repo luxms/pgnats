@@ -23,6 +23,7 @@ pg_test = []
 xid8 = ["pgrx/xid8", "pgrx-tests/xid8"]
 
 [dependencies]
+anyhow = { version = "1.0", default-features = false }
 async-nats = "0.42.0"
 bincode = "2.0.1"
 futures = "0.3.31"
@@ -32,7 +33,6 @@ pgrx = { git = "https://github.com/luxms/pgrx", version = "0.14.3", features = [
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.138"
-thiserror = "2.0.11"
 tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread"] }
 
 [dev-dependencies]

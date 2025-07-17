@@ -27,15 +27,6 @@ pub mod bg_subscription;
 #[doc(hidden)]
 pub mod shared;
 
-/// Error handling types
-///
-/// Defines all error types used in the crate including:
-/// - Connection errors
-/// - Publishing errors
-/// - JetStream errors
-/// - KV store operation errors
-pub mod errors;
-
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.
 #[cfg(test)]

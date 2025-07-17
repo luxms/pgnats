@@ -56,6 +56,6 @@ macro_rules! report {
 #[macro_export]
 macro_rules! report {
     ($level:expr, $($msg:tt)*) => {
-        /* NO OP */
+        eprintln!("{}: {}", $crate::log::MSG_PREFIX, format!($($msg)*))
     };
 }

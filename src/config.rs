@@ -4,11 +4,7 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::path::PathBuf;
 
-use pgrx::GucContext;
-use pgrx::GucFlags;
-use pgrx::GucRegistry;
-use pgrx::GucSetting;
-use pgrx::PgList;
+use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting};
 
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
@@ -56,7 +52,7 @@ pub fn fetch_connection_options() -> NatsConnectionOptions {
 
         let options_list = (*server).options;
         if !options_list.is_null() {
-            let list: PgList<pgrx::pg_sys::DefElem> = pgrx::PgList::from_pg(options_list);
+            let list: pgrx::PgList<pgrx::pg_sys::DefElem> = pgrx::PgList::from_pg(options_list);
 
             for def_elem in list.iter_ptr() {
                 let key = std::ffi::CStr::from_ptr((*def_elem).defname)

@@ -1665,6 +1665,7 @@ dependencies = [
 name = "pgnats"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-nats",
  "bincode",
  "cargo_toml 0.21.0",
@@ -1675,7 +1676,6 @@ dependencies = [
  "serde",
  "serde_json",
  "testcontainers",
- "thiserror 2.0.12",
  "tokio",
 ]
 
