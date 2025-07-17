@@ -3,14 +3,14 @@ use pgrx::PGRXSharedMemory;
 const HEADER_SIZE: usize = size_of::<usize>();
 
 #[repr(C)]
-pub struct SharedRingQueue<const CAPACITY: usize> {
+pub struct RingQueue<const CAPACITY: usize> {
     read: usize,
     write: usize,
     is_full: bool,
     buffer: [u8; CAPACITY],
 }
 
-impl<const CAPACITY: usize> Default for SharedRingQueue<CAPACITY> {
+impl<const CAPACITY: usize> Default for RingQueue<CAPACITY> {
     fn default() -> Self {
         Self {
             read: 0,
@@ -21,7 +21,7 @@ impl<const CAPACITY: usize> Default for SharedRingQueue<CAPACITY> {
     }
 }
 
-impl<const CAPACITY: usize> SharedRingQueue<CAPACITY> {
+impl<const CAPACITY: usize> RingQueue<CAPACITY> {
     pub fn try_send(&mut self, msg: &[u8]) -> Result<(), ()> {
         if self.is_full {
             return Err(());
@@ -157,7 +157,7 @@ impl<const CAPACITY: usize> SharedRingQueue<CAPACITY> {
     }
 }
 
-unsafe impl<const CAPACITY: usize> PGRXSharedMemory for SharedRingQueue<CAPACITY> {}
+unsafe impl<const CAPACITY: usize> PGRXSharedMemory for RingQueue<CAPACITY> {}
 
 #[cfg(test)]
 mod tests {
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_send_and_recv_single_message() {
-        let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
+        let mut queue = RingQueue::<TEST_CAPACITY>::default();
         let msg = b"hello world";
         assert!(queue.try_send(msg).is_ok());
         assert_eq!(queue.try_recv().unwrap(), msg.as_slice());
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_queue_full() {
-        let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
+        let mut queue = RingQueue::<TEST_CAPACITY>::default();
         let msg = [1u8; 10];
         let mut count = 0;
         while queue.try_send(&msg).is_ok() {
@@ -190,13 +190,13 @@ mod tests {
 
     #[test]
     fn test_empty_queue() {
-        let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
+        let mut queue = RingQueue::<TEST_CAPACITY>::default();
         assert!(queue.try_recv().is_none());
     }
 
     #[test]
     fn test_wrap_around() {
-        let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
+        let mut queue = RingQueue::<TEST_CAPACITY>::default();
         let msg1 = [1u8; 20];
         let msg2 = [2u8; 20];
         let msg3 = [3u8; 20];
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_variable_message_sizes() {
-        let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
+        let mut queue = RingQueue::<TEST_CAPACITY>::default();
         let msg1 = [1u8; 5];
         let msg2 = [2u8; 10];
         let msg3 = [3u8; 15];
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_capacity_overflow_and_recovery() {
-        let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
+        let mut queue = RingQueue::<TEST_CAPACITY>::default();
 
         let msg = [42u8; 10];
         let max_msgs = TEST_CAPACITY / (HEADER_SIZE + msg.len());
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_wrap_around_capacity() {
-        let mut queue = SharedRingQueue::<TEST_CAPACITY>::default();
+        let mut queue = RingQueue::<TEST_CAPACITY>::default();
         let msg = [7u8; 10];
         let max_msgs = TEST_CAPACITY / (HEADER_SIZE + msg.len());
 
@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn test_fill_queue_exactly_and_recv_all() {
         const COUNT: usize = 4;
-        let mut queue = SharedRingQueue::<{ 2 * HEADER_SIZE * COUNT }>::default();
+        let mut queue = RingQueue::<{ 2 * HEADER_SIZE * COUNT }>::default();
         let msg = [0xABu8; HEADER_SIZE];
         let max_msgs = 2 * HEADER_SIZE * COUNT / (HEADER_SIZE + msg.len());
         let mut sent = 0;
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn test_message_split_across_wrap() {
         const BUF_SIZE: usize = HEADER_SIZE + 2 + HEADER_SIZE / 2;
-        let mut queue = SharedRingQueue::<BUF_SIZE>::default();
+        let mut queue = RingQueue::<BUF_SIZE>::default();
         let msg1 = [0x11u8; 2];
         let msg2 = [0x22u8; 2];
 

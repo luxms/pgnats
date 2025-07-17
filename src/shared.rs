@@ -1,10 +1,9 @@
 use bincode::{Decode, Encode};
 use pgrx::PgLwLock;
 
-use crate::{connection::NatsConnectionOptions, shared_queue::SharedRingQueue};
+use crate::{connection::NatsConnectionOptions, ring_queue::RingQueue};
 
-pub static WORKER_MESSAGE_QUEUE: PgLwLock<SharedRingQueue<65536>> =
-    PgLwLock::new(c"shared_worker_queue");
+pub static WORKER_MESSAGE_QUEUE: PgLwLock<RingQueue<65536>> = PgLwLock::new(c"shared_worker_queue");
 
 #[derive(Debug, Decode, Encode)]
 pub enum WorkerMessage {

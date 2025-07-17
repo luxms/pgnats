@@ -5,7 +5,7 @@ mod fdw;
 mod init;
 mod log;
 mod pgnats_tests;
-mod shared_queue;
+mod ring_queue;
 mod utils;
 
 /// Main public API for PostgreSQL extensions
@@ -22,10 +22,10 @@ pub mod connection;
 pub mod ctx;
 
 #[doc(hidden)]
-pub mod bg_subscription;
+pub mod shared;
 
 #[doc(hidden)]
-pub mod shared;
+pub mod bgw;
 
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.
