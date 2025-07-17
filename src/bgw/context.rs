@@ -8,16 +8,19 @@ use tokio::task::JoinHandle;
 
 use crate::{
     bgw::{Worker, WorkerState},
+    config::fetch_connection_options,
     connection::{NatsConnectionOptions, NatsTlsOptions},
+    debug, log, warn,
 };
 
-pub enum InternalWorkerMessage {
+pub(super) enum InternalWorkerMessage {
     Subscribe {
         register: bool,
         subject: String,
         fn_name: String,
     },
     Unsubscribe {
+        reason: Option<String>,
         subject: Arc<str>,
         fn_name: Arc<str>,
     },
@@ -27,39 +30,141 @@ pub enum InternalWorkerMessage {
     },
 }
 
-struct NatsConnectionState {
-    client: async_nats::Client,
-    subscriptions: HashMap<Arc<str>, NatsSubscription>,
-}
-
 struct NatsSubscription {
     handler: JoinHandle<()>,
     funcs: HashSet<Arc<str>>,
 }
 
-pub struct WorkerContext {
+struct NatsConnectionState {
+    client: async_nats::Client,
+    subscriptions: HashMap<Arc<str>, NatsSubscription>,
+}
+
+pub struct WorkerContext<T> {
     rt: tokio::runtime::Runtime,
     sender: Sender<InternalWorkerMessage>,
     nats_state: Option<NatsConnectionState>,
     state: WorkerState,
+    worker: T,
 }
 
-#[allow(dead_code)]
-impl WorkerContext {
+impl<T: Worker> WorkerContext<T> {
     pub fn new(
         rt: tokio::runtime::Runtime,
         sender: Sender<InternalWorkerMessage>,
-        state: WorkerState,
+        worker: T,
     ) -> Self {
         Self {
             rt,
             sender,
             nats_state: None,
-            state,
+            state: worker.fetch_state(),
+            worker,
         }
     }
 
-    pub fn handle_subscribe(&mut self, subject: Arc<str>, fn_name: Arc<str>) {
+    pub fn handle_internal_message(&mut self, msg: InternalWorkerMessage) {
+        match msg {
+            InternalWorkerMessage::Subscribe {
+                register,
+                subject,
+                fn_name,
+            } => {
+                log!(
+                    "Received subscription request: subject='{}', fn='{}'",
+                    subject,
+                    fn_name
+                );
+
+                if register {
+                    if let Err(error) = self.worker.insert_subject_callback(&subject, &fn_name) {
+                        warn!(
+                            "Error subscribing: subject='{}', callback='{}': {}",
+                            subject, fn_name, error,
+                        );
+                    }
+                }
+
+                self.handle_subscribe(Arc::from(subject), Arc::from(fn_name));
+            }
+            InternalWorkerMessage::Unsubscribe {
+                reason,
+                subject,
+                fn_name,
+            } => {
+                log!(
+                    "Received unsubscription request: subject='{}', fn='{}', reason='{}'",
+                    subject,
+                    fn_name,
+                    reason.unwrap_or_else(|| "Requested".to_string())
+                );
+
+                if let Err(error) = self.worker.delete_subject_callback(&subject, &fn_name) {
+                    warn!(
+                        "Error unsubscribing: subject='{}', callback='{}': {}",
+                        subject, fn_name, error
+                    );
+                }
+
+                self.handle_unsubscribe(subject.clone(), &fn_name);
+            }
+            InternalWorkerMessage::CallbackCall { subject, data } => {
+                log!("Dispatching callbacks for subject '{}'", subject);
+
+                self.handle_callback(&subject, data, |callback, data| {
+                    if let Err(err) = self.worker.call_function(callback, data) {
+                        warn!("Error invoking callback '{}': {:?}", callback, err);
+                    }
+                });
+            }
+        }
+    }
+
+    pub fn check_migration(&mut self) {
+        let state = self.worker.fetch_state();
+
+        match (state, self.state) {
+            (WorkerState::Master, WorkerState::Slave) => {
+                let _ = self.nats_state.take();
+                self.state = WorkerState::Slave;
+            }
+            (WorkerState::Slave, WorkerState::Master) => {
+                let opt = self.worker.transaction(fetch_connection_options);
+                if let Err(err) = self.restore_state(opt) {
+                    warn!("Error during restoring state: {}", err);
+                }
+                self.state = WorkerState::Master;
+            }
+            _ => {}
+        }
+    }
+
+    pub fn worker(&self) -> &T {
+        &self.worker
+    }
+
+    pub fn restore_state(&mut self, opt: NatsConnectionOptions) -> anyhow::Result<()> {
+        let client = self.connect_nats(&opt)?;
+
+        self.nats_state = Some(NatsConnectionState {
+            client,
+            subscriptions: HashMap::new(),
+        });
+
+        let subs = self.worker.fetch_subject_with_callbacks()?;
+
+        for (subject, fn_name) in subs {
+            let _ = self.sender.send(InternalWorkerMessage::Subscribe {
+                register: false,
+                subject,
+                fn_name,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn handle_subscribe(&mut self, subject: Arc<str>, fn_name: Arc<str>) {
         if let Some(mut connection) = self.nats_state.take() {
             match connection.subscriptions.entry(subject.clone()) {
                 // Subject already exists; update or add the function handler
@@ -85,33 +190,53 @@ impl WorkerContext {
 
             self.nats_state = Some(connection);
         } else {
-            //log!("Can not subscribe, because connection is not established");
+            warn!(
+                "Cannot subscribe to subject '{}': NATS connection not established",
+                subject
+            );
         }
     }
 
-    pub fn handle_unsubscribe(&mut self, subject: Arc<str>, fn_name: &str) {
+    fn handle_unsubscribe(&mut self, subject: Arc<str>, fn_name: &str) {
         if let Some(nats_state) = &mut self.nats_state {
             if let Entry::Occupied(mut e) = nats_state.subscriptions.entry(subject.clone()) {
                 let _ = e.get_mut().funcs.remove(fn_name);
 
                 if e.get().funcs.is_empty() {
+                    debug!(
+                        "All callbacks removed for subject '{}'. Stopping subscription.",
+                        subject
+                    );
+
                     let sub = e.remove();
                     sub.handler.abort();
                 }
             }
+        } else {
+            warn!(
+                "Cannot subscribe to subject '{}': NATS connection not established",
+                subject
+            );
         }
     }
 
-    pub fn handle_callback(&self, subject: &str, data: Arc<[u8]>, callback: impl Fn(&str, &[u8])) {
+    fn handle_callback(&self, subject: &str, data: Arc<[u8]>, callback: impl Fn(&str, &[u8])) {
         if let Some(nats_state) = &self.nats_state {
             if let Some(subject) = nats_state.subscriptions.get(subject) {
                 for fnname in subject.funcs.iter() {
                     callback(fnname, &data);
                 }
             }
+        } else {
+            warn!(
+                "Cannot subscribe to subject '{}': NATS connection not established",
+                subject
+            );
         }
     }
+}
 
+impl<T> WorkerContext<T> {
     pub fn is_master(&self) -> bool {
         self.state == WorkerState::Master
     }
@@ -120,41 +245,6 @@ impl WorkerContext {
         self.state == WorkerState::Slave
     }
 
-    pub fn state(&self) -> WorkerState {
-        self.state
-    }
-
-    pub fn clear_state(&mut self) {
-        let _ = self.nats_state.take();
-    }
-
-    pub fn restore_state(
-        &mut self,
-        opt: NatsConnectionOptions,
-        worker: &impl Worker,
-    ) -> anyhow::Result<()> {
-        let client = self.connect_nats(&opt)?;
-
-        self.nats_state = Some(NatsConnectionState {
-            client,
-            subscriptions: HashMap::new(),
-        });
-
-        let subs = worker.fetch_subject_with_callbacks()?;
-
-        for (subject, fn_name) in subs {
-            let _ = self.sender.send(InternalWorkerMessage::Subscribe {
-                register: false,
-                subject,
-                fn_name,
-            });
-        }
-
-        Ok(())
-    }
-}
-
-impl WorkerContext {
     fn spawn_subscription_task(
         &self,
         client: async_nats::Client,
@@ -172,8 +262,12 @@ impl WorkerContext {
                         });
                     }
                 }
-                Err(_) => {
-                    let _ = sender.send(InternalWorkerMessage::Unsubscribe { subject, fn_name });
+                Err(err) => {
+                    let _ = sender.send(InternalWorkerMessage::Unsubscribe {
+                        reason: Some(err.to_string()),
+                        subject,
+                        fn_name,
+                    });
                 }
             }
         })

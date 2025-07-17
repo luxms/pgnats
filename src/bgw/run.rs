@@ -1,13 +1,17 @@
-use std::sync::{mpsc::channel, Arc};
+use std::sync::{
+    mpsc::{channel, Sender},
+    Arc,
+};
 
 use crate::{
     bgw::{
         context::{InternalWorkerMessage, WorkerContext},
-        SharedQueue, Worker, WorkerState,
+        SharedQueue, Worker,
     },
     config::fetch_connection_options,
-    log,
+    debug, log,
     shared::WorkerMessage,
+    warn,
 };
 
 pub fn run_worker<const N: usize, W: Worker, L: SharedQueue<N>>(
@@ -18,130 +22,89 @@ pub fn run_worker<const N: usize, W: Worker, L: SharedQueue<N>>(
         .enable_all()
         .build()?;
 
-    log!("Tokio runtime initialized");
+    log!("Tokio runtime initialized.");
 
     let (msg_sender, msg_receiver) = channel();
-    let mut ctx = WorkerContext::new(rt, msg_sender.clone(), worker.fetch_state());
+    let mut ctx = WorkerContext::new(rt, msg_sender.clone(), worker);
 
     if ctx.is_master() {
-        let opt = worker.transaction(fetch_connection_options);
-        if let Err(error) = ctx.restore_state(opt, &worker) {
-            log!("Got error while resotring state: {}", error);
+        let opt = ctx.worker().transaction(fetch_connection_options);
+        if let Err(error) = ctx.restore_state(opt) {
+            warn!("Error restoring state: {}", error);
         }
     }
 
-    while worker.wait(std::time::Duration::from_secs(1)) {
-        let state = worker.fetch_state();
-
-        match (state, ctx.state()) {
-            (WorkerState::Master, WorkerState::Slave) => {
-                ctx.clear_state();
-            }
-            (WorkerState::Slave, WorkerState::Master) => {
-                let opt = worker.transaction(fetch_connection_options);
-                if let Err(error) = ctx.restore_state(opt, &worker) {
-                    log!("Got error while resotring state: {}", error);
-                }
-            }
-            _ => {}
-        }
-
-        {
-            let mut shared_queue = shared_queue.unique();
-
-            while let Some(buf) = shared_queue.try_recv() {
-                log!(
-                    "Got msg from shared queue: {:?}",
-                    String::from_utf8_lossy(&buf)
-                );
-
-                let parse_result: Result<(WorkerMessage, _), _> =
-                    bincode::decode_from_slice(&buf[..], bincode::config::standard());
-                let msg = match parse_result {
-                    Ok((msg, _)) => msg,
-                    Err(_) => {
-                        continue;
-                    }
-                };
-
-                match msg {
-                    WorkerMessage::Subscribe { subject, fn_name } => {
-                        msg_sender.send(InternalWorkerMessage::Subscribe {
-                            register: true,
-                            subject: subject.to_string(),
-                            fn_name: fn_name.to_string(),
-                        })?;
-                    }
-                    WorkerMessage::Unsubscribe { subject, fn_name } => {
-                        msg_sender.send(InternalWorkerMessage::Unsubscribe {
-                            subject: Arc::from(subject.as_str()),
-                            fn_name: Arc::from(fn_name.as_str()),
-                        })?;
-                    }
-                    WorkerMessage::NewConnectionConfig(opt) => {
-                        if let Err(err) = ctx.restore_state(opt, &worker) {
-                            log!("Got reconnection error: {}", err);
-                        }
-                    }
-                }
-            }
-        }
+    while ctx.worker().wait(std::time::Duration::from_secs(1)) {
+        ctx.check_migration();
+        process_shared_queue(shared_queue, &msg_sender, &mut ctx)?;
 
         while let Ok(message) = msg_receiver.try_recv() {
-            if state == WorkerState::Slave {
+            if ctx.is_slave() {
+                debug!("Received internal message on replica. Ignoring.");
                 continue;
             }
 
-            match message {
-                InternalWorkerMessage::Subscribe {
-                    register,
+            ctx.handle_internal_message(message);
+        }
+    }
+
+    Ok(())
+}
+
+fn process_shared_queue<const N: usize, Q: SharedQueue<N>, T: Worker>(
+    queue: &Q,
+    sender: &Sender<InternalWorkerMessage>,
+    ctx: &mut WorkerContext<T>,
+) -> anyhow::Result<()> {
+    let mut queue = queue.unique();
+
+    while let Some(buf) = queue.try_recv() {
+        debug!(
+            "Received message from shared queue: {:?}",
+            String::from_utf8_lossy(&buf)
+        );
+
+        let parse_result: Result<(WorkerMessage, _), _> =
+            bincode::decode_from_slice(&buf[..], bincode::config::standard());
+        let msg = match parse_result {
+            Ok((msg, _)) => msg,
+            Err(err) => {
+                warn!("Failed to decode worker message: {}", err);
+                continue;
+            }
+        };
+
+        match msg {
+            WorkerMessage::Subscribe { subject, fn_name } => {
+                debug!(
+                    "Handling Subscribe for subject '{}', fn '{}'",
+                    subject, fn_name
+                );
+
+                sender.send(InternalWorkerMessage::Subscribe {
+                    register: true,
+                    subject: subject.to_string(),
+                    fn_name: fn_name.to_string(),
+                })?;
+            }
+            WorkerMessage::Unsubscribe { subject, fn_name } => {
+                log!(
+                    "Handling Unsubscribe for subject '{}', fn '{}'",
                     subject,
-                    fn_name,
-                } => {
-                    log!(
-                        "Received subscription: subject='{}', fn='{}'",
-                        subject,
-                        fn_name
-                    );
+                    fn_name
+                );
 
-                    if register {
-                        if let Err(error) = worker.insert_subject_callback(&subject, &fn_name) {
-                            log!(
-                                "Got an error while subscribing from subject '{}' and callback '{}': {}",
-                                subject,
-                                fn_name,
-                                error,
-                            );
-                        }
-                    }
+                sender.send(InternalWorkerMessage::Unsubscribe {
+                    reason: None,
+                    subject: Arc::from(subject.as_str()),
+                    fn_name: Arc::from(fn_name.as_str()),
+                })?;
+            }
+            WorkerMessage::NewConnectionConfig(opt) => {
+                log!("Handling NewConnectionConfig update");
 
-                    ctx.handle_subscribe(Arc::from(subject), Arc::from(fn_name));
-                }
-                InternalWorkerMessage::Unsubscribe { subject, fn_name } => {
-                    log!(
-                        "Received unsubscription: subject='{}', fn='{}'",
-                        subject,
-                        fn_name
-                    );
-
-                    if let Err(error) = worker.delete_subject_callback(&subject, &fn_name) {
-                        log!(
-                            "Got an error while unsubscribing from subject '{}' and callback '{}': {}",
-                            subject,
-                            fn_name,
-                            error,
-                        );
-                    }
-
-                    ctx.handle_unsubscribe(subject.clone(), &fn_name);
-                }
-                InternalWorkerMessage::CallbackCall { subject, data } => {
-                    log!("Received callback for subject '{}", subject,);
-                    ctx.handle_callback(&subject, data, |callback, data| {
-                        if let Err(err) = worker.call_function(callback, data) {
-                            log!("Error in SPI call '{}': {:?}", callback, err);
-                        }
-                    });
+                if let Err(err) = ctx.restore_state(opt) {
+                    log!("Error during restoring state: {}", err);
                 }
             }
         }

@@ -40,6 +40,16 @@ macro_rules! error {
     };
 }
 
+#[macro_export]
+macro_rules! debug {
+    ($($msg:tt)*) => {
+        $crate::report!(
+            pgrx::PgLogLevel::DEBUG2,
+            $($msg)*
+        )
+    };
+}
+
 #[cfg(not(feature = "pg_test"))]
 #[macro_export]
 macro_rules! report {
