@@ -1,3 +1,4 @@
+use anyhow::bail;
 use pgrx::{name, pg_extern};
 
 use super::types::{map_object_info, map_server_info};
@@ -588,6 +589,10 @@ pub fn nats_get_file_list(
 /// which will contain the message payload received from NATS.
 #[pg_extern]
 pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
+    if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
+        bail!("Subscriptions are not allowed in replica mode");
+    }
+
     let msg = WorkerMessage::Subscribe { subject, fn_name };
     let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
 
@@ -617,6 +622,10 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
 /// ```
 #[pg_extern]
 pub fn nats_unsubscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
+    if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
+        bail!("Subscriptions are not allowed in replica mode");
+    }
+
     let msg = WorkerMessage::Unsubscribe { subject, fn_name };
     let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
 
