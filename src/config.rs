@@ -1,22 +1,54 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ffi::CStr;
+use std::ffi::CString;
 use std::path::PathBuf;
 
+use pgrx::GucContext;
+use pgrx::GucFlags;
+use pgrx::GucRegistry;
+use pgrx::GucSetting;
 use pgrx::PgList;
 
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 
+pub const CONFIG_SUB_DB_NAME: &CStr = c"nats.sub_dbname";
+pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
+    GucSetting::<Option<CString>>::new(Some(c"pgnats"));
+
+pub const CONFIG_FDW_SERVER_NAME: &CStr = c"nats.fdw_server_name";
+pub static GUC_FDW_SERVER_NAME: GucSetting<Option<CString>> =
+    GucSetting::<Option<CString>>::new(Some(c"nats_fdw_server"));
+
+pub fn init_guc() {
+    GucRegistry::define_string_guc(
+        CONFIG_SUB_DB_NAME,
+        c"A database to which all queries from subscriptions will be directed",
+        c"A database to which all queries from subscriptions will be directed",
+        &GUC_SUB_DB_NAME,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+
+    GucRegistry::define_string_guc(
+        CONFIG_FDW_SERVER_NAME,
+        c"A FDW server name that store NATS options",
+        c"A FDW server name that store NATS options",
+        &GUC_FDW_SERVER_NAME,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+}
+
 #[cfg(not(feature = "pg_test"))]
 pub fn fetch_connection_options() -> NatsConnectionOptions {
-    let name =
-        std::env::var("PGNATS_FDW_SERVER_NAME").unwrap_or_else(|_| "nats_fdw_server".to_string());
+    let fdw_server_name = GUC_FDW_SERVER_NAME.get().unwrap();
 
     let mut options = HashMap::new();
 
     unsafe {
-        let cname = std::ffi::CString::new(name).expect("invalid CString");
-        let server = pgrx::pg_sys::GetForeignServerByName(cname.as_ptr(), true);
+        let server = pgrx::pg_sys::GetForeignServerByName(fdw_server_name.as_ptr(), true);
 
         if server.is_null() {
             return parse_connection_options(&options);

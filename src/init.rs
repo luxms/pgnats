@@ -3,6 +3,7 @@ use pgrx::pg_shmem_init;
 use pgrx::prelude::*;
 use pgrx::shmem::*;
 
+use crate::config::init_guc;
 use crate::ctx::CTX;
 use crate::shared::WORKER_MESSAGE_QUEUE;
 
@@ -23,6 +24,8 @@ extension_sql!(
 
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
+    init_guc();
+
     pg_shmem_init!(WORKER_MESSAGE_QUEUE);
 
     BackgroundWorkerBuilder::new("Background Worker Subscribtion")

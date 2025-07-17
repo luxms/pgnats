@@ -6,11 +6,13 @@ use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use pgrx::bgworkers::*;
-use pgrx::prelude::*;
+use pgrx::PgTryBuilder;
+use pgrx::Spi;
+use pgrx::{bgworkers::*, pg_sys as sys};
 use tokio::task::JoinHandle;
 
 use crate::config::fetch_connection_options;
+use crate::config::GUC_SUB_DB_NAME;
 use crate::connection::NatsConnectionOptions;
 use crate::connection::NatsTlsOptions;
 use crate::init::SUBSCRIPTIONS_TABLE_NAME;
@@ -179,7 +181,15 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
         }
     };
 
-    let db_name = std::env::var("PGNATS_SUB_DBNAME").unwrap_or("mi".to_string());
+    let Some(db_name) = GUC_SUB_DB_NAME.get() else {
+        log!("nats.sub_dbname is NULL");
+        return;
+    };
+    let Ok(db_name) = db_name.into_string() else {
+        log!("nats.sub_dbname contains non character symbols");
+        return;
+    };
+
     BackgroundWorker::connect_worker_to_spi(Some(&db_name), None);
     log!("Background worker connected to '{}' database", db_name);
 
@@ -188,7 +198,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
 
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
         // Cache result
-        let is_slave = unsafe { pg_sys::RecoveryInProgress() };
+        let is_slave = unsafe { sys::RecoveryInProgress() };
 
         {
             let mut deq = WORKER_MESSAGE_QUEUE.exclusive();
@@ -300,7 +310,7 @@ pub extern "C-unwind" fn background_worker_subscriber(_arg: pgrx::pg_sys::Datum)
                                 })
                             })
                             .catch_others(|e| match e {
-                                pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+                                sys::panic::CaughtError::PostgresError(err) => Err(format!(
                                     "Code '{}': {}. ({:?})",
                                     err.sql_error_code(),
                                     err.message(),
@@ -345,7 +355,7 @@ fn fetch_subject_with_callbacks() -> Result<Vec<(String, String)>, String> {
             })
         })
         .catch_others(|e| match e {
-            pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+            sys::panic::CaughtError::PostgresError(err) => Err(format!(
                 "Code '{}': {}. ({:?})",
                 err.sql_error_code(),
                 err.message(),
@@ -369,7 +379,7 @@ fn insert_subject_callback(subject: &str, callback: &str) -> Result<(), String> 
             })
         })
         .catch_others(|e| match e {
-            pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+            sys::panic::CaughtError::PostgresError(err) => Err(format!(
                 "Code '{}': {}. ({:?})",
                 err.sql_error_code(),
                 err.message(),
@@ -396,7 +406,7 @@ fn delete_subject_callback(subject: &str, callback: &str) -> Result<(), String> 
             })
         })
         .catch_others(|e| match e {
-            pg_sys::panic::CaughtError::PostgresError(err) => Err(format!(
+            sys::panic::CaughtError::PostgresError(err) => Err(format!(
                 "Code '{}': {}. ({:?})",
                 err.sql_error_code(),
                 err.message(),
