@@ -1,7 +1,7 @@
 #[cfg(any(test, feature = "pg_test"))]
 #[pgrx::prelude::pg_schema]
 mod tests {
-    use pgrx::{prelude::*, Json, JsonB};
+    use pgrx::{pg_test, Json, JsonB};
 
     use crate::api;
 

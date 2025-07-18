@@ -10,6 +10,17 @@ pub struct RingQueue<const CAPACITY: usize> {
     buffer: [u8; CAPACITY],
 }
 
+impl<const CAPACITY: usize> RingQueue<CAPACITY> {
+    pub const fn new() -> Self {
+        Self {
+            read: 0,
+            write: 0,
+            is_full: false,
+            buffer: [0; CAPACITY],
+        }
+    }
+}
+
 impl<const CAPACITY: usize> Default for RingQueue<CAPACITY> {
     fn default() -> Self {
         Self {

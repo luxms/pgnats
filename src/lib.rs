@@ -1,10 +1,12 @@
 ::pgrx::pg_module_magic!();
 
+mod api_tests;
+mod bgw_tests;
+
 mod config;
 mod fdw;
 mod init;
 mod log;
-mod pgnats_tests;
 mod ring_queue;
 mod utils;
 
