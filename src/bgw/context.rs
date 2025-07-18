@@ -36,6 +36,7 @@ struct NatsSubscription {
 }
 
 struct NatsConnectionState {
+    options: NatsConnectionOptions,
     client: async_nats::Client,
     subscriptions: HashMap<Arc<str>, NatsSubscription>,
 }
@@ -144,12 +145,15 @@ impl<T: Worker> WorkerContext<T> {
     }
 
     pub fn restore_state(&mut self, opt: NatsConnectionOptions) -> anyhow::Result<()> {
-        let client = self.connect_nats(&opt)?;
+        if self.nats_state.as_ref().map(|s| &s.options) != Some(&opt) {
+            let client = self.connect_nats(&opt)?;
 
-        self.nats_state = Some(NatsConnectionState {
-            client,
-            subscriptions: HashMap::new(),
-        });
+            self.nats_state = Some(NatsConnectionState {
+                options: opt,
+                client,
+                subscriptions: HashMap::new(),
+            });
+        }
 
         let subs = self.worker.fetch_subject_with_callbacks()?;
 
