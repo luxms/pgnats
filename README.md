@@ -61,7 +61,7 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 To view the documentation, run:
 
 ```sh
-cargo doc --open`
+cargo doc --open
 ```
 
 The exported PostgreSQL API is implemented in the `api` module.
