@@ -1,7 +1,7 @@
 use crate::{
     bgw::{posgres::PostgresWorker, run::run_worker},
     error, log,
-    shared::WORKER_MESSAGE_QUEUE,
+    worker_queue::WORKER_MESSAGE_QUEUE,
 };
 
 #[pgrx::pg_guard]

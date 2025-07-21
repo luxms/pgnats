@@ -13,7 +13,7 @@ mod tests {
         bgw::{SharedQueue, Worker, WorkerState},
         connection::NatsConnectionOptions,
         log,
-        shared::WorkerMessage,
+        worker_queue::WorkerMessage,
     };
 
     #[derive(Debug)]

@@ -1,7 +1,6 @@
 ::pgrx::pg_module_magic!();
 
-mod api_tests;
-mod bgw_tests;
+mod pg_tests;
 
 mod config;
 mod fdw;
@@ -24,7 +23,7 @@ pub mod connection;
 pub mod ctx;
 
 #[doc(hidden)]
-pub mod shared;
+pub mod worker_queue;
 
 #[doc(hidden)]
 pub mod bgw;

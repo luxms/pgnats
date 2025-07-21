@@ -3,7 +3,7 @@ use pgrx::{pg_extern, pg_sys as sys, AllocatedByRust, PgBox};
 use crate::{
     config::parse_connection_options,
     error,
-    shared::{WorkerMessage, WORKER_MESSAGE_QUEUE},
+    worker_queue::{WorkerMessage, WORKER_MESSAGE_QUEUE},
 };
 
 // extension_sql!(

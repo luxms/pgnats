@@ -9,9 +9,8 @@ use crate::{
         SharedQueue, Worker,
     },
     config::fetch_connection_options,
-    debug, log,
-    shared::WorkerMessage,
-    warn,
+    debug, log, warn,
+    worker_queue::WorkerMessage,
 };
 
 pub fn run_worker<const N: usize, W: Worker, L: SharedQueue<N>>(
