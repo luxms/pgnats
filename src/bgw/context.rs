@@ -77,6 +77,11 @@ impl<T: Worker> WorkerContext<T> {
                     fn_name
                 );
 
+                if self.nats_state.is_none() {
+                    warn!("Connection not established!");
+                    return;
+                }
+
                 if register {
                     if let Err(error) = self.worker.insert_subject_callback(&subject, &fn_name) {
                         warn!(
@@ -99,6 +104,11 @@ impl<T: Worker> WorkerContext<T> {
                     fn_name,
                     reason.unwrap_or_else(|| "Requested".to_string())
                 );
+
+                if self.nats_state.is_none() {
+                    warn!("Connection not established!");
+                    return;
+                }
 
                 if let Err(error) = self.worker.delete_subject_callback(&subject, &fn_name) {
                     warn!(
@@ -145,7 +155,8 @@ impl<T: Worker> WorkerContext<T> {
     }
 
     pub fn restore_state(&mut self, opt: NatsConnectionOptions) -> anyhow::Result<()> {
-        if self.nats_state.as_ref().map(|s| &s.options) != Some(&opt) {
+        let state = self.nats_state.take();
+        if state.as_ref().map(|s| &s.options) != Some(&opt) {
             let client = self.connect_nats(&opt)?;
 
             self.nats_state = Some(NatsConnectionState {
