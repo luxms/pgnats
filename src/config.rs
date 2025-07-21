@@ -39,9 +39,11 @@ pub fn init_guc() {
 
 #[cfg(not(feature = "pg_test"))]
 pub fn fetch_connection_options() -> NatsConnectionOptions {
-    let fdw_server_name = GUC_FDW_SERVER_NAME.get().unwrap();
-
     let mut options = HashMap::new();
+
+    let Some(fdw_server_name) = GUC_FDW_SERVER_NAME.get() else {
+        return parse_connection_options(&options);
+    };
 
     unsafe {
         let server = pgrx::pg_sys::GetForeignServerByName(fdw_server_name.as_ptr(), true);
