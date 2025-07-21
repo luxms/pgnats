@@ -11,7 +11,6 @@ mod tests {
     use crate::{
         api,
         bgw::{SharedQueue, Worker, WorkerState},
-        init::SUBSCRIPTIONS_TABLE_NAME,
         log,
         shared::WorkerMessage,
     };
@@ -104,9 +103,27 @@ mod tests {
     fn test_sub_unsub_call_pgnats_background_worker() {
         use std::sync::{mpsc::channel, RwLock};
 
+        use pgrx::function_name;
+
         use crate::{bgw::run::run_worker, ring_queue::RingQueue};
 
         static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
+
+        // INIT
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let fn_name = "example";
+        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
+
+        Spi::run(&format!(
+            "CREATE TEMP TABLE {} (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );",
+            table_name
+        ))
+        .unwrap();
 
         let state = Arc::new(Mutex::new(WorkerState::Master));
         let (msg_sdr, msg_recv) = channel();
@@ -122,22 +139,22 @@ mod tests {
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
                 _ => {}
             };
-            fetch_sdr.send(fetch_subject_with_callbacks()).unwrap();
+            fetch_sdr
+                .send(fetch_subject_with_callbacks(table_name))
+                .unwrap();
         }
 
-        pgnats_subscribe(
-            "test_sub_unsub_call_pgnats_background_worker".to_string(),
-            "hello_world".to_string(),
-            &SHARED_QUEUE,
-        );
+        pgnats_subscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
+
+        // LOOP
 
         {
             match msg_recv.recv().expect("Failed to get fetch") {
-                InternalMockMessage::Insert(subject, callback) => {
-                    assert_eq!(subject, "test_sub_unsub_call_pgnats_background_worker");
-                    assert_eq!(callback, "hello_world");
+                InternalMockMessage::Insert(sub, callback) => {
+                    assert_eq!(sub, subject);
+                    assert_eq!(callback, fn_name);
 
-                    insert_subject_callback(&subject, &callback).unwrap();
+                    insert_subject_callback(table_name, &sub, &callback).unwrap();
                 }
                 InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Insert'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Insert'"),
@@ -145,21 +162,17 @@ mod tests {
             }
         }
 
-        let subs = fetch_subject_with_callbacks().unwrap();
-        assert_eq!(subs[0].0, "test_sub_unsub_call_pgnats_background_worker");
-        assert_eq!(subs[0].1, "hello_world");
+        let subs = fetch_subject_with_callbacks(table_name).unwrap();
+        assert_eq!(subs[0].0, subject);
+        assert_eq!(subs[0].1, fn_name);
 
-        api::nats_publish_text(
-            "test_sub_unsub_call_pgnats_background_worker",
-            "message42".to_string(),
-        )
-        .unwrap();
+        api::nats_publish_text(subject, content.to_string()).unwrap();
 
         {
             match msg_recv.recv().expect("Failed to get fetch") {
                 InternalMockMessage::Call(callback, data) => {
-                    assert_eq!(callback, "hello_world");
-                    assert_eq!(data, "message42".as_bytes());
+                    assert_eq!(callback, fn_name);
+                    assert_eq!(data, content.as_bytes());
 
                     assert!(call_function(&callback, &data).is_err());
                 }
@@ -169,19 +182,15 @@ mod tests {
             }
         }
 
-        pgnats_unsubscribe(
-            "test_sub_unsub_call_pgnats_background_worker".to_string(),
-            "hello_world".to_string(),
-            &SHARED_QUEUE,
-        );
+        pgnats_unsubscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
 
         {
             match msg_recv.recv().expect("Failed to get fetch") {
-                InternalMockMessage::Delete(subject, callback) => {
-                    assert_eq!(subject, "test_sub_unsub_call_pgnats_background_worker");
-                    assert_eq!(callback, "hello_world");
+                InternalMockMessage::Delete(sub, callback) => {
+                    assert_eq!(sub, subject);
+                    assert_eq!(callback, fn_name);
 
-                    delete_subject_callback(&subject, &callback).unwrap();
+                    delete_subject_callback(table_name, &sub, &callback).unwrap();
                 }
                 InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Delete'"),
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Delete'"),
@@ -189,8 +198,10 @@ mod tests {
             }
         }
 
-        let subs = fetch_subject_with_callbacks().unwrap();
+        let subs = fetch_subject_with_callbacks(table_name).unwrap();
         assert_eq!(subs.len(), 0);
+
+        // FAKE SIGTERM
 
         quit_sdr.send(()).unwrap();
         assert!(handle.join().is_ok());
@@ -216,10 +227,10 @@ mod tests {
         queue.unique().try_send(&buf).unwrap();
     }
 
-    fn fetch_subject_with_callbacks() -> anyhow::Result<Vec<(String, String)>> {
+    fn fetch_subject_with_callbacks(table_name: &str) -> anyhow::Result<Vec<(String, String)>> {
         PgTryBuilder::new(|| {
             Spi::connect_mut(|client| {
-                let sql = format!("SELECT subject, callback FROM {}", SUBSCRIPTIONS_TABLE_NAME);
+                let sql = format!("SELECT subject, callback FROM {}", table_name);
                 let tuples = client.select(&sql, None, &[])?;
                 let subject_callbacks: Vec<(String, String)> = tuples
                     .into_iter()
@@ -254,10 +265,14 @@ mod tests {
         .execute()
     }
 
-    fn insert_subject_callback(subject: &str, callback: &str) -> anyhow::Result<()> {
+    fn insert_subject_callback(
+        table_name: &str,
+        subject: &str,
+        callback: &str,
+    ) -> anyhow::Result<()> {
         PgTryBuilder::new(|| {
             Spi::connect_mut(|client| {
-                let sql = format!("INSERT INTO {} VALUES ($1, $2)", SUBSCRIPTIONS_TABLE_NAME);
+                let sql = format!("INSERT INTO {} VALUES ($1, $2)", table_name);
                 let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
 
                 log!(
@@ -281,12 +296,16 @@ mod tests {
         .execute()
     }
 
-    fn delete_subject_callback(subject: &str, callback: &str) -> anyhow::Result<()> {
+    fn delete_subject_callback(
+        table_name: &str,
+        subject: &str,
+        callback: &str,
+    ) -> anyhow::Result<()> {
         PgTryBuilder::new(|| {
             Spi::connect_mut(|client| {
                 let sql = format!(
                     "DELETE FROM {} WHERE subject = $1 AND callback = $2",
-                    SUBSCRIPTIONS_TABLE_NAME
+                    table_name
                 );
                 let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
 
