@@ -54,7 +54,7 @@ SKIP_PGNATS_TESTS=1 cargo pgrx test
 ## 🦀 Minimum supported Rust version
 
 - `Rust 1.81.0`
-- `cargo-pgrx 0.14.*`
+- `cargo-pgrx 0.14.3`
 
 ## 📚 Documentation
 
@@ -68,12 +68,8 @@ The exported PostgreSQL API is implemented in the `api` module.
 
 ## 🧩 Extension Configuration
 
-- `nats.host` - IP/hostname of the NATS message server (default: `127.0.0.1`)
-- `nats.port` - TCP port for NATS connections (default: `4222`)
-- `nats.capacity` - Internal command buffer size in messages (default: `128`)
-- `nats.tls.ca` – Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
-- `nats.tls.cert` – Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
-- `nats.tls.key` – Path to the client private key corresponding to `nats.tls.cert` (default: unset; required if `nats.tls.cert` is set)
+- `nats.sub_dbname` - A database to which all queries from subscriptions will be directed (default: `pgnats`)
+- `nats.fdw_server_name` - A FDW server name that store NATS options (default: `nats_fdw_server`)
 
 ## 📘 Usage
 
@@ -81,13 +77,33 @@ The exported PostgreSQL API is implemented in the `api` module.
 
 ```sql
 -- Configuration
-SET nats.host = '127.0.0.1';
-SET nats.port = 4222;
-SET nats.capacity = 128;
-SET nats.tls.ca = 'ca';
-SET nats.tls.cert = 'cert';
-SET nats.tls.key = 'key';
-SET nats.sub.dbname = 'postgres';
+ALTER SYSTEM SET nats.sub_dbname = 'postgres';
+ALTER DATABASE <database name> SET nats.fdw_server_name = 'nats_fdw_server';
+```
+
+To configure the NATS connection, you need to create a FDW and a Foreign Server:
+
+```sql
+CREATE FOREIGN DATA WRAPPER nats_fdw HANDLER nats_fdw_handler VALIDATOR nats_fdw_validator;
+CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER nats_fdw OPTIONS (
+    --  IP/hostname of the NATS message server (default: 127.0.0.1)
+    host 'localhost',
+
+    -- TCP port for NATS connections (default: 4222)
+    port '4222',
+
+    -- Internal command buffer size in messages (default: 128)
+    capacity '128',
+
+    -- Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
+    tls_ca_path '/path/ca',
+
+    --  Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
+    tls_cert_path '/path/cert',
+
+    -- Path to the client private key corresponding to nats.tls.cert (default: unset; required if nats.tls.cert is set)
+    tls_key_path '/path/key'
+);
 ```
 
 ### 🔄 Reload configuration
