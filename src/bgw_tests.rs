@@ -16,6 +16,7 @@ mod tests {
         shared::WorkerMessage,
     };
 
+    #[derive(Debug)]
     enum InternalMockMessage {
         Fetch,
         Insert(String, String),
@@ -101,7 +102,7 @@ mod tests {
 
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
-    fn test_background_worker_sub_call_unsub_call_pgnats() {
+    fn test_background_worker_sub_call_unsub_call() {
         use std::sync::{mpsc::channel, RwLock};
 
         use pgrx::function_name;
@@ -399,6 +400,429 @@ mod tests {
         let subs = fetch_subject_with_callbacks(table_name).unwrap();
         assert_eq!(subs[0].0, subject);
         assert_eq!(subs[0].1, fn_name);
+
+        api::nats_publish_text(subject, content.to_string()).unwrap();
+
+        {
+            match msg_recv.recv().expect("Failed to get call") {
+                InternalMockMessage::Call(callback, data) => {
+                    assert_eq!(callback, fn_name);
+                    assert_eq!(data, content.as_bytes());
+
+                    assert!(call_function(&callback, &data).is_err());
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Call'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Call'"),
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Call'"),
+            }
+        }
+
+        // FAKE SIGTERM
+
+        quit_sdr.send(()).unwrap();
+        assert!(handle.join().is_ok());
+    }
+
+    #[cfg(not(any(skip_pgnats_tests)))]
+    #[pg_test]
+    fn test_background_worker_different_subject_sub_call() {
+        use std::sync::{mpsc::channel, RwLock};
+
+        use pgrx::function_name;
+
+        use crate::{bgw::run::run_worker, ring_queue::RingQueue};
+
+        static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
+
+        // INIT
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject1 = format!("{}_1", table_name);
+        let subject2 = format!("{}_2", table_name);
+        let fn_name = "example";
+        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
+
+        Spi::run(&format!(
+            "CREATE TEMP TABLE {} (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );",
+            table_name
+        ))
+        .unwrap();
+
+        let state = Arc::new(Mutex::new(WorkerState::Master));
+        let (msg_sdr, msg_recv) = channel();
+        let (fetch_sdr, fetch_recv) = channel();
+        let (quit_sdr, quit_recv) = channel();
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+
+        let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
+
+        {
+            match msg_recv.recv().expect("Failed to get fetch") {
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
+                _ => {}
+            };
+
+            fetch_sdr
+                .send(fetch_subject_with_callbacks(table_name))
+                .unwrap();
+        }
+
+        pgnats_subscribe(subject1.to_string(), fn_name.to_string(), &SHARED_QUEUE);
+
+        {
+            match msg_recv.recv().expect("Failed to get insert") {
+                InternalMockMessage::Insert(sub, callback) => {
+                    assert_eq!(sub, subject1);
+                    assert_eq!(callback, fn_name);
+
+                    insert_subject_callback(table_name, &sub, &callback).unwrap();
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Insert'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Insert'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Insert'"),
+            }
+        }
+
+        pgnats_subscribe(subject2.to_string(), fn_name.to_string(), &SHARED_QUEUE);
+
+        {
+            match msg_recv.recv().expect("Failed to get insert") {
+                InternalMockMessage::Insert(sub, callback) => {
+                    assert_eq!(sub, subject2);
+                    assert_eq!(callback, fn_name);
+
+                    insert_subject_callback(table_name, &sub, &callback).unwrap();
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Insert'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Insert'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Insert'"),
+            }
+        }
+
+        let result = fetch_subject_with_callbacks(table_name).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert!(result
+            .iter()
+            .find(|(sub, call)| sub == &subject1 && call == fn_name)
+            .is_some());
+        assert!(result
+            .iter()
+            .find(|(sub, call)| sub == &subject2 && call == fn_name)
+            .is_some());
+
+        api::nats_publish_text(&subject1, content.to_string()).unwrap();
+
+        {
+            match msg_recv.recv().expect("Failed to get call") {
+                InternalMockMessage::Call(callback, data) => {
+                    assert_eq!(callback, fn_name);
+                    assert_eq!(data, content.as_bytes());
+
+                    assert!(call_function(&callback, &data).is_err());
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Call'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Call'"),
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Call'"),
+            }
+        }
+
+        // FAKE SIGTERM
+
+        quit_sdr.send(()).unwrap();
+        assert!(handle.join().is_ok());
+    }
+
+    #[cfg(not(any(skip_pgnats_tests)))]
+    #[pg_test]
+    fn test_background_worker_same_subject_sub_call() {
+        use std::sync::{mpsc::channel, RwLock};
+
+        use pgrx::function_name;
+
+        use crate::{bgw::run::run_worker, ring_queue::RingQueue};
+
+        static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
+
+        // INIT
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let fn_name1 = "foo";
+        let fn_name2 = "bar";
+        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
+
+        Spi::run(&format!(
+            "CREATE TEMP TABLE {} (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );",
+            table_name
+        ))
+        .unwrap();
+
+        let state = Arc::new(Mutex::new(WorkerState::Master));
+        let (msg_sdr, msg_recv) = channel();
+        let (fetch_sdr, fetch_recv) = channel();
+        let (quit_sdr, quit_recv) = channel();
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+
+        let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
+
+        {
+            match msg_recv.recv().expect("Failed to get fetch") {
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
+                _ => {}
+            };
+
+            fetch_sdr
+                .send(fetch_subject_with_callbacks(table_name))
+                .unwrap();
+        }
+
+        pgnats_subscribe(subject.to_string(), fn_name1.to_string(), &SHARED_QUEUE);
+
+        {
+            match msg_recv.recv().expect("Failed to get insert") {
+                InternalMockMessage::Insert(sub, callback) => {
+                    assert_eq!(sub, subject);
+                    assert_eq!(callback, fn_name1);
+
+                    insert_subject_callback(table_name, &sub, &callback).unwrap();
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Insert'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Insert'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Insert'"),
+            }
+        }
+
+        pgnats_subscribe(subject.to_string(), fn_name2.to_string(), &SHARED_QUEUE);
+
+        {
+            match msg_recv.recv().expect("Failed to get insert") {
+                InternalMockMessage::Insert(sub, callback) => {
+                    assert_eq!(sub, subject);
+                    assert_eq!(callback, fn_name2);
+
+                    insert_subject_callback(table_name, &sub, &callback).unwrap();
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Insert'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Insert'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Insert'"),
+            }
+        }
+
+        let result = fetch_subject_with_callbacks(table_name).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert!(result
+            .iter()
+            .find(|(sub, call)| sub == &subject && call == fn_name1)
+            .is_some());
+        assert!(result
+            .iter()
+            .find(|(sub, call)| sub == &subject && call == fn_name2)
+            .is_some());
+
+        api::nats_publish_text(&subject, content.to_string()).unwrap();
+
+        {
+            match msg_recv.recv().expect("Failed to get call") {
+                InternalMockMessage::Call(callback, data) => {
+                    assert!(callback == fn_name1 || callback == fn_name2);
+                    assert_eq!(data, content.as_bytes());
+
+                    assert!(call_function(&callback, &data).is_err());
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Call'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Call'"),
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Call'"),
+            }
+        }
+
+        // FAKE SIGTERM
+
+        quit_sdr.send(()).unwrap();
+        assert!(handle.join().is_ok());
+    }
+
+    #[cfg(not(any(skip_pgnats_tests)))]
+    #[pg_test]
+    fn test_background_worker_sub_change_master_to_slave_try_call() {
+        use std::sync::{mpsc::channel, RwLock};
+
+        use pgrx::function_name;
+
+        use crate::{bgw::run::run_worker, ring_queue::RingQueue};
+
+        static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
+
+        // INIT
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let fn_name = "example";
+        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
+
+        Spi::run(&format!(
+            "CREATE TEMP TABLE {} (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );",
+            table_name
+        ))
+        .unwrap();
+
+        let state = Arc::new(Mutex::new(WorkerState::Master));
+        let (msg_sdr, msg_recv) = channel();
+        let (fetch_sdr, fetch_recv) = channel();
+        let (quit_sdr, quit_recv) = channel();
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+
+        let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
+        {
+            match msg_recv.recv().expect("Failed to get fetch") {
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
+                _ => {}
+            };
+            fetch_sdr
+                .send(fetch_subject_with_callbacks(table_name))
+                .unwrap();
+        }
+
+        // LOOP
+
+        pgnats_subscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
+
+        {
+            match msg_recv.recv().expect("Failed to get insert") {
+                InternalMockMessage::Insert(sub, callback) => {
+                    assert_eq!(sub, subject);
+                    assert_eq!(callback, fn_name);
+
+                    insert_subject_callback(table_name, &sub, &callback).unwrap();
+                }
+                InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Insert'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Insert'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Insert'"),
+            }
+        }
+
+        let subs = fetch_subject_with_callbacks(table_name).unwrap();
+        assert_eq!(subs[0].0, subject);
+        assert_eq!(subs[0].1, fn_name);
+
+        {
+            *state.lock().unwrap() = WorkerState::Slave;
+        }
+
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        api::nats_publish_text(subject, content.to_string()).unwrap();
+
+        {
+            assert!(matches!(
+                msg_recv.recv_timeout(std::time::Duration::from_secs(5)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ));
+        }
+
+        // FAKE SIGTERM
+
+        quit_sdr.send(()).unwrap();
+        assert!(handle.join().is_ok());
+    }
+
+    #[cfg(not(any(skip_pgnats_tests)))]
+    #[pg_test]
+    fn test_background_worker_try_sub_change_slave_to_master_call() {
+        use std::sync::{mpsc::channel, RwLock};
+
+        use pgrx::function_name;
+
+        use crate::{bgw::run::run_worker, ring_queue::RingQueue};
+
+        static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
+
+        // INIT
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let fn_name = "example";
+        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
+
+        Spi::run(&format!(
+            "CREATE TEMP TABLE {} (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );",
+            table_name
+        ))
+        .unwrap();
+
+        Spi::run(&format!(
+            "INSERT INTO {} (subject, callback) VALUES
+                ('{}', '{}');",
+            table_name, subject, fn_name
+        ))
+        .unwrap();
+
+        let state = Arc::new(Mutex::new(WorkerState::Slave));
+        let (msg_sdr, msg_recv) = channel();
+        let (fetch_sdr, fetch_recv) = channel();
+        let (quit_sdr, quit_recv) = channel();
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+
+        let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
+
+        {
+            assert!(matches!(
+                msg_recv.recv_timeout(std::time::Duration::from_secs(5)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ));
+        }
+
+        // LOOP
+
+        pgnats_subscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
+
+        {
+            assert!(matches!(
+                msg_recv.recv_timeout(std::time::Duration::from_secs(5)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ));
+        }
+
+        {
+            *state.lock().unwrap() = WorkerState::Master;
+        }
+
+        std::thread::sleep(std::time::Duration::from_secs(5));
+
+        {
+            match msg_recv.recv().expect("Failed to get fetch") {
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
+                _ => {}
+            };
+
+            let result = fetch_subject_with_callbacks(table_name).unwrap();
+            assert_eq!(result.len(), 1);
+            assert_eq!(result[0].0, subject);
+            assert_eq!(result[0].1, fn_name);
+
+            fetch_sdr.send(Ok(result)).unwrap();
+        }
 
         api::nats_publish_text(subject, content.to_string()).unwrap();
 

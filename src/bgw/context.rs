@@ -134,7 +134,7 @@ impl<T: Worker> WorkerContext<T> {
     pub fn check_migration(&mut self) {
         let state = self.worker.fetch_state();
 
-        match (state, self.state) {
+        match (self.state, state) {
             (WorkerState::Master, WorkerState::Slave) => {
                 let _ = self.nats_state.take();
                 self.state = WorkerState::Slave;
