@@ -201,6 +201,15 @@ mod tests {
         let subs = fetch_subject_with_callbacks(table_name).unwrap();
         assert_eq!(subs.len(), 0);
 
+        api::nats_publish_text(subject, content.to_string()).unwrap();
+
+        {
+            assert!(matches!(
+                msg_recv.recv_timeout(std::time::Duration::from_secs(1)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ));
+        }
+
         // FAKE SIGTERM
 
         quit_sdr.send(()).unwrap();
