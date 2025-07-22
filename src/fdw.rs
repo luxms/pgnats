@@ -1,4 +1,4 @@
-use pgrx::{pg_extern, pg_sys as sys, AllocatedByRust, PgBox};
+use pgrx::{extension_sql, pg_extern, pg_sys as sys, AllocatedByRust, PgBox};
 
 use crate::{
     config::parse_connection_options,
@@ -6,17 +6,17 @@ use crate::{
     worker_queue::{WorkerMessage, WORKER_MESSAGE_QUEUE},
 };
 
-// extension_sql!(
-//     r#"
-//     CREATE FOREIGN DATA WRAPPER nats_fdw HANDLER nats_fdw_handler VALIDATOR nats_fdw_validator;
-//     CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER nats_fdw OPTIONS (host 'localhost', port '4222');
-//     "#,
-//     name = "create_fdw",
-//     requires = [nats_fdw_handler, nats_fdw_validator]
-// );
+extension_sql!(
+    r#"
+    CREATE FOREIGN DATA WRAPPER pgnats_fdw HANDLER pgnats_fdw_handler VALIDATOR pgnats_fdw_validator;
+    -- CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (host 'localhost', port '4222');
+    "#,
+    name = "create_fdw",
+    requires = [pgnats_fdw_handler, pgnats_fdw_validator]
+);
 
 #[pg_extern]
-fn nats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
+fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
     if oid == sys::ForeignServerRelationId {
         let options = options
             .iter()
@@ -39,7 +39,7 @@ fn nats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
 }
 
 #[pg_extern]
-fn nats_fdw_handler() -> PgBox<sys::FdwRoutine, AllocatedByRust> {
+fn pgnats_fdw_handler() -> PgBox<sys::FdwRoutine, AllocatedByRust> {
     panic!("Not implemented")
     // let mut fdwroutine = unsafe {
     //     PgBox::<sys::FdwRoutine, AllocatedByRust>::alloc_node(sys::NodeTag::T_FdwRoutine)

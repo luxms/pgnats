@@ -68,8 +68,7 @@ The exported PostgreSQL API is implemented in the `api` module.
 
 ## 🧩 Extension Configuration
 
-- `nats.sub_dbname` - A database to which all queries from subscriptions will be directed (default: `pgnats`)
-- `nats.fdw_server_name` - A FDW server name that store NATS options (default: `nats_fdw_server`)
+- `pgnats.sub_dbname` - A database to which all queries from subscriptions will be directed (default: `pgnats`)
 
 ## 📘 Usage
 
@@ -78,14 +77,12 @@ The exported PostgreSQL API is implemented in the `api` module.
 ```sql
 -- Configuration
 ALTER SYSTEM SET nats.sub_dbname = 'postgres';
-ALTER DATABASE <database name> SET nats.fdw_server_name = 'nats_fdw_server';
 ```
 
-To configure the NATS connection, you need to create a FDW and a Foreign Server:
+To configure the NATS connection, you need to create a Foreign Server:
 
 ```sql
-CREATE FOREIGN DATA WRAPPER nats_fdw HANDLER nats_fdw_handler VALIDATOR nats_fdw_validator;
-CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER nats_fdw OPTIONS (
+CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (
     --  IP/hostname of the NATS message server (default: 127.0.0.1)
     host 'localhost',
 

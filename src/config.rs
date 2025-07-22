@@ -5,17 +5,15 @@ use std::{
     path::PathBuf,
 };
 
-use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting};
+use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting, PgTryBuilder, Spi};
 
 use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
 
-pub const CONFIG_SUB_DB_NAME: &CStr = c"nats.sub_dbname";
+pub const CONFIG_SUB_DB_NAME: &CStr = c"pgnats.sub_dbname";
 pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
     GucSetting::<Option<CString>>::new(Some(c"pgnats"));
 
-pub const CONFIG_FDW_SERVER_NAME: &CStr = c"nats.fdw_server_name";
-pub static GUC_FDW_SERVER_NAME: GucSetting<Option<CString>> =
-    GucSetting::<Option<CString>>::new(Some(c"nats_fdw_server"));
+pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
 
 pub fn init_guc() {
     GucRegistry::define_string_guc(
@@ -26,22 +24,21 @@ pub fn init_guc() {
         GucContext::Userset,
         GucFlags::default(),
     );
-
-    GucRegistry::define_string_guc(
-        CONFIG_FDW_SERVER_NAME,
-        c"A FDW server name that store NATS options",
-        c"A FDW server name that store NATS options",
-        &GUC_FDW_SERVER_NAME,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
 }
 
 #[cfg(not(feature = "pg_test"))]
 pub fn fetch_connection_options() -> NatsConnectionOptions {
+    use std::str::FromStr;
+
     let mut options = HashMap::new();
 
-    let Some(fdw_server_name) = GUC_FDW_SERVER_NAME.get() else {
+    let Some(fdw_server_name) = fetch_fdw_server_name(FDW_EXTENSION_NAME) else {
+        crate::warn!("Failed to get FDW server name");
+        return parse_connection_options(&options);
+    };
+
+    let Ok(fdw_server_name) = CString::from_str(&fdw_server_name) else {
+        crate::warn!("Failed to parse FDW server name");
         return parse_connection_options(&options);
     };
 
@@ -134,4 +131,24 @@ pub fn parse_connection_options(
         capacity,
         tls,
     }
+}
+
+fn fetch_fdw_server_name(fdw_name: &str) -> Option<String> {
+    PgTryBuilder::new(|| {
+        Spi::connect(|conn| {
+            let Ok(result) = conn.select(
+                "SELECT srv.srvname::text FROM pg_foreign_server srv JOIN pg_foreign_data_wrapper fdw ON srv.srvfdw = fdw.oid WHERE fdw.fdwname = $1;",
+                None,
+                &[fdw_name.into()],
+            ) else {
+                return None;
+            };
+
+            result.into_iter().filter_map(|tuple| {
+                tuple.get_by_name::<String, _>("srvname").ok().flatten()
+            }).next()
+        })
+    })
+    .catch_others(|_| None)
+    .execute()
 }
