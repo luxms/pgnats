@@ -1,6 +1,6 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    sync::{mpsc::Sender, Arc},
+    collections::{HashMap, HashSet, hash_map::Entry},
+    sync::{Arc, mpsc::Sender},
 };
 
 use futures::StreamExt;
@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 
 use crate::{
     bgw::{Worker, WorkerState},
-    config::{fetch_connection_options, Config},
+    config::{Config, fetch_connection_options},
     connection::{NatsConnectionOptions, NatsTlsOptions},
     debug, log,
     notification::{PgInstanceNotification, PgInstanceTransition},
@@ -140,42 +140,14 @@ impl<T: Worker> WorkerContext<T> {
         match (self.state, state) {
             (WorkerState::Master, WorkerState::Slave) => {
                 if let Some(nats) = self.nats_state.take() {
-                    if let Some(config) = &self.config {
-                        if let Some(notify_subject) = &config.notify_subject {
-                            if let Some(notification) =
-                                PgInstanceNotification::new(PgInstanceTransition::M2R)
-                                    .and_then(|n| serde_json::to_vec(&n).ok())
-                            {
-                                let subject = notify_subject.clone();
-                                let notification = notification.into();
-                                let _ =
-                                    self.rt.block_on(nats.client.publish(subject, notification));
-                            } else {
-                                warn!("Failed to create notification");
-                            }
-                        }
-                    }
+                    self.send_notification(&nats, PgInstanceTransition::M2R);
                 }
 
                 self.state = WorkerState::Slave;
             }
             (WorkerState::Slave, WorkerState::Master) => {
                 if let Some(nats) = &self.nats_state {
-                    if let Some(config) = &self.config {
-                        if let Some(notify_subject) = &config.notify_subject {
-                            if let Some(notification) =
-                                PgInstanceNotification::new(PgInstanceTransition::R2M)
-                                    .and_then(|n| serde_json::to_vec(&n).ok())
-                            {
-                                let subject = notify_subject.clone();
-                                let notification = notification.into();
-                                let _ =
-                                    self.rt.block_on(nats.client.publish(subject, notification));
-                            } else {
-                                warn!("Failed to create notification");
-                            }
-                        }
-                    }
+                    self.send_notification(nats, PgInstanceTransition::R2M);
                 }
 
                 let opt = self.worker.transaction(fetch_connection_options);
@@ -287,6 +259,24 @@ impl<T: Worker> WorkerContext<T> {
                 "Cannot subscribe to subject '{}': NATS connection not established",
                 subject
             );
+        }
+    }
+
+    fn send_notification(&self, nats: &NatsConnectionState, transition: PgInstanceTransition) {
+        if let Some(config) = &self.config
+            && let Some(notify_subject) = &config.notify_subject
+            && let Some(notification) = PgInstanceNotification::new(transition)
+            && let Ok(notification) = serde_json::to_vec(&notification)
+        {
+            let subject = notify_subject.clone();
+            let notification = notification.into();
+            let result = self.rt.block_on(nats.client.publish(subject, notification));
+
+            if let Err(err) = result {
+                warn!("Notification publish error: {}", err);
+            }
+        } else {
+            warn!("Failed to send notification about Postgres instance");
         }
     }
 }

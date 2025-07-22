@@ -1,7 +1,7 @@
 use anyhow::bail;
 use pgrx::{
-    bgworkers::{BackgroundWorker, SignalWakeFlags},
     PgTryBuilder, Spi,
+    bgworkers::{BackgroundWorker, SignalWakeFlags},
 };
 
 use crate::{
@@ -61,7 +61,7 @@ impl Worker for PostgresWorker {
         self.transaction(|| {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
-                    let sql = format!("SELECT subject, callback FROM {}", SUBSCRIPTIONS_TABLE_NAME);
+                    let sql = format!("SELECT subject, callback FROM {SUBSCRIPTIONS_TABLE_NAME}");
                     let tuples = client.select(&sql, None, &[])?;
                     let subject_callbacks: Vec<(String, String)> = tuples
                         .into_iter()
@@ -103,7 +103,7 @@ impl Worker for PostgresWorker {
         self.transaction(|| {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
-                    let sql = format!("INSERT INTO {} VALUES ($1, $2)", SUBSCRIPTIONS_TABLE_NAME);
+                    let sql = format!("INSERT INTO {SUBSCRIPTIONS_TABLE_NAME} VALUES ($1, $2)");
                     let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
 
                     log!(
@@ -133,8 +133,8 @@ impl Worker for PostgresWorker {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
                     let sql = format!(
-                        "DELETE FROM {} WHERE subject = $1 AND callback = $2",
-                        SUBSCRIPTIONS_TABLE_NAME
+                        "DELETE FROM {SUBSCRIPTIONS_TABLE_NAME} WHERE subject = $1 AND callback = $2",
+
                     );
                     let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
 
@@ -171,7 +171,7 @@ impl Worker for PostgresWorker {
         self.transaction(|| {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
-                    let sql = format!("SELECT {}($1)", callback);
+                    let sql = format!("SELECT {callback}($1)");
                     let _ = client.update(&sql, None, &[data.into()])?;
                     Ok(())
                 })
