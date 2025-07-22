@@ -2,7 +2,6 @@
 
 mod pg_tests;
 
-mod config;
 mod fdw;
 mod init;
 mod log;
@@ -17,6 +16,12 @@ mod utils;
 pub mod api;
 
 #[doc(hidden)]
+pub mod bgw;
+
+#[doc(hidden)]
+pub mod config;
+
+#[doc(hidden)]
 pub mod connection;
 
 #[doc(hidden)]
@@ -24,9 +29,6 @@ pub mod ctx;
 
 #[doc(hidden)]
 pub mod worker_queue;
-
-#[doc(hidden)]
-pub mod bgw;
 
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.

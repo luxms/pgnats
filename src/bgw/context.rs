@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 
 use crate::{
     bgw::{Worker, WorkerState},
-    config::fetch_connection_options,
+    config::{fetch_connection_options, Config},
     connection::{NatsConnectionOptions, NatsTlsOptions},
     debug, log, warn,
 };
@@ -36,7 +36,6 @@ struct NatsSubscription {
 }
 
 struct NatsConnectionState {
-    options: NatsConnectionOptions,
     client: async_nats::Client,
     subscriptions: HashMap<Arc<str>, NatsSubscription>,
 }
@@ -44,6 +43,7 @@ struct NatsConnectionState {
 pub struct WorkerContext<T> {
     rt: tokio::runtime::Runtime,
     sender: Sender<InternalWorkerMessage>,
+    config: Option<Config>,
     nats_state: Option<NatsConnectionState>,
     state: WorkerState,
     worker: T,
@@ -59,6 +59,7 @@ impl<T: Worker> WorkerContext<T> {
             rt,
             sender,
             nats_state: None,
+            config: None,
             state: worker.fetch_state(),
             worker,
         }
@@ -154,16 +155,18 @@ impl<T: Worker> WorkerContext<T> {
         &self.worker
     }
 
-    pub fn restore_state(&mut self, opt: NatsConnectionOptions) -> anyhow::Result<()> {
-        let state = self.nats_state.take();
-        if state.as_ref().map(|s| &s.options) != Some(&opt) {
-            let client = self.connect_nats(&opt)?;
+    pub fn restore_state(&mut self, config: Config) -> anyhow::Result<()> {
+        if self.config.as_ref().map(|s| &s.nats_opt) != Some(&config.nats_opt) {
+            let _ = self.nats_state.take();
+
+            let client = self.connect_nats(&config.nats_opt)?;
 
             self.nats_state = Some(NatsConnectionState {
-                options: opt,
                 client,
                 subscriptions: HashMap::new(),
             });
+
+            self.config = Some(config);
         }
 
         let subs = self.worker.fetch_subject_with_callbacks()?;

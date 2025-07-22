@@ -5,6 +5,7 @@ use std::{
     path::PathBuf,
 };
 
+use bincode::{Decode, Encode};
 use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting, PgTryBuilder, Spi};
 
 use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
@@ -14,6 +15,12 @@ pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
     GucSetting::<Option<CString>>::new(Some(c"pgnats"));
 
 pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+pub struct Config {
+    pub nats_opt: NatsConnectionOptions,
+    pub notify_subject: Option<String>,
+}
 
 pub fn init_guc() {
     GucRegistry::define_string_guc(
@@ -27,26 +34,26 @@ pub fn init_guc() {
 }
 
 #[cfg(not(feature = "pg_test"))]
-pub fn fetch_connection_options() -> NatsConnectionOptions {
+pub fn fetch_connection_options() -> Config {
     use std::str::FromStr;
 
     let mut options = HashMap::new();
 
     let Some(fdw_server_name) = fetch_fdw_server_name(FDW_EXTENSION_NAME) else {
         crate::warn!("Failed to get FDW server name");
-        return parse_connection_options(&options);
+        return parse_config(&options);
     };
 
     let Ok(fdw_server_name) = CString::from_str(&fdw_server_name) else {
         crate::warn!("Failed to parse FDW server name");
-        return parse_connection_options(&options);
+        return parse_config(&options);
     };
 
     unsafe {
         let server = pgrx::pg_sys::GetForeignServerByName(fdw_server_name.as_ptr(), true);
 
         if server.is_null() {
-            return parse_connection_options(&options);
+            return parse_config(&options);
         }
 
         let options_list = (*server).options;
@@ -81,17 +88,15 @@ pub fn fetch_connection_options() -> NatsConnectionOptions {
         }
     };
 
-    parse_connection_options(&options)
+    parse_config(&options)
 }
 
 #[cfg(feature = "pg_test")]
-pub fn fetch_connection_options() -> NatsConnectionOptions {
-    parse_connection_options(&HashMap::new())
+pub fn fetch_connection_options() -> Config {
+    parse_config(&HashMap::new())
 }
 
-pub fn parse_connection_options(
-    options: &HashMap<Cow<'_, str>, Cow<'_, str>>,
-) -> NatsConnectionOptions {
+pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
     let host = options
         .get("host")
         .map(|v| v.to_string())
@@ -125,11 +130,16 @@ pub fn parse_connection_options(
         None
     };
 
-    NatsConnectionOptions {
-        host,
-        port,
-        capacity,
-        tls,
+    let notify_subject = options.get("notify_subject").map(|v| v.to_string());
+
+    Config {
+        nats_opt: NatsConnectionOptions {
+            host,
+            port,
+            capacity,
+            tls,
+        },
+        notify_subject,
     }
 }
 

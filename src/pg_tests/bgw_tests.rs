@@ -11,6 +11,7 @@ mod tests {
     use crate::{
         api,
         bgw::{SharedQueue, Worker, WorkerState},
+        config::Config,
         connection::NatsConnectionOptions,
         log,
         worker_queue::WorkerMessage,
@@ -340,11 +341,14 @@ mod tests {
         // LOOP
 
         pgnats_bgw_reload_conf(
-            NatsConnectionOptions {
-                host: "fake address".to_string(),
-                port: 1333,
-                capacity: 128,
-                tls: None,
+            Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "fake address".to_string(),
+                    port: 1333,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
             },
             &SHARED_QUEUE,
         );
@@ -359,11 +363,14 @@ mod tests {
         }
 
         pgnats_bgw_reload_conf(
-            NatsConnectionOptions {
-                host: "localhost".to_string(),
-                port: 4222,
-                capacity: 128,
-                tls: None,
+            Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "localhost".to_string(),
+                    port: 4222,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
             },
             &SHARED_QUEUE,
         );
@@ -846,11 +853,11 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    fn pgnats_bgw_reload_conf<const N: usize, Q>(opt: NatsConnectionOptions, queue: &Q)
+    fn pgnats_bgw_reload_conf<const N: usize, Q>(opt: Config, queue: &Q)
     where
         Q: SharedQueue<N>,
     {
-        let msg = WorkerMessage::NewConnectionConfig(opt);
+        let msg = WorkerMessage::NewConfig(opt);
         let buf = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
 
         queue.unique().try_send(&buf).unwrap();

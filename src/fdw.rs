@@ -1,7 +1,7 @@
 use pgrx::{extension_sql, pg_extern, pg_sys as sys};
 
 use crate::{
-    config::parse_connection_options,
+    config::parse_config,
     error,
     worker_queue::{WorkerMessage, WORKER_MESSAGE_QUEUE},
 };
@@ -24,9 +24,9 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
 
-        let options = parse_connection_options(&options);
+        let options = parse_config(&options);
 
-        let msg = WorkerMessage::NewConnectionConfig(options);
+        let msg = WorkerMessage::NewConfig(options);
 
         if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
             if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {

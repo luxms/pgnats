@@ -14,7 +14,7 @@ use pgrx::warning;
 use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::{
-    config::fetch_connection_options,
+    config::{fetch_connection_options, Config},
     info,
     utils::{extract_headers, FromBytes, ToBytes},
 };
@@ -25,7 +25,7 @@ pub struct NatsConnection {
     jetstream: Option<Context>,
     cached_buckets: HashMap<String, Store>,
     cached_object_stores: HashMap<String, ObjectStore>,
-    current_config: Option<NatsConnectionOptions>,
+    current_config: Option<Config>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
@@ -49,9 +49,9 @@ pub struct NatsConnectionOptions {
 }
 
 impl NatsConnection {
-    pub fn new(opt: Option<NatsConnectionOptions>) -> Self {
+    pub fn new(config: Option<Config>) -> Self {
         Self {
-            current_config: opt,
+            current_config: config,
             ..Default::default()
         }
     }
@@ -159,25 +159,9 @@ impl NatsConnection {
             let config = &self.current_config;
             let fetched_config = fetch_connection_options();
 
-            let changed = config.as_ref() != Some(&fetched_config);
+            let changed = config.as_ref().map(|c| &c.nats_opt) != Some(&fetched_config.nats_opt);
 
             (changed, fetched_config)
-        };
-
-        if changed {
-            self.invalidate_connection().await;
-
-            self.current_config = Some(new_config);
-        }
-    }
-
-    pub async fn set_config(&mut self, opt: NatsConnectionOptions) {
-        let (changed, new_config) = {
-            let config = &self.current_config;
-
-            let changed = config.as_ref() != Some(&opt);
-
-            (changed, opt)
         };
 
         if changed {
@@ -289,11 +273,6 @@ impl NatsConnection {
 
         Ok(vec)
     }
-
-    pub async fn get_connection_options(&mut self) -> Option<NatsConnectionOptions> {
-        let _ = self.get_connection().await;
-        self.current_config.clone()
-    }
 }
 
 impl NatsConnection {
@@ -373,9 +352,9 @@ impl NatsConnection {
             .current_config
             .get_or_insert_with(fetch_connection_options);
 
-        let mut opts = async_nats::ConnectOptions::new().client_capacity(config.capacity);
+        let mut opts = async_nats::ConnectOptions::new().client_capacity(config.nats_opt.capacity);
 
-        if let Some(tls) = &config.tls {
+        if let Some(tls) = &config.nats_opt.tls {
             if let Ok(root) = std::env::current_dir() {
                 match tls {
                     NatsTlsOptions::Tls { ca } => {
@@ -399,7 +378,10 @@ impl NatsConnection {
         }
 
         let connection = opts
-            .connect(format!("{0}:{1}", config.host, config.port))
+            .connect(format!(
+                "{0}:{1}",
+                config.nats_opt.host, config.nats_opt.port
+            ))
             .await
             .inspect_err(|_| {
                 self.current_config = None;

@@ -99,7 +99,7 @@ fn process_shared_queue<const N: usize, Q: SharedQueue<N>, T: Worker>(
                     fn_name: Arc::from(fn_name.as_str()),
                 })?;
             }
-            WorkerMessage::NewConnectionConfig(opt) => {
+            WorkerMessage::NewConfig(opt) => {
                 log!("Handling NewConnectionConfig update");
 
                 if let Err(err) = ctx.restore_state(opt) {
