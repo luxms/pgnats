@@ -5,6 +5,7 @@ mod pg_tests;
 mod fdw;
 mod init;
 mod log;
+mod notification;
 mod ring_queue;
 mod utils;
 

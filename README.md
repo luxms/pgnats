@@ -99,8 +99,19 @@ CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (
     tls_cert_path '/path/cert',
 
     -- Path to the client private key corresponding to nats.tls.cert (default: unset; required if nats.tls.cert is set)
-    tls_key_path '/path/key'
+    tls_key_path '/path/key',
+
+    -- Name of the NATS subject for sending role change notifications (e.g., when the Postgres instance transitions between master and replica)
+    notify_subject 'my.subject'
 );
+```
+
+#### Notification body
+
+```
+{
+
+}
 ```
 
 ### 🔄 Reload configuration

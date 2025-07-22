@@ -10,7 +10,9 @@ use crate::{
     bgw::{Worker, WorkerState},
     config::{fetch_connection_options, Config},
     connection::{NatsConnectionOptions, NatsTlsOptions},
-    debug, log, warn,
+    debug, log,
+    notification::{PgInstanceNotification, PgInstanceTransition},
+    warn,
 };
 
 pub(super) enum InternalWorkerMessage {
@@ -137,10 +139,45 @@ impl<T: Worker> WorkerContext<T> {
 
         match (self.state, state) {
             (WorkerState::Master, WorkerState::Slave) => {
-                let _ = self.nats_state.take();
+                if let Some(nats) = self.nats_state.take() {
+                    if let Some(config) = &self.config {
+                        if let Some(notify_subject) = &config.notify_subject {
+                            if let Some(notification) =
+                                PgInstanceNotification::new(PgInstanceTransition::M2R)
+                                    .and_then(|n| serde_json::to_vec(&n).ok())
+                            {
+                                let subject = notify_subject.clone();
+                                let notification = notification.into();
+                                let _ =
+                                    self.rt.block_on(nats.client.publish(subject, notification));
+                            } else {
+                                warn!("Failed to create notification");
+                            }
+                        }
+                    }
+                }
+
                 self.state = WorkerState::Slave;
             }
             (WorkerState::Slave, WorkerState::Master) => {
+                if let Some(nats) = &self.nats_state {
+                    if let Some(config) = &self.config {
+                        if let Some(notify_subject) = &config.notify_subject {
+                            if let Some(notification) =
+                                PgInstanceNotification::new(PgInstanceTransition::R2M)
+                                    .and_then(|n| serde_json::to_vec(&n).ok())
+                            {
+                                let subject = notify_subject.clone();
+                                let notification = notification.into();
+                                let _ =
+                                    self.rt.block_on(nats.client.publish(subject, notification));
+                            } else {
+                                warn!("Failed to create notification");
+                            }
+                        }
+                    }
+                }
+
                 let opt = self.worker.transaction(fetch_connection_options);
                 if let Err(err) = self.restore_state(opt) {
                     warn!("Error during restoring state: {}", err);
