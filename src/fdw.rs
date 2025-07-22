@@ -1,4 +1,4 @@
-use pgrx::{extension_sql, pg_extern, pg_sys as sys, AllocatedByRust, PgBox};
+use pgrx::{extension_sql, pg_extern, pg_sys as sys};
 
 use crate::{
     config::parse_connection_options,
@@ -8,11 +8,11 @@ use crate::{
 
 extension_sql!(
     r#"
-    CREATE FOREIGN DATA WRAPPER pgnats_fdw HANDLER pgnats_fdw_handler VALIDATOR pgnats_fdw_validator;
+    CREATE FOREIGN DATA WRAPPER pgnats_fdw VALIDATOR pgnats_fdw_validator;
     -- CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (host 'localhost', port '4222');
     "#,
     name = "create_fdw",
-    requires = [pgnats_fdw_handler, pgnats_fdw_validator]
+    requires = [pgnats_fdw_validator]
 );
 
 #[pg_extern]
@@ -38,23 +38,22 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
     }
 }
 
-#[pg_extern]
-fn pgnats_fdw_handler() -> PgBox<sys::FdwRoutine, AllocatedByRust> {
-    panic!("Not implemented")
-    // let mut fdwroutine = unsafe {
-    //     PgBox::<sys::FdwRoutine, AllocatedByRust>::alloc_node(sys::NodeTag::T_FdwRoutine)
-    // };
+// #[pg_extern]
+// fn pgnats_fdw_handler() -> PgBox<sys::FdwRoutine, AllocatedByRust> {
+//     let mut fdwroutine = unsafe {
+//         PgBox::<sys::FdwRoutine, AllocatedByRust>::alloc_node(sys::NodeTag::T_FdwRoutine)
+//     };
 
-    // fdwroutine.GetForeignRelSize = Some(nats_get_foreign_rel_size);
-    // fdwroutine.GetForeignPaths = Some(nats_get_foreign_paths);
-    // fdwroutine.GetForeignPlan = Some(nats_get_foreign_plan);
-    // fdwroutine.BeginForeignScan = Some(nats_begin_foreign_scan);
-    // fdwroutine.IterateForeignScan = Some(nats_iterate_foreign_scan);
-    // fdwroutine.ReScanForeignScan = Some(nats_re_scan_foreign_scan);
-    // fdwroutine.EndForeignScan = Some(nats_end_foreign_scan);
+//     fdwroutine.GetForeignRelSize = Some(nats_get_foreign_rel_size);
+//     fdwroutine.GetForeignPaths = Some(nats_get_foreign_paths);
+//     fdwroutine.GetForeignPlan = Some(nats_get_foreign_plan);
+//     fdwroutine.BeginForeignScan = Some(nats_begin_foreign_scan);
+//     fdwroutine.IterateForeignScan = Some(nats_iterate_foreign_scan);
+//     fdwroutine.ReScanForeignScan = Some(nats_re_scan_foreign_scan);
+//     fdwroutine.EndForeignScan = Some(nats_end_foreign_scan);
 
-    // fdwroutine
-}
+//     fdwroutine
+// }
 
 /*#[pg_guard]
 unsafe extern "C-unwind" fn nats_get_foreign_rel_size(
