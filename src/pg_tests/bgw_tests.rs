@@ -17,6 +17,7 @@ mod tests {
         config::{Config, parse_config},
         connection::NatsConnectionOptions,
         log,
+        notification::{PgInstanceNotification, PgInstanceTransition},
         worker_queue::WorkerMessage,
     };
 
@@ -31,6 +32,7 @@ mod tests {
     struct MockWorker {
         msg_bus: Sender<InternalMockMessage>,
         fetch_recv: Receiver<anyhow::Result<Vec<(String, String)>>>,
+        notification_recv: Receiver<Option<PgInstanceNotification>>,
         quit_recv: Receiver<()>,
         state: Arc<Mutex<WorkerState>>,
         notify_subject: Option<String>,
@@ -40,6 +42,7 @@ mod tests {
         pub fn new(
             msg_bus: Sender<InternalMockMessage>,
             fetch_recv: Receiver<anyhow::Result<Vec<(String, String)>>>,
+            notification_recv: Receiver<Option<PgInstanceNotification>>,
             quit_recv: Receiver<()>,
             state: Arc<Mutex<WorkerState>>,
             notify_subject: Option<String>,
@@ -47,6 +50,7 @@ mod tests {
             Self {
                 msg_bus,
                 fetch_recv,
+                notification_recv,
                 quit_recv,
                 state,
                 notify_subject,
@@ -66,7 +70,9 @@ mod tests {
 
         fn fetch_subject_with_callbacks(&self) -> anyhow::Result<Vec<(String, String)>> {
             self.msg_bus.send(InternalMockMessage::Fetch).unwrap();
-            self.fetch_recv.recv().unwrap()
+            self.fetch_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap()
         }
 
         fn insert_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()> {
@@ -109,6 +115,12 @@ mod tests {
                 parse_config(&HashMap::new())
             }
         }
+
+        fn make_notification(&self, _: PgInstanceTransition) -> Option<PgInstanceNotification> {
+            self.notification_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap()
+        }
     }
 
     #[cfg(not(any(skip_pgnats_tests)))]
@@ -141,12 +153,23 @@ mod tests {
         let state = Arc::new(Mutex::new(WorkerState::Master));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
+        let (_, notification_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            None,
+        );
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -162,7 +185,10 @@ mod tests {
         pgnats_subscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get insert") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get insert")
+            {
                 InternalMockMessage::Insert(sub, callback) => {
                     assert_eq!(sub, subject);
                     assert_eq!(callback, fn_name);
@@ -182,7 +208,10 @@ mod tests {
         api::nats_publish_text(subject, content.to_string()).unwrap();
 
         {
-            match msg_recv.recv().expect("Failed to get call") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get call")
+            {
                 InternalMockMessage::Call(callback, data) => {
                     assert_eq!(callback, fn_name);
                     assert_eq!(data, content.as_bytes());
@@ -198,7 +227,10 @@ mod tests {
         pgnats_unsubscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get delete") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get delete")
+            {
                 InternalMockMessage::Delete(sub, callback) => {
                     assert_eq!(sub, subject);
                     assert_eq!(callback, fn_name);
@@ -267,13 +299,24 @@ mod tests {
         let state = Arc::new(Mutex::new(WorkerState::Master));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
+        let (_, notification_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            None,
+        );
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -334,13 +377,24 @@ mod tests {
         let state = Arc::new(Mutex::new(WorkerState::Master));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
+        let (_, notification_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            None,
+        );
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -390,7 +444,10 @@ mod tests {
         );
 
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -405,7 +462,10 @@ mod tests {
         pgnats_subscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get insert") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get insert")
+            {
                 InternalMockMessage::Insert(sub, callback) => {
                     assert_eq!(sub, subject);
                     assert_eq!(callback, fn_name);
@@ -425,7 +485,10 @@ mod tests {
         api::nats_publish_text(subject, content.to_string()).unwrap();
 
         {
-            match msg_recv.recv().expect("Failed to get call") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get call")
+            {
                 InternalMockMessage::Call(callback, data) => {
                     assert_eq!(callback, fn_name);
                     assert_eq!(data, content.as_bytes());
@@ -475,13 +538,24 @@ mod tests {
         let state = Arc::new(Mutex::new(WorkerState::Master));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
+        let (_, notification_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            None,
+        );
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -496,7 +570,10 @@ mod tests {
         pgnats_subscribe(subject1.to_string(), fn_name.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get insert") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get insert")
+            {
                 InternalMockMessage::Insert(sub, callback) => {
                     assert_eq!(sub, subject1);
                     assert_eq!(callback, fn_name);
@@ -512,7 +589,10 @@ mod tests {
         pgnats_subscribe(subject2.to_string(), fn_name.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get insert") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get insert")
+            {
                 InternalMockMessage::Insert(sub, callback) => {
                     assert_eq!(sub, subject2);
                     assert_eq!(callback, fn_name);
@@ -544,7 +624,10 @@ mod tests {
         api::nats_publish_text(&subject1, content.to_string()).unwrap();
 
         {
-            match msg_recv.recv().expect("Failed to get call") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get call")
+            {
                 InternalMockMessage::Call(callback, data) => {
                     assert_eq!(callback, fn_name);
                     assert_eq!(data, content.as_bytes());
@@ -594,13 +677,24 @@ mod tests {
         let state = Arc::new(Mutex::new(WorkerState::Master));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
+        let (_, notification_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            None,
+        );
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -615,7 +709,10 @@ mod tests {
         pgnats_subscribe(subject.to_string(), fn_name1.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get insert") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get insert")
+            {
                 InternalMockMessage::Insert(sub, callback) => {
                     assert_eq!(sub, subject);
                     assert_eq!(callback, fn_name1);
@@ -631,7 +728,10 @@ mod tests {
         pgnats_subscribe(subject.to_string(), fn_name2.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get insert") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get insert")
+            {
                 InternalMockMessage::Insert(sub, callback) => {
                     assert_eq!(sub, subject);
                     assert_eq!(callback, fn_name2);
@@ -663,7 +763,10 @@ mod tests {
         api::nats_publish_text(&subject, content.to_string()).unwrap();
 
         {
-            match msg_recv.recv().expect("Failed to get call") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get call")
+            {
                 InternalMockMessage::Call(callback, data) => {
                     assert!(callback == fn_name1 || callback == fn_name2);
                     assert_eq!(data, content.as_bytes());
@@ -712,12 +815,23 @@ mod tests {
         let state = Arc::new(Mutex::new(WorkerState::Master));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
+        let (_, notification_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            None,
+        );
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -733,7 +847,10 @@ mod tests {
         pgnats_subscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
 
         {
-            match msg_recv.recv().expect("Failed to get insert") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get insert")
+            {
                 InternalMockMessage::Insert(sub, callback) => {
                     assert_eq!(sub, subject);
                     assert_eq!(callback, fn_name);
@@ -808,8 +925,16 @@ mod tests {
         let state = Arc::new(Mutex::new(WorkerState::Slave));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
+        let (_, notification_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            None,
+        );
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
@@ -838,7 +963,10 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_secs(5));
 
         {
-            match msg_recv.recv().expect("Failed to get fetch") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
                 InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
                 InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
                 InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
@@ -856,7 +984,10 @@ mod tests {
         api::nats_publish_text(subject, content.to_string()).unwrap();
 
         {
-            match msg_recv.recv().expect("Failed to get call") {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get call")
+            {
                 InternalMockMessage::Call(callback, data) => {
                     assert_eq!(callback, fn_name);
                     assert_eq!(data, content.as_bytes());
@@ -871,6 +1002,125 @@ mod tests {
 
         // FAKE SIGTERM
 
+        quit_sdr.send(()).unwrap();
+        assert!(handle.join().is_ok());
+    }
+
+    #[cfg(not(any(skip_pgnats_tests)))]
+    #[pg_test]
+    fn test_background_worker_m2r() {
+        use std::sync::{RwLock, mpsc::channel};
+
+        use pgrx::function_name;
+
+        use crate::{bgw::run::run_worker, ring_queue::RingQueue};
+
+        static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
+
+        // INIT
+        let table_name = function_name!().split("::").last().unwrap();
+        let notify_subject = table_name;
+
+        Spi::run(&format!(
+            "CREATE TEMP TABLE {} (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );",
+            table_name
+        ))
+        .unwrap();
+
+        let state = Arc::new(Mutex::new(WorkerState::Master));
+        let (msg_sdr, msg_recv) = channel();
+        let (fetch_sdr, fetch_recv) = channel();
+        let (notification_sdr, notification_recv) = channel();
+        let (quit_sdr, quit_recv) = channel();
+        let worker = MockWorker::new(
+            msg_sdr,
+            fetch_recv,
+            notification_recv,
+            quit_recv,
+            state.clone(),
+            Some(notify_subject.to_string()),
+        );
+
+        let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
+
+        {
+            match msg_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("Failed to get fetch")
+            {
+                InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
+                InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
+                InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
+                _ => {}
+            };
+            fetch_sdr
+                .send(fetch_subject_with_callbacks(table_name))
+                .unwrap();
+        }
+
+        let (sub_sdr, sub_recv) = channel();
+        let (start_sub_sdr, start_sub_recv) = channel();
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to initialize Tokio runtime");
+
+        let sub_handle = rt.spawn(async move {
+            use crate::notification::PgInstanceNotification;
+
+            async fn run(
+                start_sub_sdr: Sender<()>,
+                subject: String,
+            ) -> anyhow::Result<PgInstanceNotification> {
+                use futures::StreamExt;
+
+                let client = async_nats::connect("127.0.0.1:4222").await?;
+
+                let mut sub = client.subscribe(subject).await?;
+
+                start_sub_sdr.send(()).unwrap();
+
+                if let Some(msg) = sub.next().await {
+                    let value = serde_json::from_slice(&msg.payload)?;
+                    Ok(value)
+                } else {
+                    Err(anyhow::anyhow!("Subscription is broken"))
+                }
+            }
+
+            let _ = sub_sdr.send(run(start_sub_sdr, notify_subject.to_string()).await);
+        });
+
+        start_sub_recv
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .unwrap();
+
+        // LOOP
+
+        {
+            *state.lock().unwrap() = WorkerState::Slave;
+            notification_sdr
+                .send(PgInstanceNotification::new(PgInstanceTransition::M2R))
+                .unwrap();
+        }
+
+        {
+            let message = sub_recv
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap()
+                .unwrap();
+
+            assert!(message.listen_addresses.len() > 0);
+            assert_eq!(message.transition, PgInstanceTransition::M2R);
+        }
+
+        // FAKE SIGTERM
+
+        sub_handle.abort();
         quit_sdr.send(()).unwrap();
         assert!(handle.join().is_ok());
     }

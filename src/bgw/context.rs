@@ -11,7 +11,7 @@ use crate::{
     config::Config,
     connection::{NatsConnectionOptions, NatsTlsOptions},
     debug, log,
-    notification::{PgInstanceNotification, PgInstanceTransition},
+    notification::PgInstanceTransition,
     warn,
 };
 
@@ -40,6 +40,14 @@ struct NatsSubscription {
 struct NatsConnectionState {
     client: async_nats::Client,
     subscriptions: HashMap<Arc<str>, NatsSubscription>,
+}
+
+impl Drop for NatsConnectionState {
+    fn drop(&mut self) {
+        for (_, sub) in std::mem::take(&mut self.subscriptions) {
+            sub.handler.abort();
+        }
+    }
 }
 
 pub struct WorkerContext<T> {
@@ -265,12 +273,18 @@ impl<T: Worker> WorkerContext<T> {
     fn send_notification(&self, nats: &NatsConnectionState, transition: PgInstanceTransition) {
         if let Some(config) = &self.config
             && let Some(notify_subject) = &config.notify_subject
-            && let Some(notification) = PgInstanceNotification::new(transition)
+            && let Some(notification) = self.worker.make_notification(transition)
             && let Ok(notification) = serde_json::to_vec(&notification)
         {
             let subject = notify_subject.clone();
             let notification = notification.into();
-            let result = self.rt.block_on(nats.client.publish(subject, notification));
+
+            let result: anyhow::Result<()> = self.rt.block_on(async {
+                nats.client.publish(subject, notification).await?;
+                nats.client.flush().await?;
+
+                Ok(())
+            });
 
             if let Err(err) = result {
                 warn!("Notification publish error: {}", err);
@@ -343,10 +357,10 @@ impl<T> WorkerContext<T> {
     }
 }
 
-impl Drop for NatsConnectionState {
+impl<T> Drop for WorkerContext<T> {
     fn drop(&mut self) {
-        for (_, sub) in std::mem::take(&mut self.subscriptions) {
-            sub.handler.abort();
+        if let Some(nats) = self.nats_state.take() {
+            let _ = self.rt.block_on(nats.client.drain());
         }
     }
 }

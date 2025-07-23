@@ -1,6 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{config::Config, ring_queue::RingQueue};
+use crate::{
+    config::Config,
+    notification::{PgInstanceNotification, PgInstanceTransition},
+    ring_queue::RingQueue,
+};
 
 mod context;
 
@@ -19,11 +23,15 @@ pub trait Worker {
     fn wait(&self, duration: std::time::Duration) -> bool;
 
     fn fetch_state(&self) -> WorkerState;
+    fn fetch_config(&self) -> Config;
+
     fn fetch_subject_with_callbacks(&self) -> anyhow::Result<Vec<(String, String)>>;
     fn insert_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()>;
     fn delete_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()>;
     fn call_function(&self, callback: &str, data: &[u8]) -> anyhow::Result<()>;
-    fn fetch_config(&self) -> Config;
+
+    fn make_notification(&self, transition: PgInstanceTransition)
+    -> Option<PgInstanceNotification>;
 }
 
 pub trait SharedQueue<const N: usize> {

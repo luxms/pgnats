@@ -9,6 +9,7 @@ use crate::{
     config::{Config, GUC_SUB_DB_NAME, fetch_config},
     init::SUBSCRIPTIONS_TABLE_NAME,
     log,
+    notification::{PgInstanceNotification, PgInstanceTransition},
     ring_queue::RingQueue,
 };
 
@@ -184,6 +185,13 @@ impl Worker for PostgresWorker {
 
     fn fetch_config(&self) -> Config {
         BackgroundWorker::transaction(|| fetch_config())
+    }
+
+    fn make_notification(
+        &self,
+        transition: PgInstanceTransition,
+    ) -> Option<PgInstanceNotification> {
+        PgInstanceNotification::new(transition)
     }
 }
 
