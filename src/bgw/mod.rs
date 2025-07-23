@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::ring_queue::RingQueue;
+use crate::{config::Config, ring_queue::RingQueue};
 
 mod context;
 
@@ -16,11 +16,6 @@ pub enum WorkerState {
 }
 
 pub trait Worker {
-    fn transaction<F: FnOnce() -> R + std::panic::UnwindSafe + std::panic::RefUnwindSafe, R>(
-        &self,
-        body: F,
-    ) -> R;
-
     fn wait(&self, duration: std::time::Duration) -> bool;
 
     fn fetch_state(&self) -> WorkerState;
@@ -28,6 +23,7 @@ pub trait Worker {
     fn insert_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()>;
     fn delete_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()>;
     fn call_function(&self, callback: &str, data: &[u8]) -> anyhow::Result<()>;
+    fn fetch_config(&self) -> Config;
 }
 
 pub trait SharedQueue<const N: usize> {

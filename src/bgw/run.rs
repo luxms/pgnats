@@ -1,14 +1,13 @@
 use std::sync::{
-    mpsc::{channel, Sender},
     Arc,
+    mpsc::{Sender, channel},
 };
 
 use crate::{
     bgw::{
-        context::{InternalWorkerMessage, WorkerContext},
         SharedQueue, Worker,
+        context::{InternalWorkerMessage, WorkerContext},
     },
-    config::fetch_connection_options,
     debug, log, warn,
     worker_queue::WorkerMessage,
 };
@@ -27,7 +26,8 @@ pub fn run_worker<const N: usize, W: Worker, L: SharedQueue<N>>(
     let mut ctx = WorkerContext::new(rt, msg_sender.clone(), worker);
 
     if ctx.is_master() {
-        let opt = ctx.worker().transaction(fetch_connection_options);
+        let opt = ctx.worker().fetch_config();
+
         if let Err(error) = ctx.restore_state(opt) {
             warn!("Error restoring state: {}", error);
         }

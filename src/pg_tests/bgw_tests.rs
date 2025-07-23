@@ -1,17 +1,20 @@
 #[cfg(any(test, feature = "pg_test"))]
 #[pgrx::prelude::pg_schema]
 mod tests {
-    use std::sync::{
-        mpsc::{Receiver, Sender},
-        Arc, Mutex,
+    use std::{
+        collections::HashMap,
+        sync::{
+            Arc, Mutex,
+            mpsc::{Receiver, Sender},
+        },
     };
 
-    use pgrx::{pg_test, PgTryBuilder, Spi};
+    use pgrx::{PgTryBuilder, Spi, pg_test};
 
     use crate::{
         api,
         bgw::{SharedQueue, Worker, WorkerState},
-        config::Config,
+        config::{Config, parse_config},
         connection::NatsConnectionOptions,
         log,
         worker_queue::WorkerMessage,
@@ -30,6 +33,7 @@ mod tests {
         fetch_recv: Receiver<anyhow::Result<Vec<(String, String)>>>,
         quit_recv: Receiver<()>,
         state: Arc<Mutex<WorkerState>>,
+        notify_subject: Option<String>,
     }
 
     impl MockWorker {
@@ -38,24 +42,19 @@ mod tests {
             fetch_recv: Receiver<anyhow::Result<Vec<(String, String)>>>,
             quit_recv: Receiver<()>,
             state: Arc<Mutex<WorkerState>>,
+            notify_subject: Option<String>,
         ) -> Self {
             Self {
                 msg_bus,
                 fetch_recv,
                 quit_recv,
                 state,
+                notify_subject,
             }
         }
     }
 
     impl Worker for MockWorker {
-        fn transaction<F: FnOnce() -> R + std::panic::UnwindSafe + std::panic::RefUnwindSafe, R>(
-            &self,
-            body: F,
-        ) -> R {
-            body()
-        }
-
         fn wait(&self, duration: std::time::Duration) -> bool {
             std::thread::sleep(duration);
             self.quit_recv.try_recv().is_err()
@@ -99,12 +98,23 @@ mod tests {
                 .unwrap();
             Ok(())
         }
+
+        fn fetch_config(&self) -> Config {
+            if let Some(notify_subject) = &self.notify_subject {
+                parse_config(&HashMap::from_iter([(
+                    "notify_subject".into(),
+                    notify_subject.into(),
+                )]))
+            } else {
+                parse_config(&HashMap::new())
+            }
+        }
     }
 
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_sub_call_unsub_call() {
-        use std::sync::{mpsc::channel, RwLock};
+        use std::sync::{RwLock, mpsc::channel};
 
         use pgrx::function_name;
 
@@ -132,7 +142,7 @@ mod tests {
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
         {
@@ -222,7 +232,7 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_restore_after_restart() {
-        use std::sync::{mpsc::channel, RwLock};
+        use std::sync::{RwLock, mpsc::channel};
 
         use pgrx::function_name;
 
@@ -258,7 +268,7 @@ mod tests {
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
@@ -273,14 +283,18 @@ mod tests {
             let result = fetch_subject_with_callbacks(table_name).unwrap();
 
             assert_eq!(result.len(), 2);
-            assert!(result
-                .iter()
-                .find(|(sub, call)| sub == &subject1 && call == fn_name)
-                .is_some());
-            assert!(result
-                .iter()
-                .find(|(sub, call)| sub == &subject2 && call == fn_name)
-                .is_some());
+            assert!(
+                result
+                    .iter()
+                    .find(|(sub, call)| sub == &subject1 && call == fn_name)
+                    .is_some()
+            );
+            assert!(
+                result
+                    .iter()
+                    .find(|(sub, call)| sub == &subject2 && call == fn_name)
+                    .is_some()
+            );
             fetch_sdr.send(Ok(result)).unwrap();
         }
 
@@ -293,7 +307,7 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_changed_fdw_config() {
-        use std::sync::{mpsc::channel, RwLock};
+        use std::sync::{RwLock, mpsc::channel};
 
         use pgrx::function_name;
 
@@ -321,7 +335,7 @@ mod tests {
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
@@ -433,7 +447,7 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_different_subject_sub_call() {
-        use std::sync::{mpsc::channel, RwLock};
+        use std::sync::{RwLock, mpsc::channel};
 
         use pgrx::function_name;
 
@@ -462,7 +476,7 @@ mod tests {
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
@@ -514,14 +528,18 @@ mod tests {
         let result = fetch_subject_with_callbacks(table_name).unwrap();
 
         assert_eq!(result.len(), 2);
-        assert!(result
-            .iter()
-            .find(|(sub, call)| sub == &subject1 && call == fn_name)
-            .is_some());
-        assert!(result
-            .iter()
-            .find(|(sub, call)| sub == &subject2 && call == fn_name)
-            .is_some());
+        assert!(
+            result
+                .iter()
+                .find(|(sub, call)| sub == &subject1 && call == fn_name)
+                .is_some()
+        );
+        assert!(
+            result
+                .iter()
+                .find(|(sub, call)| sub == &subject2 && call == fn_name)
+                .is_some()
+        );
 
         api::nats_publish_text(&subject1, content.to_string()).unwrap();
 
@@ -548,7 +566,7 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_same_subject_sub_call() {
-        use std::sync::{mpsc::channel, RwLock};
+        use std::sync::{RwLock, mpsc::channel};
 
         use pgrx::function_name;
 
@@ -577,7 +595,7 @@ mod tests {
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 
@@ -629,14 +647,18 @@ mod tests {
         let result = fetch_subject_with_callbacks(table_name).unwrap();
 
         assert_eq!(result.len(), 2);
-        assert!(result
-            .iter()
-            .find(|(sub, call)| sub == &subject && call == fn_name1)
-            .is_some());
-        assert!(result
-            .iter()
-            .find(|(sub, call)| sub == &subject && call == fn_name2)
-            .is_some());
+        assert!(
+            result
+                .iter()
+                .find(|(sub, call)| sub == &subject && call == fn_name1)
+                .is_some()
+        );
+        assert!(
+            result
+                .iter()
+                .find(|(sub, call)| sub == &subject && call == fn_name2)
+                .is_some()
+        );
 
         api::nats_publish_text(&subject, content.to_string()).unwrap();
 
@@ -663,7 +685,7 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_sub_change_master_to_slave_try_call() {
-        use std::sync::{mpsc::channel, RwLock};
+        use std::sync::{RwLock, mpsc::channel};
 
         use pgrx::function_name;
 
@@ -691,7 +713,7 @@ mod tests {
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
         {
@@ -752,7 +774,7 @@ mod tests {
     #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_try_sub_change_slave_to_master_call() {
-        use std::sync::{mpsc::channel, RwLock};
+        use std::sync::{RwLock, mpsc::channel};
 
         use pgrx::function_name;
 
@@ -787,7 +809,7 @@ mod tests {
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (quit_sdr, quit_recv) = channel();
-        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone());
+        let worker = MockWorker::new(msg_sdr, fetch_recv, quit_recv, state.clone(), None);
 
         let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
 

@@ -4,15 +4,15 @@ use std::{
     net::TcpStream,
 };
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PgInstanceTransition {
     M2R,
     R2M,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PgInstanceNotification {
     pub transition: PgInstanceTransition,
     pub listen_addresses: Vec<String>,
@@ -54,23 +54,16 @@ fn fetch_config_option(name: &CStr) -> Option<String> {
 }
 
 fn try_fetch_patroni_name() -> Option<String> {
-    let mut stream =
-        TcpStream::connect("127.0.0.1:8008").expect("Failed to connect to localhost:8008");
+    let mut stream = TcpStream::connect("127.0.0.1:8008").ok()?;
 
     let request = b"GET /patroni HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    stream.write_all(request).expect("Failed to write request");
-
+    stream.write_all(request).ok()?;
     let mut response = String::new();
-    let _ = stream
-        .read_to_string(&mut response)
-        .expect("Failed to read response");
+    let _ = stream.read_to_string(&mut response).ok()?;
 
-    let body = response
-        .split("\r\n\r\n")
-        .nth(1)
-        .expect("Invalid HTTP response");
+    let body = response.split("\r\n\r\n").nth(1)?;
 
-    let json: serde_json::Value = serde_json::from_str(body).expect("Failed to parse JSON");
+    let json: serde_json::Value = serde_json::from_str(body).ok()?;
 
     json.get("patroni")
         .and_then(|p| p.get("name"))

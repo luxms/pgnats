@@ -6,7 +6,7 @@ use pgrx::{
 
 use crate::{
     bgw::{SharedQueue, Worker, WorkerState},
-    config::GUC_SUB_DB_NAME,
+    config::{Config, GUC_SUB_DB_NAME, fetch_config},
     init::SUBSCRIPTIONS_TABLE_NAME,
     log,
     ring_queue::RingQueue,
@@ -38,13 +38,6 @@ impl PostgresWorker {
 }
 
 impl Worker for PostgresWorker {
-    fn transaction<F: FnOnce() -> R + std::panic::UnwindSafe + std::panic::RefUnwindSafe, R>(
-        &self,
-        body: F,
-    ) -> R {
-        BackgroundWorker::transaction(body)
-    }
-
     fn wait(&self, duration: std::time::Duration) -> bool {
         BackgroundWorker::wait_latch(Some(duration))
     }
@@ -58,7 +51,7 @@ impl Worker for PostgresWorker {
     }
 
     fn fetch_subject_with_callbacks(&self) -> anyhow::Result<Vec<(String, String)>> {
-        self.transaction(|| {
+        BackgroundWorker::transaction(|| {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
                     let sql = format!("SELECT subject, callback FROM {SUBSCRIPTIONS_TABLE_NAME}");
@@ -100,7 +93,7 @@ impl Worker for PostgresWorker {
     }
 
     fn insert_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()> {
-        self.transaction(|| {
+        BackgroundWorker::transaction(|| {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
                     let sql = format!("INSERT INTO {SUBSCRIPTIONS_TABLE_NAME} VALUES ($1, $2)");
@@ -129,7 +122,7 @@ impl Worker for PostgresWorker {
     }
 
     fn delete_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()> {
-        self.transaction(|| {
+        BackgroundWorker::transaction(|| {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
                     let sql = format!(
@@ -168,7 +161,7 @@ impl Worker for PostgresWorker {
             return Err(anyhow::anyhow!("Invalid callback function name"));
         }
 
-        self.transaction(|| {
+        BackgroundWorker::transaction(|| {
             PgTryBuilder::new(|| {
                 Spi::connect_mut(|client| {
                     let sql = format!("SELECT {callback}($1)");
@@ -187,6 +180,10 @@ impl Worker for PostgresWorker {
             })
             .execute()
         })
+    }
+
+    fn fetch_config(&self) -> Config {
+        BackgroundWorker::transaction(|| fetch_config())
     }
 }
 

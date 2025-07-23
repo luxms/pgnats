@@ -1,12 +1,12 @@
 use std::{collections::HashMap, io::Cursor, path::PathBuf, time::Duration};
 
 use async_nats::{
+    Client, Request,
     jetstream::{
+        Context,
         kv::Store,
         object_store::{ObjectInfo, ObjectStore},
-        Context,
     },
-    Client, Request,
 };
 use bincode::{Decode, Encode};
 use futures::StreamExt;
@@ -14,9 +14,9 @@ use pgrx::warning;
 use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::{
-    config::{fetch_connection_options, Config},
+    config::{Config, fetch_config},
     info,
-    utils::{extract_headers, FromBytes, ToBytes},
+    utils::{FromBytes, ToBytes, extract_headers},
 };
 
 #[derive(Default)]
@@ -157,7 +157,7 @@ impl NatsConnection {
     pub async fn check_and_invalidate_connection(&mut self) {
         let (changed, new_config) = {
             let config = &self.current_config;
-            let fetched_config = fetch_connection_options();
+            let fetched_config = fetch_config();
 
             let changed = config.as_ref().map(|c| &c.nats_opt) != Some(&fetched_config.nats_opt);
 
@@ -348,9 +348,7 @@ impl NatsConnection {
     }
 
     async fn initialize_connection(&mut self) -> anyhow::Result<()> {
-        let config = self
-            .current_config
-            .get_or_insert_with(fetch_connection_options);
+        let config = self.current_config.get_or_insert_with(fetch_config);
 
         let mut opts = async_nats::ConnectOptions::new().client_capacity(config.nats_opt.capacity);
 

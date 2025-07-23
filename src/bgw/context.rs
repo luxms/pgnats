@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 
 use crate::{
     bgw::{Worker, WorkerState},
-    config::{Config, fetch_connection_options},
+    config::Config,
     connection::{NatsConnectionOptions, NatsTlsOptions},
     debug, log,
     notification::{PgInstanceNotification, PgInstanceTransition},
@@ -150,7 +150,7 @@ impl<T: Worker> WorkerContext<T> {
                     self.send_notification(nats, PgInstanceTransition::R2M);
                 }
 
-                let opt = self.worker.transaction(fetch_connection_options);
+                let opt = self.worker.fetch_config();
                 if let Err(err) = self.restore_state(opt) {
                     warn!("Error during restoring state: {}", err);
                 }

@@ -6,9 +6,9 @@ mod nats_tests {
         connection::{NatsConnection, NatsConnectionOptions, NatsTlsOptions},
     };
     use testcontainers::{
+        ContainerAsync, GenericImage, ImageExt,
         core::{ContainerPort, Mount, WaitFor},
         runners::AsyncRunner,
-        ContainerAsync, GenericImage, ImageExt,
     };
 
     const TEST_STORE: &str = "test-store";

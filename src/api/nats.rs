@@ -5,7 +5,7 @@ use super::types::{map_object_info, map_server_info};
 use crate::{
     ctx::CTX,
     impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request,
-    worker_queue::{WorkerMessage, WORKER_MESSAGE_QUEUE},
+    worker_queue::{WORKER_MESSAGE_QUEUE, WorkerMessage},
 };
 
 impl_nats_publish! {

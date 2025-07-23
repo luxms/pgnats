@@ -3,7 +3,7 @@ use pgrx::{extension_sql, pg_extern, pg_sys as sys};
 use crate::{
     config::parse_config,
     error,
-    worker_queue::{WorkerMessage, WORKER_MESSAGE_QUEUE},
+    worker_queue::{WORKER_MESSAGE_QUEUE, WorkerMessage},
 };
 
 extension_sql!(

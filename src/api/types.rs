@@ -1,4 +1,4 @@
-use async_nats::{jetstream::object_store::ObjectInfo, ServerInfo};
+use async_nats::{ServerInfo, jetstream::object_store::ObjectInfo};
 use pgrx::name;
 
 #[allow(clippy::type_complexity)]
