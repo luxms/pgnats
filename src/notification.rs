@@ -1,8 +1,4 @@
-use std::{
-    ffi::CStr,
-    io::{Read, Write},
-    net::TcpStream,
-};
+use std::ffi::CStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +17,7 @@ pub struct PgInstanceNotification {
 }
 
 impl PgInstanceNotification {
-    pub fn new(transition: PgInstanceTransition) -> Option<Self> {
+    pub fn new(transition: PgInstanceTransition, patroni_url: Option<&str>) -> Option<Self> {
         let listen_addresses = fetch_config_option(c"listen_addresses")?
             .split(',')
             .map(|s| s.trim())
@@ -30,7 +26,7 @@ impl PgInstanceNotification {
 
         let port = fetch_config_option(c"port")?.parse::<u16>().ok()?;
 
-        let name = try_fetch_patroni_name();
+        let name = patroni_url.and_then(|url| try_fetch_patroni_name(url));
 
         Some(Self {
             transition,
@@ -53,17 +49,8 @@ fn fetch_config_option(name: &CStr) -> Option<String> {
     }
 }
 
-fn try_fetch_patroni_name() -> Option<String> {
-    let mut stream = TcpStream::connect("127.0.0.1:8008").ok()?;
-
-    let request = b"GET /patroni HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    stream.write_all(request).ok()?;
-    let mut response = String::new();
-    let _ = stream.read_to_string(&mut response).ok()?;
-
-    let body = response.split("\r\n\r\n").nth(1)?;
-
-    let json: serde_json::Value = serde_json::from_str(body).ok()?;
+fn try_fetch_patroni_name(url: &str) -> Option<String> {
+    let json: serde_json::Value = reqwest::blocking::get(url).ok()?.json().ok()?;
 
     json.get("patroni")
         .and_then(|p| p.get("name"))

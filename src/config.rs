@@ -20,6 +20,7 @@ pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
 pub struct Config {
     pub nats_opt: NatsConnectionOptions,
     pub notify_subject: Option<String>,
+    pub patroni_url: Option<String>,
 }
 
 pub fn init_guc() {
@@ -132,6 +133,8 @@ pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
 
     let notify_subject = options.get("notify_subject").map(|v| v.to_string());
 
+    let patroni_url = options.get("patroni_url").map(|v| v.to_string());
+
     Config {
         nats_opt: NatsConnectionOptions {
             host,
@@ -140,6 +143,7 @@ pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
             tls,
         },
         notify_subject,
+        patroni_url,
     }
 }
 

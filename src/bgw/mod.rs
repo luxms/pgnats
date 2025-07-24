@@ -30,8 +30,11 @@ pub trait Worker {
     fn delete_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()>;
     fn call_function(&self, callback: &str, data: &[u8]) -> anyhow::Result<()>;
 
-    fn make_notification(&self, transition: PgInstanceTransition)
-    -> Option<PgInstanceNotification>;
+    fn make_notification(
+        &self,
+        transition: PgInstanceTransition,
+        patroni_url: Option<&str>,
+    ) -> Option<PgInstanceNotification>;
 }
 
 pub trait SharedQueue<const N: usize> {

@@ -116,7 +116,11 @@ mod tests {
             }
         }
 
-        fn make_notification(&self, _: PgInstanceTransition) -> Option<PgInstanceNotification> {
+        fn make_notification(
+            &self,
+            _: PgInstanceTransition,
+            _: Option<&str>,
+        ) -> Option<PgInstanceNotification> {
             self.notification_recv
                 .recv_timeout(std::time::Duration::from_secs(5))
                 .unwrap()
@@ -417,6 +421,7 @@ mod tests {
                     tls: None,
                 },
                 notify_subject: None,
+                patroni_url: Some("http://localhost:28008/patroni".to_string()),
             },
             &SHARED_QUEUE,
         );
@@ -439,6 +444,7 @@ mod tests {
                     tls: None,
                 },
                 notify_subject: None,
+                patroni_url: Some("http://localhost:28008/patroni".to_string()),
             },
             &SHARED_QUEUE,
         );
@@ -1104,7 +1110,10 @@ mod tests {
         {
             *state.lock().unwrap() = WorkerState::Slave;
             notification_sdr
-                .send(PgInstanceNotification::new(PgInstanceTransition::M2R))
+                .send(PgInstanceNotification::new(
+                    PgInstanceTransition::M2R,
+                    Some("http://pgnats-cluster-pg01.spb.luxms.com:8008/patroni"),
+                ))
                 .unwrap();
         }
 
@@ -1223,7 +1232,10 @@ mod tests {
         {
             *state.lock().unwrap() = WorkerState::Master;
             notification_sdr
-                .send(PgInstanceNotification::new(PgInstanceTransition::R2M))
+                .send(PgInstanceNotification::new(
+                    PgInstanceTransition::R2M,
+                    Some("http://pgnats-cluster-pg01.spb.luxms.com:8008/patroni"),
+                ))
                 .unwrap();
         }
 

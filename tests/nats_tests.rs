@@ -24,6 +24,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         nats.put_file(TEST_STORE, TEST_FILE, TEST_CONTENT.to_vec())
@@ -92,6 +93,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let info_result = nats.get_server_info().await;
@@ -128,6 +130,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish";
@@ -161,6 +164,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_request_text";
@@ -207,6 +211,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_stream";
@@ -240,6 +245,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -275,6 +281,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -310,6 +317,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -340,6 +348,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -378,6 +387,7 @@ mod nats_tests {
                 }),
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_text_tls";
@@ -399,6 +409,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_with_reply";
@@ -439,6 +450,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_with_headers";
@@ -492,6 +504,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_with_reply_and_headers";
@@ -555,6 +568,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_stream_with_headers";
@@ -605,6 +619,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_request_timeout";
@@ -630,6 +645,7 @@ mod nats_tests {
                 tls: None,
             },
             notify_subject: None,
+            patroni_url: None,
         }));
 
         let res = nats

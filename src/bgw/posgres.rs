@@ -190,8 +190,9 @@ impl Worker for PostgresWorker {
     fn make_notification(
         &self,
         transition: PgInstanceTransition,
+        patroni_url: Option<&str>,
     ) -> Option<PgInstanceNotification> {
-        PgInstanceNotification::new(transition)
+        PgInstanceNotification::new(transition, patroni_url)
     }
 }
 

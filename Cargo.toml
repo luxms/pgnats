@@ -31,6 +31,7 @@ paste = "1.0.15"
 pgrx = { git = "https://github.com/luxms/pgrx", version = "0.15.0", features = [
     "unsafe-postgres",
 ] }
+reqwest = { version = "0.12.22", features = ["json", "blocking"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.138"
 tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread"] }
