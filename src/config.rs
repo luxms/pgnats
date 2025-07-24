@@ -33,6 +33,7 @@ pub fn init_guc() {
     );
 }
 
+#[cfg(not(feature = "pg_test"))]
 pub fn fetch_config() -> Config {
     use std::str::FromStr;
 
@@ -88,6 +89,11 @@ pub fn fetch_config() -> Config {
     };
 
     parse_config(&options)
+}
+
+#[cfg(feature = "pg_test")]
+pub fn fetch_config() -> Config {
+    parse_config(&HashMap::new())
 }
 
 pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
