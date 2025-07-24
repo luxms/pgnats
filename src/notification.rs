@@ -26,7 +26,7 @@ impl PgInstanceNotification {
 
         let port = fetch_config_option(c"port")?.parse::<u16>().ok()?;
 
-        let name = patroni_url.and_then(|url| try_fetch_patroni_name(url));
+        let name = patroni_url.and_then(try_fetch_patroni_name);
 
         Some(Self {
             transition,
@@ -50,10 +50,23 @@ fn fetch_config_option(name: &CStr) -> Option<String> {
 }
 
 fn try_fetch_patroni_name(url: &str) -> Option<String> {
-    let json: serde_json::Value = reqwest::blocking::get(url).ok()?.json().ok()?;
+    let result = || {
+        let json: serde_json::Value = reqwest::blocking::get(url)?.json()?;
+        json.get("patroni")
+            .and_then(|p| p.get("name"))
+            .and_then(|n| n.as_str())
+            .map(|s| s.to_string())
+            .ok_or(anyhow::anyhow!("Field name is missing"))
+    };
+    //     let json: serde_json::Value = reqwest::blocking::get(url).ok()?.json().ok()?;
 
-    json.get("patroni")
-        .and_then(|p| p.get("name"))
-        .and_then(|n| n.as_str())
-        .map(|s| s.to_string())
+    //     json.get("patroni")
+    //         .and_then(|p| p.get("name"))
+    //         .and_then(|n| n.as_str())
+    //         .map(|s| s.to_string())
+    //
+    match result() {
+        Ok(ok) => Some(ok),
+        Err(err) => Some(err.to_string()),
+    }
 }

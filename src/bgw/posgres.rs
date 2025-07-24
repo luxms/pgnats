@@ -184,7 +184,7 @@ impl Worker for PostgresWorker {
     }
 
     fn fetch_config(&self) -> Config {
-        BackgroundWorker::transaction(|| fetch_config())
+        BackgroundWorker::transaction(fetch_config)
     }
 
     fn make_notification(

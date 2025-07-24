@@ -1026,6 +1026,7 @@ mod tests {
         // INIT
         let table_name = function_name!().split("::").last().unwrap();
         let notify_subject = table_name;
+        let patroni_addr = "127.0.0.1:28008";
 
         Spi::run(&format!(
             "CREATE TEMP TABLE {} (
@@ -1070,10 +1071,39 @@ mod tests {
 
         let (sub_sdr, sub_recv) = channel();
         let (start_sub_sdr, start_sub_recv) = channel();
+        let (start_server_sdr, start_server_recv) = channel();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to initialize Tokio runtime");
+
+        let server_handle = rt.spawn(async move {
+            use tokio::net::TcpListener;
+            use tokio_stream::wrappers::TcpListenerStream;
+            use warp::Filter;
+
+            let patroin_route = warp::path("patroni").and(warp::get()).map(|| {
+                let response = serde_json::json!({
+                    "patroni": {
+                        "name": table_name.to_string()
+                    }
+                });
+
+                warp::reply::json(&response)
+            });
+
+            let listener = TcpListener::bind(patroni_addr).await.unwrap();
+
+            start_server_sdr.send(()).unwrap();
+
+            warp::serve(patroin_route)
+                .run_incoming(TcpListenerStream::new(listener))
+                .await;
+        });
+
+        let _ = start_server_recv
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
 
         let sub_handle = rt.spawn(async move {
             use crate::notification::PgInstanceNotification;
@@ -1112,7 +1142,7 @@ mod tests {
             notification_sdr
                 .send(PgInstanceNotification::new(
                     PgInstanceTransition::M2R,
-                    Some("http://pgnats-cluster-pg01.spb.luxms.com:8008/patroni"),
+                    Some(&format!("http://{patroni_addr}/patroni")),
                 ))
                 .unwrap();
         }
@@ -1140,10 +1170,13 @@ mod tests {
             assert_eq!(message.port, 32217);
             #[cfg(feature = "pg18")]
             assert_eq!(message.port, 32218);
+
+            assert_eq!(message.name.unwrap().as_str(), table_name);
         }
 
         // FAKE SIGTERM
 
+        server_handle.abort();
         sub_handle.abort();
         quit_sdr.send(()).unwrap();
         assert!(handle.join().is_ok());
@@ -1163,6 +1196,7 @@ mod tests {
         // INIT
         let table_name = function_name!().split("::").last().unwrap();
         let notify_subject = table_name;
+        let patroni_addr = "127.0.0.1:28009";
 
         Spi::run(&format!(
             "CREATE TEMP TABLE {} (
@@ -1192,10 +1226,39 @@ mod tests {
 
         let (sub_sdr, sub_recv) = channel();
         let (start_sub_sdr, start_sub_recv) = channel();
+        let (start_server_sdr, start_server_recv) = channel();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to initialize Tokio runtime");
+
+        let server_handle = rt.spawn(async move {
+            use tokio::net::TcpListener;
+            use tokio_stream::wrappers::TcpListenerStream;
+            use warp::Filter;
+
+            let patroin_route = warp::path("patroni").and(warp::get()).map(|| {
+                let response = serde_json::json!({
+                    "patroni": {
+                        "name": table_name.to_string()
+                    }
+                });
+
+                warp::reply::json(&response)
+            });
+
+            let listener = TcpListener::bind(patroni_addr).await.unwrap();
+
+            start_server_sdr.send(()).unwrap();
+
+            warp::serve(patroin_route)
+                .run_incoming(TcpListenerStream::new(listener))
+                .await;
+        });
+
+        let _ = start_server_recv
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
 
         let sub_handle = rt.spawn(async move {
             use crate::notification::PgInstanceNotification;
@@ -1234,7 +1297,7 @@ mod tests {
             notification_sdr
                 .send(PgInstanceNotification::new(
                     PgInstanceTransition::R2M,
-                    Some("http://pgnats-cluster-pg01.spb.luxms.com:8008/patroni"),
+                    Some(&format!("http://{patroni_addr}/patroni")),
                 ))
                 .unwrap();
         }
@@ -1277,10 +1340,13 @@ mod tests {
             assert_eq!(message.port, 32217);
             #[cfg(feature = "pg18")]
             assert_eq!(message.port, 32218);
+
+            assert_eq!(message.name.unwrap().as_str(), table_name);
         }
 
         // FAKE SIGTERM
 
+        server_handle.abort();
         sub_handle.abort();
         quit_sdr.send(()).unwrap();
         assert!(handle.join().is_ok());

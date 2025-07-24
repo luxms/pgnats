@@ -276,7 +276,7 @@ impl<T: Worker> WorkerContext<T> {
             && let Some(notify_subject) = &config.notify_subject
             && let Some(notification) = self
                 .worker
-                .make_notification(transition, config.patroni_url.as_ref().map(|s| s.as_str()))
+                .make_notification(transition, config.patroni_url.as_deref())
             && let Ok(notification) = serde_json::to_vec(&notification)
         {
             let subject = notify_subject.clone();
