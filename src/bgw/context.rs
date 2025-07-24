@@ -154,14 +154,15 @@ impl<T: Worker> WorkerContext<T> {
                 self.state = WorkerState::Slave;
             }
             (WorkerState::Slave, WorkerState::Master) => {
-                if let Some(nats) = &self.nats_state {
-                    self.send_notification(nats, PgInstanceTransition::R2M);
-                }
-
                 let opt = self.worker.fetch_config();
                 if let Err(err) = self.restore_state(opt) {
                     warn!("Error during restoring state: {}", err);
                 }
+
+                if let Some(nats) = &self.nats_state {
+                    self.send_notification(nats, PgInstanceTransition::R2M);
+                }
+
                 self.state = WorkerState::Master;
             }
             _ => {}
