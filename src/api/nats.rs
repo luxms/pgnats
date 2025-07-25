@@ -1,7 +1,7 @@
 use anyhow::bail;
 use pgrx::{name, pg_extern};
 
-use super::types::{map_object_info, map_server_info};
+use super::conv::{map_object_info, map_server_info};
 use crate::{
     ctx::CTX,
     impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request,

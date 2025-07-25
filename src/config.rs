@@ -16,6 +16,10 @@ pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
 
 pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
 
+const DEFAULT_NATS_HOST: &str = "127.0.0.1";
+const DEFAULT_NATS_PORT: u16 = 4222;
+const DEFAULT_NATS_CAPACITY: usize = 128;
+
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Config {
     pub nats_opt: NatsConnectionOptions,
@@ -101,17 +105,17 @@ pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
     let host = options
         .get("host")
         .map(|v| v.to_string())
-        .unwrap_or_else(|| "127.0.0.1".to_string());
+        .unwrap_or_else(|| DEFAULT_NATS_HOST.to_string());
 
     let port = options
         .get("port")
         .and_then(|port| port.parse::<u16>().ok())
-        .unwrap_or(4222);
+        .unwrap_or(DEFAULT_NATS_PORT);
 
     let capacity = options
         .get("capacity")
         .and_then(|c| c.parse::<usize>().ok())
-        .unwrap_or(128);
+        .unwrap_or(DEFAULT_NATS_CAPACITY);
 
     let tls = if let Some(ca) = options.get("tls_ca_path") {
         let tls_cert_part = options.get("tls_cert_path");

@@ -20,12 +20,14 @@ pub fn run_worker<const N: usize, W: Worker, L: SharedQueue<N>>(
         .enable_all()
         .build()?;
 
-    log!("Tokio runtime initialized.");
+    log!("Tokio runtime initialized");
 
     let (msg_sender, msg_receiver) = channel();
     let mut ctx = WorkerContext::new(rt, msg_sender.clone(), worker);
 
     if ctx.is_master() {
+        log!("Restoring NATS state");
+
         let opt = ctx.worker().fetch_config();
 
         if let Err(error) = ctx.restore_state(opt) {

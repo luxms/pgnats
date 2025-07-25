@@ -148,8 +148,8 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
         assert_eq!(
-            Some(message.as_bytes().to_vec()),
-            subscriber.next().await.map(|m| m.payload.to_vec())
+            message.as_bytes().to_vec(),
+            subscriber.next().await.unwrap().payload.to_vec()
         );
     }
 
@@ -229,8 +229,8 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
         assert_eq!(
-            Some(message.as_bytes().to_vec()),
-            subscriber.next().await.map(|m| m.payload.to_vec())
+            message.as_bytes().to_vec(),
+            subscriber.next().await.unwrap().payload.to_vec()
         );
     }
 
@@ -267,7 +267,7 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(data.as_slice()), value.as_deref());
+        assert_eq!(data.as_slice(), value.unwrap());
     }
 
     #[tokio::test]
@@ -303,7 +303,7 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(text), value.as_deref());
+        assert_eq!(text, value.unwrap());
     }
 
     #[tokio::test]
@@ -334,7 +334,7 @@ mod nats_tests {
         assert!(get_res.is_ok(), "nats_get_json occurs error: {:?}", get_res);
 
         let returned_json = get_res.unwrap();
-        assert_eq!(Some(json_value), returned_json);
+        assert_eq!(json_value, returned_json.unwrap());
     }
 
     #[tokio::test]
@@ -431,12 +431,9 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
-            assert_eq!(msg.reply.as_deref(), Some(reply_to));
-        } else {
-            panic!("did not receive a message");
-        }
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
+        assert_eq!(msg.reply.unwrap().as_str(), reply_to);
     }
 
     #[tokio::test]
@@ -476,21 +473,15 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
 
-            if let Some(hdrs) = msg.headers {
-                assert_eq!(hdrs.get("X-Custom").map(|v| v.as_str()), Some("123"));
-                assert_eq!(
-                    hdrs.get("Content-Type").map(|v| v.as_str()),
-                    Some("text/plain")
-                );
-            } else {
-                panic!("headers are missing from message");
-            }
-        } else {
-            panic!("did not receive a message");
-        }
+        let hdrs = msg.headers.expect("headers are missing from message");
+        assert_eq!(hdrs.get("X-Custom").map(|v| v.as_str()).unwrap(), "123");
+        assert_eq!(
+            hdrs.get("Content-Type").map(|v| v.as_str()).unwrap(),
+            "text/plain"
+        );
     }
 
     #[tokio::test]
@@ -536,25 +527,19 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
-            assert_eq!(msg.reply.as_deref(), Some(reply_to));
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
+        assert_eq!(msg.reply.as_deref(), Some(reply_to));
 
-            if let Some(hdrs) = msg.headers {
-                assert_eq!(
-                    hdrs.get("User-Agent").map(|v| v.as_str()),
-                    Some("nats-test")
-                );
-                assert_eq!(
-                    hdrs.get("Accept").map(|v| v.as_str()),
-                    Some("application/json")
-                );
-            } else {
-                panic!("headers are missing from message");
-            }
-        } else {
-            panic!("did not receive a message");
-        }
+        let hdrs = msg.headers.expect("headers are missing from message");
+        assert_eq!(
+            hdrs.get("User-Agent").map(|v| v.as_str()),
+            Some("nats-test")
+        );
+        assert_eq!(
+            hdrs.get("Accept").map(|v| v.as_str()),
+            Some("application/json")
+        );
     }
 
     #[tokio::test]
@@ -594,18 +579,14 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
 
-            if let Some(hdrs) = msg.headers {
-                assert_eq!(hdrs.get("X-Stream").map(|v| v.as_str()), Some("true"));
-                assert_eq!(hdrs.get("X-Test-ID").map(|v| v.as_str()), Some("stream123"));
-            } else {
-                panic!("headers are missing from stream message");
-            }
-        } else {
-            panic!("did not receive a stream message");
-        }
+        let hdrs = msg
+            .headers
+            .expect("headers are missing from stream message");
+        assert_eq!(hdrs.get("X-Stream").map(|v| v.as_str()), Some("true"));
+        assert_eq!(hdrs.get("X-Test-ID").map(|v| v.as_str()), Some("stream123"));
     }
 
     #[tokio::test]

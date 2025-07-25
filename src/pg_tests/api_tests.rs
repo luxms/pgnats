@@ -172,7 +172,7 @@ mod tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(data.as_slice()), value.as_deref());
+        assert_eq!(data.as_slice(), value.unwrap());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -189,7 +189,7 @@ mod tests {
         assert!(get_res.is_ok(), "nats_get_text occurs error {:?}", get_res);
 
         let value = get_res.unwrap();
-        assert_eq!(Some(text), value.as_deref());
+        assert_eq!(text, value.unwrap());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -207,7 +207,7 @@ mod tests {
         assert!(get_res.is_ok(), "nats_get_json occurs error: {:?}", get_res);
 
         let returned_json = get_res.unwrap();
-        assert_eq!(Some(json_value), returned_json.map(|v| v.0));
+        assert_eq!(json_value, returned_json.map(|v| v.0).unwrap());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
@@ -233,7 +233,7 @@ mod tests {
         );
 
         let returned_json = get_res.unwrap();
-        assert_eq!(Some(json_value), returned_json.map(|v| v.0));
+        assert_eq!(json_value, returned_json.map(|v| v.0).unwrap());
     }
 
     #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]

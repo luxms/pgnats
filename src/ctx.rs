@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use crate::connection::NatsConnection;
 
 thread_local! {
-    pub static CTX: RefCell<Context> = RefCell::new(create_context())
+    pub static CTX: RefCell<Context> = RefCell::new(create_context());
 }
 
 pub struct Context {
