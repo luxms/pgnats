@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 fn main() {
+    #[cfg(target_family = "unix")]
     if !std::path::Path::new("tests/certs/server.key").exists()
         || !std::path::Path::new("tests/certs/server.crt").exists()
         || !std::path::Path::new("tests/certs/ca.crt").exists()
