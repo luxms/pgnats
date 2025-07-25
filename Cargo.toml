@@ -39,14 +39,14 @@ serde_json = "1.0.138"
 tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread"] }
 
 bincode = { optional = true, version = "2.0.1" }
-reqwest = { optional = true, version = "0.12.22", features = [
+reqwest = { optional = true, version = "0.12.22", default-features = false, features = [
     "json",
     "blocking",
 ] }
 
 # dev-dependencies
 tokio-stream = { optional = true, version = "0.1.17", features = ["net"] }
-warp = { optional = true, version = "0.3.7" }
+warp = { optional = true, version = "0.3.7", default-features = false }
 
 [dev-dependencies]
 pgrx-tests = { git = "https://github.com/luxms/pgrx", version = "0.15.0" }
