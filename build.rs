@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 fn main() {
-    #[cfg(feature = "pg_tests")]
+    #[cfg(all(target_family = "unix", feature = "pg_tests"))]
     if !std::path::Path::new("tests/certs/server.key").exists()
         || !std::path::Path::new("tests/certs/server.crt").exists()
         || !std::path::Path::new("tests/certs/ca.crt").exists()
