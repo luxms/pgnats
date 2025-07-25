@@ -1077,59 +1077,17 @@ mod tests {
             .build()
             .expect("Failed to initialize Tokio runtime");
 
-        let server_handle = rt.spawn(async move {
-            use tokio::net::TcpListener;
-            use tokio_stream::wrappers::TcpListenerStream;
-            use warp::Filter;
-
-            let patroin_route = warp::path("patroni").and(warp::get()).map(|| {
-                let response = serde_json::json!({
-                    "patroni": {
-                        "name": table_name.to_string()
-                    }
-                });
-
-                warp::reply::json(&response)
-            });
-
-            let listener = TcpListener::bind(patroni_addr).await.unwrap();
-
-            start_server_sdr.send(()).unwrap();
-
-            warp::serve(patroin_route)
-                .run_incoming(TcpListenerStream::new(listener))
-                .await;
-        });
+        let server_handle = rt.spawn(start_mock_patroni(
+            table_name.to_string(),
+            start_server_sdr,
+            patroni_addr,
+        ));
 
         let _ = start_server_recv
             .recv_timeout(std::time::Duration::from_secs(5))
             .unwrap();
 
-        let sub_handle = rt.spawn(async move {
-            use crate::notification::PgInstanceNotification;
-
-            async fn run(
-                start_sub_sdr: Sender<()>,
-                subject: String,
-            ) -> anyhow::Result<PgInstanceNotification> {
-                use futures::StreamExt;
-
-                let client = async_nats::connect("127.0.0.1:4222").await?;
-
-                let mut sub = client.subscribe(subject).await?;
-
-                start_sub_sdr.send(()).unwrap();
-
-                if let Some(msg) = sub.next().await {
-                    let value = serde_json::from_slice(&msg.payload)?;
-                    Ok(value)
-                } else {
-                    Err(anyhow::anyhow!("Subscription is broken"))
-                }
-            }
-
-            let _ = sub_sdr.send(run(start_sub_sdr, notify_subject.to_string()).await);
-        });
+        let sub_handle = rt.spawn(start_subscription(notify_subject, start_sub_sdr, sub_sdr));
 
         start_sub_recv
             .recv_timeout(std::time::Duration::from_secs(30))
@@ -1232,59 +1190,17 @@ mod tests {
             .build()
             .expect("Failed to initialize Tokio runtime");
 
-        let server_handle = rt.spawn(async move {
-            use tokio::net::TcpListener;
-            use tokio_stream::wrappers::TcpListenerStream;
-            use warp::Filter;
-
-            let patroin_route = warp::path("patroni").and(warp::get()).map(|| {
-                let response = serde_json::json!({
-                    "patroni": {
-                        "name": table_name.to_string()
-                    }
-                });
-
-                warp::reply::json(&response)
-            });
-
-            let listener = TcpListener::bind(patroni_addr).await.unwrap();
-
-            start_server_sdr.send(()).unwrap();
-
-            warp::serve(patroin_route)
-                .run_incoming(TcpListenerStream::new(listener))
-                .await;
-        });
+        let server_handle = rt.spawn(start_mock_patroni(
+            table_name.to_string(),
+            start_server_sdr,
+            patroni_addr,
+        ));
 
         let _ = start_server_recv
             .recv_timeout(std::time::Duration::from_secs(5))
             .unwrap();
 
-        let sub_handle = rt.spawn(async move {
-            use crate::notification::PgInstanceNotification;
-
-            async fn run(
-                start_sub_sdr: Sender<()>,
-                subject: String,
-            ) -> anyhow::Result<PgInstanceNotification> {
-                use futures::StreamExt;
-
-                let client = async_nats::connect("127.0.0.1:4222").await?;
-
-                let mut sub = client.subscribe(subject).await?;
-
-                start_sub_sdr.send(()).unwrap();
-
-                if let Some(msg) = sub.next().await {
-                    let value = serde_json::from_slice(&msg.payload)?;
-                    Ok(value)
-                } else {
-                    Err(anyhow::anyhow!("Subscription is broken"))
-                }
-            }
-
-            let _ = sub_sdr.send(run(start_sub_sdr, notify_subject.to_string()).await);
-        });
+        let sub_handle = rt.spawn(start_subscription(notify_subject, start_sub_sdr, sub_sdr));
 
         start_sub_recv
             .recv_timeout(std::time::Duration::from_secs(30))
@@ -1510,5 +1426,59 @@ mod tests {
             _ => Err(anyhow::anyhow!("{:?}", e)),
         })
         .execute()
+    }
+
+    async fn start_subscription(
+        notify_subject: &str,
+        start_sub_sdr: Sender<()>,
+        sub_sdr: Sender<anyhow::Result<PgInstanceNotification>>,
+    ) {
+        use crate::notification::PgInstanceNotification;
+
+        async fn run(
+            start_sub_sdr: Sender<()>,
+            subject: String,
+        ) -> anyhow::Result<PgInstanceNotification> {
+            use futures::StreamExt;
+
+            let client = async_nats::connect("127.0.0.1:4222").await?;
+
+            let mut sub = client.subscribe(subject).await?;
+
+            start_sub_sdr.send(()).unwrap();
+
+            if let Some(msg) = sub.next().await {
+                let value = serde_json::from_slice(&msg.payload)?;
+                Ok(value)
+            } else {
+                Err(anyhow::anyhow!("Subscription is broken"))
+            }
+        }
+
+        let _ = sub_sdr.send(run(start_sub_sdr, notify_subject.to_string()).await);
+    }
+
+    async fn start_mock_patroni(name: String, start_sdr: Sender<()>, patroni_addr: &str) {
+        use tokio::net::TcpListener;
+        use tokio_stream::wrappers::TcpListenerStream;
+        use warp::Filter;
+
+        let patroin_route = warp::path("patroni").and(warp::get()).map(move || {
+            let response = serde_json::json!({
+                "patroni": {
+                    "name": name
+                }
+            });
+
+            warp::reply::json(&response)
+        });
+
+        let listener = TcpListener::bind(patroni_addr).await.unwrap();
+
+        start_sdr.send(()).unwrap();
+
+        warp::serve(patroin_route)
+            .run_incoming(TcpListenerStream::new(listener))
+            .await;
     }
 }
