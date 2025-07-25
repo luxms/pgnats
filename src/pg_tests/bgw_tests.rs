@@ -127,7 +127,6 @@ mod tests {
         }
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_sub_call_unsub_call() {
         use std::sync::{RwLock, mpsc::channel};
@@ -265,7 +264,6 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_restore_after_restart() {
         use std::sync::{RwLock, mpsc::channel};
@@ -351,7 +349,6 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_changed_fdw_config() {
         use std::sync::{RwLock, mpsc::channel};
@@ -513,7 +510,6 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_different_subject_sub_call() {
         use std::sync::{RwLock, mpsc::channel};
@@ -652,7 +648,6 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_same_subject_sub_call() {
         use std::sync::{RwLock, mpsc::channel};
@@ -874,7 +869,7 @@ mod tests {
         assert_eq!(subs[0].1, fn_name);
 
         {
-            *state.lock().unwrap() = WorkerState::Slave;
+            *state.lock().unwrap() = WorkerState::Replica;
         }
 
         std::thread::sleep(std::time::Duration::from_secs(5));
@@ -894,7 +889,6 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_try_sub_change_slave_to_master_call() {
         use std::sync::{RwLock, mpsc::channel};
@@ -928,7 +922,7 @@ mod tests {
         ))
         .unwrap();
 
-        let state = Arc::new(Mutex::new(WorkerState::Slave));
+        let state = Arc::new(Mutex::new(WorkerState::Replica));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (_, notification_recv) = channel();
@@ -1012,7 +1006,6 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_m2r() {
         use std::sync::{RwLock, mpsc::channel};
@@ -1096,7 +1089,7 @@ mod tests {
         // LOOP
 
         {
-            *state.lock().unwrap() = WorkerState::Slave;
+            *state.lock().unwrap() = WorkerState::Replica;
             notification_sdr
                 .send(PgInstanceNotification::new(
                     PgInstanceTransition::M2R,
@@ -1140,7 +1133,6 @@ mod tests {
         assert!(handle.join().is_ok());
     }
 
-    #[cfg(not(any(skip_pgnats_tests)))]
     #[pg_test]
     fn test_background_worker_r2m() {
         use std::sync::{RwLock, mpsc::channel};
@@ -1166,7 +1158,7 @@ mod tests {
         ))
         .unwrap();
 
-        let state = Arc::new(Mutex::new(WorkerState::Slave));
+        let state = Arc::new(Mutex::new(WorkerState::Replica));
         let (msg_sdr, msg_recv) = channel();
         let (fetch_sdr, fetch_recv) = channel();
         let (notification_sdr, notification_recv) = channel();

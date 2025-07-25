@@ -1,12 +1,10 @@
-use anyhow::bail;
 use pgrx::{name, pg_extern};
 
-use super::conv::{map_object_info, map_server_info};
-use crate::{
-    ctx::CTX,
-    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request,
-    worker_queue::{WORKER_MESSAGE_QUEUE, WorkerMessage},
-};
+use super::conv::map_server_info;
+use crate::{ctx::CTX, impl_nats_publish, impl_nats_request};
+
+#[cfg(feature = "kv")]
+use crate::{impl_nats_get, impl_nats_put};
 
 impl_nats_publish! {
     /// Publishes a raw binary message to the specified NATS subject.
@@ -34,6 +32,7 @@ impl_nats_publish! {
     /// - [`nats_publish_binary_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     binary, Vec<u8>
 }
+
 impl_nats_publish! {
     /// Publishes a UTF-8 text message to the specified NATS subject.
     ///
@@ -191,6 +190,7 @@ impl_nats_request! {
     jsonb, pgrx::JsonB
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a raw binary value in the KV bucket under the specified key.
     ///
@@ -209,6 +209,7 @@ impl_nats_put! {
     binary, Vec<u8>
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a UTF-8 text value in the KV bucket under the specified key.
     ///
@@ -227,6 +228,7 @@ impl_nats_put! {
     text, &str
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a JSON value in the KV bucket under the specified key.
     ///
@@ -245,6 +247,7 @@ impl_nats_put! {
     json, pgrx::Json
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a binary-encoded JSON (JSONB) value in the KV bucket under the specified key.
     ///
@@ -263,6 +266,7 @@ impl_nats_put! {
     jsonb, pgrx::JsonB
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a raw binary value from the KV bucket by the specified key.
     ///
@@ -281,6 +285,7 @@ impl_nats_get! {
     binary, Vec<u8>
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a UTF-8 text value from the KV bucket by the specified key.
     ///
@@ -299,6 +304,7 @@ impl_nats_get! {
     text, String
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a JSON value from the KV bucket by the specified key.
     ///
@@ -317,6 +323,7 @@ impl_nats_get! {
     json, pgrx::Json
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a binary-encoded JSON (JSONB) value from the KV bucket by the specified key.
     ///
@@ -348,6 +355,7 @@ impl_nats_get! {
 /// ```sql
 /// SELECT nats_delete_value('user_profiles', 'inactive_user_123');
 /// ```
+#[cfg(feature = "kv")]
 #[pg_extern]
 pub fn nats_delete_value(bucket: String, key: &str) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
@@ -418,6 +426,7 @@ pub fn nats_get_server_info() -> anyhow::Result<
 /// SELECT nats_get_file('documents', 'report.pdf');
 /// ```
 #[pg_extern]
+#[cfg(feature = "object_store")]
 pub fn nats_get_file(store: String, name: &str) -> anyhow::Result<Vec<u8>> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
@@ -443,6 +452,7 @@ pub fn nats_get_file(store: String, name: &str) -> anyhow::Result<Vec<u8>> {
 /// SELECT nats_put_file('documents', 'report.pdf', 'binary data'::bytea);
 /// ```
 #[pg_extern]
+#[cfg(feature = "object_store")]
 pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
@@ -467,6 +477,7 @@ pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> anyhow::Res
 /// SELECT nats_delete_file('documents', 'old_report.pdf');
 /// ```
 #[pg_extern]
+#[cfg(feature = "object_store")]
 pub fn nats_delete_file(store: String, name: &str) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
@@ -492,6 +503,7 @@ pub fn nats_delete_file(store: String, name: &str) -> anyhow::Result<()> {
 /// ```
 #[allow(clippy::type_complexity)]
 #[pg_extern]
+#[cfg(feature = "object_store")]
 pub fn nats_get_file_info(
     store: String,
     name: &str,
@@ -519,7 +531,7 @@ pub fn nats_get_file_info(
                 tokio::task::yield_now().await;
                 res
             })
-            .map(|v| map_object_info(std::iter::once(v)))
+            .map(|v| super::conv::map_object_info(std::iter::once(v)))
     })
 }
 
@@ -536,6 +548,7 @@ pub fn nats_get_file_info(
 /// SELECT * FROM nats_get_file_list('documents');
 #[allow(clippy::type_complexity)]
 #[pg_extern]
+#[cfg(feature = "object_store")]
 pub fn nats_get_file_list(
     store: String,
 ) -> anyhow::Result<
@@ -562,7 +575,7 @@ pub fn nats_get_file_list(
                 tokio::task::yield_now().await;
                 res
             })
-            .map(|v| map_object_info(v))
+            .map(|v| super::conv::map_object_info(v))
     })
 }
 
@@ -588,16 +601,20 @@ pub fn nats_get_file_list(
 /// The specified PostgreSQL function **must accept a single argument of type `bytea`**,
 /// which will contain the message payload received from NATS.
 #[pg_extern]
+#[cfg(feature = "sub")]
 pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
     if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
-        bail!("Subscriptions are not allowed in replica mode");
+        anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
 
-    let msg = WorkerMessage::Subscribe { subject, fn_name };
+    let msg = crate::worker_queue::WorkerMessage::Subscribe { subject, fn_name };
     let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
 
     anyhow::ensure!(
-        WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_ok(),
+        crate::worker_queue::WORKER_MESSAGE_QUEUE
+            .exclusive()
+            .try_send(&buf)
+            .is_ok(),
         "Shared queue is full"
     );
 
@@ -621,16 +638,20 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
 /// SELECT nats_unsubscribe('events.user.created', 'handle_user_created');
 /// ```
 #[pg_extern]
+#[cfg(feature = "sub")]
 pub fn nats_unsubscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
     if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
-        bail!("Subscriptions are not allowed in replica mode");
+        anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
 
-    let msg = WorkerMessage::Unsubscribe { subject, fn_name };
+    let msg = crate::worker_queue::WorkerMessage::Unsubscribe { subject, fn_name };
     let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
 
     anyhow::ensure!(
-        WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_ok(),
+        crate::worker_queue::WORKER_MESSAGE_QUEUE
+            .exclusive()
+            .try_send(&buf)
+            .is_ok(),
         "Shared queue is full"
     );
 

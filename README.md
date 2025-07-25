@@ -9,6 +9,7 @@ Provides one-way integration from PostgreSQL to NATS, supporting:
 - JetStream persistent message streams
 - Key-Value storage operations from SQL
 - Object Store operations (uploading, downloading, deleting files) from SQL
+- Works on Postgres Cluster
 
 ## ⚙️ Install
 
@@ -28,6 +29,29 @@ cargo pgrx init --configure-flag='--without-icu'
 cargo pgrx package --pg-config <PATH TO PG_CONFIG> [--out-dir <THE DIRECTORY TO OUTPUT THE PACKAGE>]
 ```
 
+### 🔧 Selecting Features
+
+By default, all features (`kv`, `object_store`, `sub`) are enabled.
+If you prefer a smaller build or want to customize the functionality, you can selectively enable features like so:
+
+```sh
+cargo pgrx package --no-default-features --features "kv"
+```
+
+This will include only the `kv` feature and exclude `object_store` and `sub`.
+
+For example:
+
+* `--features "kv"` – enables only the NATS key-value store.
+* `--features "sub"` – enables subscriptions and HTTP integration with Patroni.
+* `--features "object_store"` – enables binary object storage support.
+
+You can combine them as needed:
+
+```sh
+cargo pgrx package --no-default-features --features "kv,sub"
+```
+
 ## 🧪 Tests
 
 > [!WARNING]
@@ -36,19 +60,9 @@ cargo pgrx package --pg-config <PATH TO PG_CONFIG> [--out-dir <THE DIRECTORY TO 
 > [!WARNING]
 > You need docker installed for integration testing.
 
-**1. Run all tests**
+**Run all tests**
 ```sh
 cargo pgrx test
-```
-
-**2. Skip tests that require JetStream in NATS Server**
-```sh
-SKIP_PGNATS_JS_TESTS=1 cargo pgrx test
-```
-
-**3. Skip tests that require NATS Server**
-```sh
-SKIP_PGNATS_TESTS=1 cargo pgrx test
 ```
 
 ## 🦀 Minimum supported Rust version
@@ -103,14 +117,21 @@ CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (
 
     -- Name of the NATS subject for sending role change notifications (e.g., when the Postgres instance transitions between master and replica)
     notify_subject 'my.subject'
+
+    -- URL of the Patroni REST API used to retrieve the current Postgres instance name.
+    -- This is required when sending role change notifications (e.g., when the Postgres instance transitions between master and replica)
+    patroni_url 'http://localhost:8008/patroni'
 );
 ```
 
 #### Notification body
 
-```
+```json
 {
-
+  "transition": "M2R", // M2R - master to replica, R2M - replica to master
+  "listen_adresses": ["127.0.0.1", "127.0.0.2"],
+  "port": 5432,
+  "name": "pg-instance-01" // may be null
 }
 ```
 

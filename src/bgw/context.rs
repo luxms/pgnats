@@ -146,14 +146,14 @@ impl<T: Worker> WorkerContext<T> {
         let state = self.worker.fetch_state();
 
         match (self.state, state) {
-            (WorkerState::Master, WorkerState::Slave) => {
+            (WorkerState::Master, WorkerState::Replica) => {
                 if let Some(nats) = self.nats_state.take() {
                     self.send_notification(&nats, PgInstanceTransition::M2R);
                 }
 
-                self.state = WorkerState::Slave;
+                self.state = WorkerState::Replica;
             }
-            (WorkerState::Slave, WorkerState::Master) => {
+            (WorkerState::Replica, WorkerState::Master) => {
                 log!("Restoring NATS state");
                 let opt = self.worker.fetch_config();
                 if let Err(err) = self.restore_state(opt) {
@@ -305,7 +305,7 @@ impl<T> WorkerContext<T> {
     }
 
     pub fn is_slave(&self) -> bool {
-        self.state == WorkerState::Slave
+        self.state == WorkerState::Replica
     }
 
     fn spawn_subscription_task(

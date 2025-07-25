@@ -45,7 +45,7 @@ impl Worker for PostgresWorker {
 
     fn fetch_state(&self) -> WorkerState {
         if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
-            WorkerState::Slave
+            WorkerState::Replica
         } else {
             WorkerState::Master
         }

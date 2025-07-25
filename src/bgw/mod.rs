@@ -16,7 +16,7 @@ pub mod run;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum WorkerState {
     Master,
-    Slave,
+    Replica,
 }
 
 pub trait Worker {

@@ -116,6 +116,7 @@ macro_rules! impl_nats_request {
     };
 }
 
+#[cfg(feature = "kv")]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! impl_nats_put {
@@ -137,6 +138,7 @@ macro_rules! impl_nats_put {
     };
 }
 
+#[cfg(feature = "kv")]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! impl_nats_get {

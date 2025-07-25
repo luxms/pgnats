@@ -5,7 +5,6 @@ use std::{
     path::PathBuf,
 };
 
-use bincode::{Decode, Encode};
 use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting, PgTryBuilder, Spi};
 
 use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
@@ -20,7 +19,8 @@ const DEFAULT_NATS_HOST: &str = "127.0.0.1";
 const DEFAULT_NATS_PORT: u16 = 4222;
 const DEFAULT_NATS_CAPACITY: usize = 128;
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct Config {
     pub nats_opt: NatsConnectionOptions,
     pub notify_subject: Option<String>,

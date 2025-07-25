@@ -1,7 +1,7 @@
 #[cfg(any(test, feature = "pg_test"))]
 #[pgrx::prelude::pg_schema]
 mod tests {
-    use pgrx::{Json, JsonB, pg_test};
+    use pgrx::pg_test;
 
     use crate::api;
 
@@ -14,7 +14,6 @@ mod tests {
         assert_eq!(api::pgnats_version(), env!("CARGO_PKG_VERSION"));
     }
 
-    #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
     fn test_pgnats_publish() {
         let subject = "test.test_nats_publish";
@@ -36,7 +35,6 @@ mod tests {
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_publish_stream() {
         let subject = "test.test_nats_publish_stream";
@@ -58,7 +56,6 @@ mod tests {
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
     }
 
-    #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
     fn test_pgnats_publish_with_reply_and_headers() {
         use pgrx::Json;
@@ -92,7 +89,6 @@ mod tests {
         );
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
     #[pg_test]
     fn test_pgnats_request() {
         use std::sync::mpsc::channel;
@@ -150,7 +146,7 @@ mod tests {
         handle.abort();
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "kv")]
     #[pg_test]
     fn test_pgnats_put_and_get_binary() {
         let bucket = "test_default".to_string();
@@ -175,7 +171,7 @@ mod tests {
         assert_eq!(data.as_slice(), value.unwrap());
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "kv")]
     #[pg_test]
     fn test_pgnats_put_and_get_text() {
         let bucket = "test_default".to_string();
@@ -192,13 +188,13 @@ mod tests {
         assert_eq!(text, value.unwrap());
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "kv")]
     #[pg_test]
     fn test_pgnats_put_and_get_json() {
         let bucket = "test_default".to_string();
         let key = "json_key";
         let json_value = serde_json::json!({"key": "value"});
-        let json_input = Json(json_value.clone());
+        let json_input = pgrx::Json(json_value.clone());
 
         let put_res = api::nats_put_json(bucket.clone(), key, json_input);
         assert!(put_res.is_ok(), "nats_put_json occurs error: {:?}", put_res);
@@ -210,13 +206,13 @@ mod tests {
         assert_eq!(json_value, returned_json.map(|v| v.0).unwrap());
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "kv")]
     #[pg_test]
     fn test_pgnats_put_and_get_jsonb() {
         let bucket = "test_default".to_string();
         let key = "jsonb_key";
         let json_value = serde_json::json!({"key": "value"});
-        let jsonb_input = JsonB(json_value.clone());
+        let jsonb_input = pgrx::JsonB(json_value.clone());
 
         let put_res = api::nats_put_jsonb(bucket.clone(), key, jsonb_input);
         assert!(
@@ -236,7 +232,7 @@ mod tests {
         assert_eq!(json_value, returned_json.map(|v| v.0).unwrap());
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "kv")]
     #[pg_test]
     fn test_pgnats_delete_value() {
         let bucket = "test_default".to_string();
@@ -260,7 +256,7 @@ mod tests {
         assert_eq!(None, value);
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "object_value")]
     #[pg_test]
     fn test_pgnats_put_and_get_file() {
         let bucket = "test_file_io".to_string();
@@ -277,7 +273,7 @@ mod tests {
         assert_eq!(content, returned);
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "object_value")]
     #[pg_test]
     fn test_pgnats_file_info() {
         let bucket = "test_file_info".to_string();
@@ -295,7 +291,7 @@ mod tests {
         assert_eq!(info.5 as usize, content.len());
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "object_value")]
     #[pg_test]
     fn test_pgnats_file_list() {
         let bucket = "test_file_list".to_string();
@@ -319,7 +315,7 @@ mod tests {
         }
     }
 
-    #[cfg(not(any(skip_pgnats_tests, skip_pgnats_js_tests)))]
+    #[cfg(feature = "object_value")]
     #[pg_test]
     fn test_pgnats_delete_file() {
         let bucket = "test_file_delete".to_string();

@@ -8,7 +8,7 @@ use async_nats::{
         object_store::{ObjectInfo, ObjectStore},
     },
 };
-use bincode::{Decode, Encode};
+
 use futures::StreamExt;
 use pgrx::warning;
 use tokio::io::{AsyncReadExt, BufReader};
@@ -28,7 +28,8 @@ pub struct NatsConnection {
     current_config: Option<Config>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub enum NatsTlsOptions {
     Tls {
         ca: PathBuf,
@@ -40,7 +41,8 @@ pub enum NatsTlsOptions {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct NatsConnectionOptions {
     pub host: String,
     pub port: u16,
