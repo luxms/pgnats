@@ -15,6 +15,35 @@ extension_sql!(
     requires = [pgnats_fdw_validator]
 );
 
+extension_sql!(
+    r#"
+    CREATE FUNCTION pgnats.enforce_single_pgnats_fdw_server()
+    RETURNS event_trigger
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+        fdw_count int;
+    BEGIN
+        SELECT COUNT(*) INTO fdw_count
+        FROM pg_foreign_server s
+        JOIN pg_foreign_data_wrapper f ON f.oid = s.srvfdw
+        WHERE f.fdwname = 'pgnats_fdw';
+
+        IF fdw_count > 1 THEN
+            RAISE EXCEPTION 'Only one server with FDW pgnats_fdw is allowed.';
+        END IF;
+    END;
+    $$;
+
+    CREATE EVENT TRIGGER enforce_single_pgnats_fdw_server_trigger
+    ON ddl_command_end
+    WHEN TAG IN ('CREATE SERVER')
+    EXECUTE FUNCTION pgnats.enforce_single_pgnats_fdw_server();
+    "#,
+    name = "create_event_trigger",
+    requires = ["create_subscriptions_table"]
+);
+
 #[pg_extern]
 fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
     if oid == sys::ForeignServerRelationId {
