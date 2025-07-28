@@ -12,16 +12,18 @@ name = "pgrx_embed_pgnats"
 path = "./src/bin/pgrx_embed.rs"
 
 [features]
-default = ["pg13", "kv", "object_store", "sub"]
+default = ["pg14", "kv", "object_store", "sub"]
 pg_test = []
-pg13 = ["pgrx/pg13", "pgrx-tests/pg13"]
 pg14 = ["pgrx/pg14", "pgrx-tests/pg14"]
 pg15 = ["pgrx/pg15", "pgrx-tests/pg15"]
 pg16 = ["pgrx/pg16", "pgrx-tests/pg16"]
 pg17 = ["pgrx/pg17", "pgrx-tests/pg17"]
 pg18 = ["pgrx/pg18", "pgrx-tests/pg18"]
+
+# pgrx fork feature
 xid8 = ["pgrx/xid8", "pgrx-tests/xid8"]
 
+# extension features
 kv = []
 object_store = []
 sub = ["bincode", "reqwest", "tokio-stream", "warp"]
