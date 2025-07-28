@@ -36,6 +36,10 @@ pub fn run_worker<const N: usize, W: Worker, L: SharedQueue<N>>(
     }
 
     while ctx.worker().wait(std::time::Duration::from_secs(1)) {
+        if ctx.worker().recv_kill_signal() {
+            break;
+        }
+
         ctx.check_migration();
         process_shared_queue(shared_queue, &msg_sender, &mut ctx)?;
 

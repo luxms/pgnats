@@ -35,6 +35,8 @@ pub trait Worker {
         transition: PgInstanceTransition,
         patroni_url: Option<&str>,
     ) -> Option<PgInstanceNotification>;
+
+    fn recv_kill_signal(&self) -> bool;
 }
 
 pub trait SharedQueue<const N: usize> {

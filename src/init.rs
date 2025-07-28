@@ -1,6 +1,6 @@
 use pgrx::prelude::*;
 
-use crate::{config::init_guc, ctx::CTX};
+use crate::ctx::CTX;
 
 #[cfg(feature = "sub")]
 pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
@@ -21,8 +21,6 @@ extension_sql!(
 
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
-    init_guc();
-
     #[cfg(feature = "sub")]
     init_background_worker();
 
@@ -59,9 +57,8 @@ fn init_background_worker() {
     pg_shmem_init!(crate::worker_queue::WORKER_MESSAGE_QUEUE);
 
     BackgroundWorkerBuilder::new("Background Worker Subscribtion")
-        .set_function("background_worker_subscriber")
+        .set_function("background_worker_launcher")
         .set_library("pgnats")
-        .set_restart_time(Some(std::time::Duration::from_secs(1)))
         .enable_spi_access()
         .load();
 }

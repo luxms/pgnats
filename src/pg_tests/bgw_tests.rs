@@ -125,6 +125,10 @@ mod tests {
                 .recv_timeout(std::time::Duration::from_secs(5))
                 .unwrap()
         }
+
+        fn recv_kill_signal(&self) -> bool {
+            false
+        }
     }
 
     #[pg_test]

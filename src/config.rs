@@ -1,17 +1,8 @@
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    ffi::{CStr, CString},
-    path::PathBuf,
-};
+use std::{borrow::Cow, collections::HashMap, ffi::CString, path::PathBuf};
 
-use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting, PgTryBuilder, Spi};
+use pgrx::{PgTryBuilder, Spi};
 
 use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
-
-pub const CONFIG_SUB_DB_NAME: &CStr = c"pgnats.sub_dbname";
-pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
-    GucSetting::<Option<CString>>::new(Some(c"pgnats"));
 
 pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
 
@@ -25,17 +16,6 @@ pub struct Config {
     pub nats_opt: NatsConnectionOptions,
     pub notify_subject: Option<String>,
     pub patroni_url: Option<String>,
-}
-
-pub fn init_guc() {
-    GucRegistry::define_string_guc(
-        CONFIG_SUB_DB_NAME,
-        c"A database to which all queries from subscriptions will be directed",
-        c"A database to which all queries from subscriptions will be directed",
-        &GUC_SUB_DB_NAME,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
 }
 
 #[cfg(not(feature = "pg_test"))]

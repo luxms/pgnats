@@ -1,4 +1,5 @@
-use anyhow::bail;
+use std::ffi::CStr;
+
 use pgrx::{
     PgTryBuilder, Spi,
     bgworkers::{BackgroundWorker, SignalWakeFlags},
@@ -6,7 +7,7 @@ use pgrx::{
 
 use crate::{
     bgw::{SharedQueue, Worker, WorkerState},
-    config::{Config, GUC_SUB_DB_NAME, fetch_config},
+    config::{Config, fetch_config},
     init::SUBSCRIPTIONS_TABLE_NAME,
     log,
     notification::{PgInstanceNotification, PgInstanceTransition},
@@ -18,19 +19,38 @@ pub struct PostgresWorker {
 }
 
 impl PostgresWorker {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(db_oid: pgrx::pg_sys::Oid) -> anyhow::Result<Self> {
+        log!("TRY TO CONNECT TO: {:?}", db_oid);
+
+        unsafe {
+            pgrx::pg_sys::BackgroundWorkerInitializeConnectionByOid(
+                db_oid,
+                pgrx::pg_sys::InvalidOid,
+                0,
+            );
+        }
+
         BackgroundWorker::attach_signal_handlers(
             SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM,
         );
 
-        let Some(db_name) = GUC_SUB_DB_NAME.get() else {
-            bail!("nats.sub_dbname is NULL");
-        };
+        let db_name = BackgroundWorker::transaction(|| {
+            let name_ptr = unsafe { pgrx::pg_sys::get_database_name(db_oid) };
 
-        let db_name = db_name.into_string()?;
-        BackgroundWorker::connect_worker_to_spi(Some(&db_name), None);
+            if name_ptr.is_null() {
+                return None;
+            }
 
-        Ok(Self { db_name })
+            let cstr = unsafe { CStr::from_ptr(name_ptr) };
+            Some(cstr.to_string_lossy().to_string())
+        });
+
+        let db_name =
+            db_name.ok_or_else(|| anyhow::anyhow!("WRONG DB OID OR NOT IN TRANSACTION"))?;
+
+        Ok(Self {
+            db_name: db_name.to_string(),
+        })
     }
 
     pub fn connected_db_name(&self) -> &str {
@@ -193,6 +213,10 @@ impl Worker for PostgresWorker {
         patroni_url: Option<&str>,
     ) -> Option<PgInstanceNotification> {
         PgInstanceNotification::new(transition, patroni_url)
+    }
+
+    fn recv_kill_signal(&self) -> bool {
+        BackgroundWorker::sigterm_received()
     }
 }
 
