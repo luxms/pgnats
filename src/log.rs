@@ -34,7 +34,17 @@ macro_rules! warn {
 macro_rules! error {
     ($($msg:tt)*) => {
         $crate::report!(
-            pgrx::PgLogLevel;:ERROR,
+            pgrx::PgLogLevel::ERROR,
+            $($msg)*
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! debug {
+    ($($msg:tt)*) => {
+        $crate::report!(
+            pgrx::PgLogLevel::DEBUG2,
             $($msg)*
         )
     };
@@ -56,6 +66,6 @@ macro_rules! report {
 #[macro_export]
 macro_rules! report {
     ($level:expr, $($msg:tt)*) => {
-        /* NO OP */
+        eprintln!("{}: {}", $crate::log::MSG_PREFIX, format!($($msg)*))
     };
 }

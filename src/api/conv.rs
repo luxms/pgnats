@@ -1,4 +1,4 @@
-use async_nats::{jetstream::object_store::ObjectInfo, ServerInfo};
+use async_nats::ServerInfo;
 use pgrx::name;
 
 #[allow(clippy::type_complexity)]
@@ -48,8 +48,9 @@ pub fn map_server_info(
 }
 
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "object_store")]
 pub fn map_object_info(
-    v: impl IntoIterator<Item = ObjectInfo> + 'static,
+    v: impl IntoIterator<Item = async_nats::jetstream::object_store::ObjectInfo> + 'static,
 ) -> pgrx::iter::TableIterator<
     'static,
     (

@@ -1,99 +1,33 @@
-use core::ffi::CStr;
-use std::ffi::CString;
-use std::net::Ipv4Addr;
-use std::path::PathBuf;
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    ffi::{CStr, CString},
+    path::PathBuf,
+};
 
-use pgrx::guc::*;
+use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting, PgTryBuilder, Spi};
 
-use crate::connection::NatsConnectionOptions;
-use crate::connection::NatsTlsOptions;
-use crate::info;
+use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
 
-// configs names
-pub const CONFIG_HOST: &CStr = c"nats.host";
-pub const CONFIG_PORT: &CStr = c"nats.port";
-pub const CONFIG_CAPACITY: &CStr = c"nats.capacity";
-pub const CONFIG_TLS_CA_PATH: &CStr = c"nats.tls.ca";
-pub const CONFIG_TLS_CERT_PATH: &CStr = c"nats.tls.cert";
-pub const CONFIG_TLS_KEY_PATH: &CStr = c"nats.tls.key";
-pub const CONFIG_SUB_DB_NAME: &CStr = c"nats.sub.dbname";
-
-// configs values
-pub static GUC_HOST: GucSetting<Option<CString>> =
-    GucSetting::<Option<CString>>::new(Some(c"127.0.0.1"));
-pub static GUC_PORT: GucSetting<i32> = GucSetting::<i32>::new(4222);
-pub static GUC_CAPACITY: GucSetting<i32> = GucSetting::<i32>::new(128);
-
-pub static GUC_TLS_CA_PATH: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(None);
-pub static GUC_TLS_CERT_PATH: GucSetting<Option<CString>> =
-    GucSetting::<Option<CString>>::new(None);
-pub static GUC_TLS_KEY_PATH: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(None);
-
+pub const CONFIG_SUB_DB_NAME: &CStr = c"pgnats.sub_dbname";
 pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
-    GucSetting::<Option<CString>>::new(Some(c"postgres"));
+    GucSetting::<Option<CString>>::new(Some(c"pgnats"));
 
-pub(crate) const BACKGROUND_WORKER_ADDR: (Ipv4Addr, u16) = (Ipv4Addr::new(127, 0, 0, 1), 52525);
+pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
 
-pub fn initialize_configuration() {
-    // initialization of postgres userdef configs
-    GucRegistry::define_string_guc(
-        CONFIG_HOST,
-        c"Address of NATS Server",
-        c"Address of NATS Server",
-        &GUC_HOST,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
+const DEFAULT_NATS_HOST: &str = "127.0.0.1";
+const DEFAULT_NATS_PORT: u16 = 4222;
+const DEFAULT_NATS_CAPACITY: usize = 128;
 
-    GucRegistry::define_int_guc(
-        CONFIG_PORT,
-        c"Port of NATS Server",
-        c"Port of NATS Server",
-        &GUC_PORT,
-        1024,
-        0xFFFF,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
+pub struct Config {
+    pub nats_opt: NatsConnectionOptions,
+    pub notify_subject: Option<String>,
+    pub patroni_url: Option<String>,
+}
 
-    GucRegistry::define_int_guc(
-        CONFIG_CAPACITY,
-        c"Buffer capacity of NATS Client",
-        c"Buffer capacity of NATS Client",
-        &GUC_CAPACITY,
-        1,
-        0xFFFF,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
-
-    GucRegistry::define_string_guc(
-        CONFIG_TLS_CA_PATH,
-        c"Path to TLS CA certificate",
-        c"Path to TLS CA certificate",
-        &GUC_TLS_CA_PATH,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
-
-    GucRegistry::define_string_guc(
-        CONFIG_TLS_CERT_PATH,
-        c"Path to TLS certificate",
-        c"Path to TLS certificate",
-        &GUC_TLS_CERT_PATH,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
-
-    GucRegistry::define_string_guc(
-        CONFIG_TLS_KEY_PATH,
-        c"Path to TLS key",
-        c"Path to TLS key",
-        &GUC_TLS_KEY_PATH,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
-
+pub fn init_guc() {
     GucRegistry::define_string_guc(
         CONFIG_SUB_DB_NAME,
         c"A database to which all queries from subscriptions will be directed",
@@ -102,40 +36,137 @@ pub fn initialize_configuration() {
         GucContext::Userset,
         GucFlags::default(),
     );
-
-    info!("PGNats has been successfully initialized!");
 }
 
-fn fetch_tls_options() -> Option<NatsTlsOptions> {
-    let ca = GUC_TLS_CA_PATH
-        .get()
-        .and_then(|path| path.into_string().ok())?;
+#[cfg(not(feature = "pg_test"))]
+pub fn fetch_config() -> Config {
+    use std::str::FromStr;
 
-    match (
-        GUC_TLS_CERT_PATH.get().and_then(|c| c.into_string().ok()),
-        GUC_TLS_KEY_PATH.get().and_then(|c| c.into_string().ok()),
-    ) {
-        (Some(cert), Some(key)) => Some(NatsTlsOptions::MutualTls {
-            ca: PathBuf::from(ca),
-            cert: PathBuf::from(cert),
-            key: PathBuf::from(key),
-        }),
-        _ => Some(NatsTlsOptions::Tls {
-            ca: PathBuf::from(ca),
-        }),
+    let mut options = HashMap::new();
+
+    let Some(fdw_server_name) = fetch_fdw_server_name(FDW_EXTENSION_NAME) else {
+        crate::warn!("Failed to get FDW server name");
+        return parse_config(&options);
+    };
+
+    let Ok(fdw_server_name) = CString::from_str(&fdw_server_name) else {
+        crate::warn!("Failed to parse FDW server name");
+        return parse_config(&options);
+    };
+
+    unsafe {
+        let server = pgrx::pg_sys::GetForeignServerByName(fdw_server_name.as_ptr(), true);
+
+        if server.is_null() {
+            return parse_config(&options);
+        }
+
+        let options_list = (*server).options;
+        if !options_list.is_null() {
+            let list: pgrx::PgList<pgrx::pg_sys::DefElem> = pgrx::PgList::from_pg(options_list);
+
+            for def_elem in list.iter_ptr() {
+                let key = std::ffi::CStr::from_ptr((*def_elem).defname)
+                    .to_string_lossy()
+                    .to_string();
+
+                let value = if !(*def_elem).arg.is_null() {
+                    let node = (*def_elem).arg;
+
+                    if (*node).type_ == pgrx::pg_sys::NodeTag::T_String {
+                        #[cfg(any(feature = "pg13", feature = "pg14"))]
+                        let val = (*(node as *mut pgrx::pg_sys::Value)).val.str_;
+
+                        #[cfg(not(any(feature = "pg13", feature = "pg14")))]
+                        let val = (*(node as *mut pgrx::pg_sys::String)).sval;
+
+                        std::ffi::CStr::from_ptr(val).to_string_lossy().to_string()
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                };
+
+                let _ = options.insert(key.into(), value.into());
+            }
+        }
+    };
+
+    parse_config(&options)
+}
+
+#[cfg(feature = "pg_test")]
+pub fn fetch_config() -> Config {
+    parse_config(&HashMap::new())
+}
+
+pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
+    let host = options
+        .get("host")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| DEFAULT_NATS_HOST.to_string());
+
+    let port = options
+        .get("port")
+        .and_then(|port| port.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_NATS_PORT);
+
+    let capacity = options
+        .get("capacity")
+        .and_then(|c| c.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_NATS_CAPACITY);
+
+    let tls = if let Some(ca) = options.get("tls_ca_path") {
+        let tls_cert_part = options.get("tls_cert_path");
+        let tls_key_path = options.get("tls_key_path");
+
+        match (tls_cert_part, tls_key_path) {
+            (Some(cert), Some(key)) => Some(NatsTlsOptions::MutualTls {
+                ca: PathBuf::from(ca.as_ref()),
+                cert: PathBuf::from(cert.as_ref()),
+                key: PathBuf::from(key.as_ref()),
+            }),
+            _ => Some(NatsTlsOptions::Tls {
+                ca: PathBuf::from(ca.as_ref()),
+            }),
+        }
+    } else {
+        None
+    };
+
+    let notify_subject = options.get("notify_subject").map(|v| v.to_string());
+
+    let patroni_url = options.get("patroni_url").map(|v| v.to_string());
+
+    Config {
+        nats_opt: NatsConnectionOptions {
+            host,
+            port,
+            capacity,
+            tls,
+        },
+        notify_subject,
+        patroni_url,
     }
 }
 
-pub fn fetch_connection_options() -> NatsConnectionOptions {
-    let tls = fetch_tls_options();
+pub fn fetch_fdw_server_name(fdw_name: &str) -> Option<String> {
+    PgTryBuilder::new(|| {
+        Spi::connect(|conn| {
+            let Ok(result) = conn.select(
+                "SELECT srv.srvname::text FROM pg_foreign_server srv JOIN pg_foreign_data_wrapper fdw ON srv.srvfdw = fdw.oid WHERE fdw.fdwname = $1;",
+                None,
+                &[fdw_name.into()],
+            ) else {
+                return None;
+            };
 
-    NatsConnectionOptions {
-        host: GUC_HOST
-            .get()
-            .map(|host| host.to_string_lossy().to_string())
-            .unwrap_or("127.0.0.1".to_string()),
-        port: GUC_PORT.get() as u16,
-        capacity: GUC_CAPACITY.get() as usize,
-        tls,
-    }
+            result.into_iter().filter_map(|tuple| {
+                tuple.get_by_name::<String, _>("srvname").ok().flatten()
+            }).next()
+        })
+    })
+    .catch_others(|_| None)
+    .execute()
 }

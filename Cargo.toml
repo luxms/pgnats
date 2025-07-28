@@ -1,8 +1,8 @@
 [package]
 name = "pgnats"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.81.0"
+edition = "2024"
+rust-version = "1.88.0"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -12,19 +12,23 @@ name = "pgrx_embed_pgnats"
 path = "./src/bin/pgrx_embed.rs"
 
 [features]
-default = ["pg13"]
+default = ["pg13", "kv", "object_store", "sub"]
+pg_test = []
 pg13 = ["pgrx/pg13", "pgrx-tests/pg13"]
 pg14 = ["pgrx/pg14", "pgrx-tests/pg14"]
 pg15 = ["pgrx/pg15", "pgrx-tests/pg15"]
 pg16 = ["pgrx/pg16", "pgrx-tests/pg16"]
 pg17 = ["pgrx/pg17", "pgrx-tests/pg17"]
 pg18 = ["pgrx/pg18", "pgrx-tests/pg18"]
-pg_test = []
 xid8 = ["pgrx/xid8", "pgrx-tests/xid8"]
 
+kv = []
+object_store = []
+sub = ["bincode", "reqwest", "tokio-stream", "warp"]
+
 [dependencies]
+anyhow = { version = "1.0", default-features = false }
 async-nats = "0.42.0"
-bincode = "2.0.1"
 futures = "0.3.31"
 paste = "1.0.15"
 pgrx = { git = "https://github.com/luxms/pgrx", version = "0.15.0", features = [
@@ -32,8 +36,17 @@ pgrx = { git = "https://github.com/luxms/pgrx", version = "0.15.0", features = [
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.138"
-thiserror = "2.0.11"
 tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread"] }
+
+bincode = { optional = true, version = "2.0.1" }
+reqwest = { optional = true, version = "0.12.22", default-features = false, features = [
+    "json",
+    "blocking",
+] }
+
+# dev-dependencies
+tokio-stream = { optional = true, version = "0.1.17", features = ["net"] }
+warp = { optional = true, version = "0.3.7", default-features = false }
 
 [dev-dependencies]
 pgrx-tests = { git = "https://github.com/luxms/pgrx", version = "0.15.0" }

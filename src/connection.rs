@@ -1,20 +1,23 @@
-use async_nats::jetstream::kv::Store;
-use async_nats::jetstream::object_store::{ObjectInfo, ObjectStore};
-use async_nats::jetstream::Context;
-use async_nats::{Client, Request};
-use bincode::{Decode, Encode};
+use std::{collections::HashMap, io::Cursor, path::PathBuf, time::Duration};
+
+use async_nats::{
+    Client, Request,
+    jetstream::{
+        Context,
+        kv::Store,
+        object_store::{ObjectInfo, ObjectStore},
+    },
+};
+
 use futures::StreamExt;
 use pgrx::warning;
-use std::collections::HashMap;
-use std::io::Cursor;
-use std::path::PathBuf;
-use std::time::Duration;
 use tokio::io::{AsyncReadExt, BufReader};
 
-use crate::config::fetch_connection_options;
-use crate::errors::PgNatsError;
-use crate::info;
-use crate::utils::{extract_headers, FromBytes, ToBytes};
+use crate::{
+    config::{Config, fetch_config},
+    info,
+    utils::{FromBytes, ToBytes, extract_headers},
+};
 
 #[derive(Default)]
 pub struct NatsConnection {
@@ -22,10 +25,11 @@ pub struct NatsConnection {
     jetstream: Option<Context>,
     cached_buckets: HashMap<String, Store>,
     cached_object_stores: HashMap<String, ObjectStore>,
-    current_config: Option<NatsConnectionOptions>,
+    current_config: Option<Config>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub enum NatsTlsOptions {
     Tls {
         ca: PathBuf,
@@ -37,7 +41,8 @@ pub enum NatsTlsOptions {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct NatsConnectionOptions {
     pub host: String,
     pub port: u16,
@@ -46,9 +51,9 @@ pub struct NatsConnectionOptions {
 }
 
 impl NatsConnection {
-    pub fn new(opt: Option<NatsConnectionOptions>) -> Self {
+    pub fn new(config: Option<Config>) -> Self {
         Self {
-            current_config: opt,
+            current_config: config,
             ..Default::default()
         }
     }
@@ -59,7 +64,7 @@ impl NatsConnection {
         message: impl ToBytes,
         reply: Option<impl ToString>,
         headers: Option<serde_json::Value>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
         let conn = self.get_connection().await?;
@@ -90,7 +95,7 @@ impl NatsConnection {
         subject: impl ToString,
         message: impl ToBytes,
         timeout: Option<u64>,
-    ) -> Result<Vec<u8>, PgNatsError> {
+    ) -> anyhow::Result<Vec<u8>> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
 
@@ -116,7 +121,7 @@ impl NatsConnection {
         subject: impl ToString,
         message: impl ToBytes,
         headers: Option<serde_json::Value>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let subject = subject.to_string();
         let message: Vec<u8> = message.to_bytes()?;
         let headers = headers.map(extract_headers);
@@ -154,27 +159,11 @@ impl NatsConnection {
     pub async fn check_and_invalidate_connection(&mut self) {
         let (changed, new_config) = {
             let config = &self.current_config;
-            let fetched_config = fetch_connection_options();
+            let fetched_config = fetch_config();
 
-            let changed = config.as_ref() != Some(&fetched_config);
+            let changed = config.as_ref().map(|c| &c.nats_opt) != Some(&fetched_config.nats_opt);
 
             (changed, fetched_config)
-        };
-
-        if changed {
-            self.invalidate_connection().await;
-
-            self.current_config = Some(new_config);
-        }
-    }
-
-    pub async fn set_config(&mut self, opt: NatsConnectionOptions) {
-        let (changed, new_config) = {
-            let config = &self.current_config;
-
-            let changed = config.as_ref() != Some(&opt);
-
-            (changed, opt)
         };
 
         if changed {
@@ -189,7 +178,7 @@ impl NatsConnection {
         bucket: impl ToString,
         key: impl AsRef<str>,
         data: impl ToBytes,
-    ) -> Result<u64, PgNatsError> {
+    ) -> anyhow::Result<u64> {
         let bucket = self.get_or_create_bucket(bucket).await?;
         let data: Vec<u8> = data.to_bytes()?;
         let version = bucket.put(key, data.into()).await?;
@@ -201,7 +190,7 @@ impl NatsConnection {
         &mut self,
         bucket: impl ToString,
         key: impl Into<String>,
-    ) -> Result<Option<T>, PgNatsError> {
+    ) -> anyhow::Result<Option<T>> {
         let bucket = self.get_or_create_bucket(bucket).await?;
 
         bucket
@@ -216,14 +205,14 @@ impl NatsConnection {
         &mut self,
         bucket: impl ToString,
         key: impl AsRef<str>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let bucket = self.get_or_create_bucket(bucket).await?;
         bucket.delete(key).await?;
 
         Ok(())
     }
 
-    pub async fn get_server_info(&mut self) -> Result<async_nats::ServerInfo, PgNatsError> {
+    pub async fn get_server_info(&mut self) -> anyhow::Result<async_nats::ServerInfo> {
         let connection = self.get_connection().await?;
         Ok(connection.server_info())
     }
@@ -232,7 +221,7 @@ impl NatsConnection {
         &mut self,
         store: impl ToString,
         name: impl AsRef<str> + Send,
-    ) -> Result<Vec<u8>, PgNatsError> {
+    ) -> anyhow::Result<Vec<u8>> {
         let store = self.get_or_create_object_store(store).await?;
         let mut file = store.get(name).await?;
 
@@ -247,7 +236,7 @@ impl NatsConnection {
         store: impl ToString,
         name: impl AsRef<str>,
         content: Vec<u8>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let store = self.get_or_create_object_store(store).await?;
         let mut reader = BufReader::new(Cursor::new(content));
         let _ = store.put(name.as_ref(), &mut reader).await?;
@@ -259,7 +248,7 @@ impl NatsConnection {
         &mut self,
         store: impl ToString,
         name: impl AsRef<str>,
-    ) -> Result<(), PgNatsError> {
+    ) -> anyhow::Result<()> {
         let store = self.get_or_create_object_store(store).await?;
         store.delete(name).await.map_err(|e| e.into())
     }
@@ -268,15 +257,12 @@ impl NatsConnection {
         &mut self,
         store: impl ToString,
         name: impl AsRef<str>,
-    ) -> Result<ObjectInfo, PgNatsError> {
+    ) -> anyhow::Result<ObjectInfo> {
         let store = self.get_or_create_object_store(store).await?;
         store.info(name).await.map_err(|e| e.into())
     }
 
-    pub async fn get_file_list(
-        &mut self,
-        store: impl ToString,
-    ) -> Result<Vec<ObjectInfo>, PgNatsError> {
+    pub async fn get_file_list(&mut self, store: impl ToString) -> anyhow::Result<Vec<ObjectInfo>> {
         let store = self.get_or_create_object_store(store).await?;
         let mut vec = vec![];
         let mut list = store.list().await?;
@@ -289,15 +275,10 @@ impl NatsConnection {
 
         Ok(vec)
     }
-
-    pub async fn get_connection_options(&mut self) -> Option<NatsConnectionOptions> {
-        let _ = self.get_connection().await;
-        self.current_config.clone()
-    }
 }
 
 impl NatsConnection {
-    async fn get_connection(&mut self) -> Result<&Client, PgNatsError> {
+    async fn get_connection(&mut self) -> anyhow::Result<&Client> {
         if self.connection.is_none() {
             self.initialize_connection().await?;
         }
@@ -308,7 +289,7 @@ impl NatsConnection {
             .expect("unreachable, must be initialized"))
     }
 
-    async fn get_jetstream(&mut self) -> Result<&Context, PgNatsError> {
+    async fn get_jetstream(&mut self) -> anyhow::Result<&Context> {
         if self.connection.is_none() {
             self.initialize_connection().await?;
         }
@@ -319,7 +300,7 @@ impl NatsConnection {
             .expect("unreachable, must be initialized"))
     }
 
-    async fn get_or_create_bucket(&mut self, bucket: impl ToString) -> Result<&Store, PgNatsError> {
+    async fn get_or_create_bucket(&mut self, bucket: impl ToString) -> anyhow::Result<&Store> {
         let bucket = bucket.to_string();
 
         if !self.cached_buckets.contains_key(&bucket) {
@@ -345,7 +326,7 @@ impl NatsConnection {
     async fn get_or_create_object_store(
         &mut self,
         store: impl ToString,
-    ) -> Result<&ObjectStore, PgNatsError> {
+    ) -> anyhow::Result<&ObjectStore> {
         let bucket = store.to_string();
 
         if !self.cached_object_stores.contains_key(&bucket) {
@@ -368,14 +349,12 @@ impl NatsConnection {
             .expect("unreachable, must be initialized"))
     }
 
-    async fn initialize_connection(&mut self) -> Result<(), PgNatsError> {
-        let config = self
-            .current_config
-            .get_or_insert_with(fetch_connection_options);
+    async fn initialize_connection(&mut self) -> anyhow::Result<()> {
+        let config = self.current_config.get_or_insert_with(fetch_config);
 
-        let mut opts = async_nats::ConnectOptions::new().client_capacity(config.capacity);
+        let mut opts = async_nats::ConnectOptions::new().client_capacity(config.nats_opt.capacity);
 
-        if let Some(tls) = &config.tls {
+        if let Some(tls) = &config.nats_opt.tls {
             if let Ok(root) = std::env::current_dir() {
                 match tls {
                     NatsTlsOptions::Tls { ca } => {
@@ -399,13 +378,11 @@ impl NatsConnection {
         }
 
         let connection = opts
-            .connect(format!("{0}:{1}", config.host, config.port))
+            .connect(format!(
+                "{0}:{1}",
+                config.nats_opt.host, config.nats_opt.port
+            ))
             .await
-            .map_err(|io_error| PgNatsError::Connection {
-                host: config.host.clone(),
-                port: config.port,
-                io_error,
-            })
             .inspect_err(|_| {
                 self.current_config = None;
             })?;

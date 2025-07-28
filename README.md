@@ -9,6 +9,7 @@ Provides one-way integration from PostgreSQL to NATS, supporting:
 - JetStream persistent message streams
 - Key-Value storage operations from SQL
 - Object Store operations (uploading, downloading, deleting files) from SQL
+- Works on Postgres Cluster
 
 ## ⚙️ Install
 
@@ -28,6 +29,29 @@ cargo pgrx init --configure-flag='--without-icu'
 cargo pgrx package --pg-config <PATH TO PG_CONFIG> [--out-dir <THE DIRECTORY TO OUTPUT THE PACKAGE>]
 ```
 
+### 🔧 Selecting Features
+
+By default, all features (`kv`, `object_store`, `sub`) are enabled.
+If you prefer a smaller build or want to customize the functionality, you can selectively enable features like so:
+
+```sh
+cargo pgrx package --no-default-features --features kv
+```
+
+This will include only the `kv` feature and exclude `object_store` and `sub`.
+
+For example:
+
+* `--features "kv"` – enables only the NATS key-value store.
+* `--features "sub"` – enables subscriptions and HTTP integration with Patroni.
+* `--features "object_store"` – enables binary object storage support.
+
+You can combine them as needed:
+
+```sh
+cargo pgrx package --no-default-features --features kv sub
+```
+
 ## 🧪 Tests
 
 > [!WARNING]
@@ -36,45 +60,29 @@ cargo pgrx package --pg-config <PATH TO PG_CONFIG> [--out-dir <THE DIRECTORY TO 
 > [!WARNING]
 > You need docker installed for integration testing.
 
-**1. Run all tests**
+**Run all tests**
 ```sh
 cargo pgrx test
 ```
 
-**2. Skip tests that require JetStream in NATS Server**
-```sh
-SKIP_PGNATS_JS_TESTS=1 cargo pgrx test
-```
-
-**3. Skip tests that require NATS Server**
-```sh
-SKIP_PGNATS_TESTS=1 cargo pgrx test
-```
-
 ## 🦀 Minimum supported Rust version
 
-- `Rust 1.81.0`
-- `cargo-pgrx 0.14.*`
+- `Rust 1.88.0`
+- `cargo-pgrx 0.15.0`
 
 ## 📚 Documentation
 
 To view the documentation, run:
 
 ```sh
-cargo doc --open`
+cargo doc --open
 ```
 
 The exported PostgreSQL API is implemented in the `api` module.
 
 ## 🧩 Extension Configuration
 
-- `nats.host` - IP/hostname of the NATS message server (default: `127.0.0.1`)
-- `nats.port` - TCP port for NATS connections (default: `4222`)
-- `nats.capacity` - Internal command buffer size in messages (default: `128`)
-- `nats.tls.ca` – Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
-- `nats.tls.cert` – Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
-- `nats.tls.key` – Path to the client private key corresponding to `nats.tls.cert` (default: unset; required if `nats.tls.cert` is set)
-- `nats.sub.dbname` — Database name to which all queries from subscription callbacks will be routed (default: `postgres`)
+- `pgnats.sub_dbname` - A database to which all queries from subscriptions will be directed (default: `pgnats`)
 
 ## 📘 Usage
 
@@ -82,13 +90,49 @@ The exported PostgreSQL API is implemented in the `api` module.
 
 ```sql
 -- Configuration
-SET nats.host = '127.0.0.1';
-SET nats.port = 4222;
-SET nats.capacity = 128;
-SET nats.tls.ca = 'ca';
-SET nats.tls.cert = 'cert';
-SET nats.tls.key = 'key';
-SET nats.sub.dbname = 'postgres';
+ALTER SYSTEM SET nats.sub_dbname = 'postgres';
+```
+
+To configure the NATS connection, you need to create a Foreign Server:
+
+```sql
+CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (
+    --  IP/hostname of the NATS message server (default: 127.0.0.1)
+    host 'localhost',
+
+    -- TCP port for NATS connections (default: 4222)
+    port '4222',
+
+    -- Internal command buffer size in messages (default: 128)
+    capacity '128',
+
+    -- Path to the CA (Certificate Authority) certificate used to verify the NATS server certificate (default: unset, required for TLS)
+    tls_ca_path '/path/ca',
+
+    --  Path to the client certificate for mutual TLS authentication (default: unset; optional unless server requires client auth)
+    tls_cert_path '/path/cert',
+
+    -- Path to the client private key corresponding to nats.tls.cert (default: unset; required if nats.tls.cert is set)
+    tls_key_path '/path/key',
+
+    -- Name of the NATS subject for sending role change notifications (e.g., when the Postgres instance transitions between master and replica)
+    notify_subject 'my.subject'
+
+    -- URL of the Patroni REST API used to retrieve the current Postgres instance name.
+    -- This is required when sending role change notifications (e.g., when the Postgres instance transitions between master and replica)
+    patroni_url 'http://localhost:8008/patroni'
+);
+```
+
+#### Notification body
+
+```json
+{
+  "transition": "M2R", // M2R - master to replica, R2M - replica to master
+  "listen_adresses": ["127.0.0.1", "127.0.0.2"],
+  "port": 5432,
+  "name": "pg-instance-01" // may be null
+}
 ```
 
 ### 🔄 Reload configuration

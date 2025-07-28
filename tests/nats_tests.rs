@@ -1,30 +1,30 @@
 #[cfg(test)]
 mod nats_tests {
-    use std::{
-        sync::{mpsc::channel, Arc},
-        time::Duration,
-    };
-
     use futures::StreamExt;
-    use pgnats::connection::{NatsConnection, NatsConnectionOptions, NatsTlsOptions};
-
+    use pgnats::{
+        config::Config,
+        connection::{NatsConnection, NatsConnectionOptions, NatsTlsOptions},
+    };
     use testcontainers::{
+        ContainerAsync, GenericImage, ImageExt,
         core::{ContainerPort, Mount, WaitFor},
         runners::AsyncRunner,
-        ContainerAsync, GenericImage, ImageExt,
     };
-    use tokio::net::UdpSocket;
 
     const TEST_STORE: &str = "test-store";
     const TEST_FILE: &str = "file.txt";
     const TEST_CONTENT: &[u8] = b"Hello, PGNats!";
 
     async fn setup_nats_with_file(port: u16) -> NatsConnection {
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         nats.put_file(TEST_STORE, TEST_FILE, TEST_CONTENT.to_vec())
@@ -85,11 +85,15 @@ mod nats_tests {
     #[tokio::test]
     async fn test_get_server_info_success() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let info_result = nats.get_server_info().await;
@@ -118,11 +122,15 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish";
@@ -140,19 +148,23 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
         assert_eq!(
-            Some(message.as_bytes().to_vec()),
-            subscriber.next().await.map(|m| m.payload.to_vec())
+            message.as_bytes().to_vec(),
+            subscriber.next().await.unwrap().payload.to_vec()
         );
     }
 
     #[tokio::test]
     async fn test_nats_request_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_request_text";
@@ -191,11 +203,15 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_stream() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_stream";
@@ -213,19 +229,23 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
         assert_eq!(
-            Some(message.as_bytes().to_vec()),
-            subscriber.next().await.map(|m| m.payload.to_vec())
+            message.as_bytes().to_vec(),
+            subscriber.next().await.unwrap().payload.to_vec()
         );
     }
 
     #[tokio::test]
     async fn test_nats_put_and_get_binary() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -247,17 +267,21 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(data.as_slice()), value.as_deref());
+        assert_eq!(data.as_slice(), value.unwrap());
     }
 
     #[tokio::test]
     async fn test_nats_put_and_get_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -279,17 +303,21 @@ mod nats_tests {
         );
 
         let value = get_res.unwrap();
-        assert_eq!(Some(text), value.as_deref());
+        assert_eq!(text, value.unwrap());
     }
 
     #[tokio::test]
     async fn test_nats_put_and_get_json() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -306,17 +334,21 @@ mod nats_tests {
         assert!(get_res.is_ok(), "nats_get_json occurs error: {:?}", get_res);
 
         let returned_json = get_res.unwrap();
-        assert_eq!(Some(json_value), returned_json);
+        assert_eq!(json_value, returned_json.unwrap());
     }
 
     #[tokio::test]
     async fn test_nats_delete_value() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let bucket = "test_default".to_string();
@@ -340,240 +372,22 @@ mod nats_tests {
         assert_eq!(None, value);
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_nats_subscribe() {
-        let (_cont, port) = setup().await;
-
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
-        }));
-
-        let worker_addr = "127.0.0.1:52529";
-
-        let (msg_sender, msg_receiver) = channel();
-        let mut worker_context =
-            pgnats::bg_subscription::WorkerContext::new(msg_sender, worker_addr)
-                .await
-                .unwrap();
-
-        let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
-
-        let message = pgnats::ctx::WorkerMessage::Subscribe {
-            dbname: "postgres".to_string(),
-            opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            subject: "test.test_nats_subscribe".to_string(),
-            fn_name: "test".to_string(),
-        };
-        let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
-
-        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::Subscribe {
-            opt,
-            subject,
-            fn_name,
-            ..
-        } = message
-        else {
-            panic!("wrong message")
-        };
-
-        assert_eq!(subject.as_str(), "test.test_nats_subscribe");
-        assert_eq!(fn_name.as_str(), "test");
-        worker_context
-            .handle_subscribe(opt, Arc::from(subject), Arc::from(fn_name))
-            .await;
-
-        nats.publish(
-            "test.test_nats_subscribe",
-            "Hello, subscriber!",
-            None::<String>,
-            None,
-        )
-        .await
-        .unwrap();
-
-        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::CallbackCall {
-            client,
-            subject,
-            data,
-        } = message
-        else {
-            panic!("wrong message")
-        };
-
-        assert_eq!(&*client, &format!("127.0.0.1:{}", port));
-        assert_eq!(&*subject, "test.test_nats_subscribe");
-        assert_eq!(&*data, b"Hello, subscriber!".as_slice());
-
-        worker_context.handle_callback(&*client, &*subject, data, |fn_name, data| {
-            assert_eq!(fn_name, "test");
-            assert_eq!(data, b"Hello, subscriber!".as_slice());
-        });
-
-        let message = pgnats::ctx::WorkerMessage::Unsubscribe {
-            dbname: "postgres".to_string(),
-            opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            subject: "test.test_nats_subscribe".to_string(),
-            fn_name: "test".to_string(),
-        };
-        let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
-
-        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::Unsubscribe {
-            opt,
-            subject,
-            fn_name,
-            ..
-        } = message
-        else {
-            panic!("wrong message")
-        };
-
-        assert_eq!(&*subject, "test.test_nats_subscribe");
-        assert_eq!(&*fn_name, "test");
-        worker_context.handle_unsubscribe(&opt, Arc::from(subject), &*fn_name);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_nats_subscribe_with_multiple_fn() {
-        let (_cont, port) = setup().await;
-
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
-        }));
-
-        let worker_addr = "127.0.0.1:52530";
-
-        let (msg_sender, msg_receiver) = channel();
-        let mut worker_context =
-            pgnats::bg_subscription::WorkerContext::new(msg_sender, worker_addr)
-                .await
-                .unwrap();
-
-        let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
-
-        let message = pgnats::ctx::WorkerMessage::Subscribe {
-            dbname: "postgres".to_string(),
-            opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            subject: "test.test_nats_subscribe".to_string(),
-            fn_name: "test1".to_string(),
-        };
-        let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
-
-        let message = pgnats::ctx::WorkerMessage::Subscribe {
-            dbname: "postgres".to_string(),
-            opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            subject: "test.test_nats_subscribe".to_string(),
-            fn_name: "test2".to_string(),
-        };
-        let buf = bincode::encode_to_vec(message, bincode::config::standard()).unwrap();
-        let _ = socket.send_to(&buf, worker_addr).await.unwrap();
-
-        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::Subscribe {
-            opt,
-            subject,
-            fn_name,
-            ..
-        } = message
-        else {
-            panic!("wrong message")
-        };
-
-        assert_eq!(subject.as_str(), "test.test_nats_subscribe");
-        assert_eq!(fn_name.as_str(), "test1");
-        worker_context
-            .handle_subscribe(opt, Arc::from(subject), Arc::from(fn_name))
-            .await;
-
-        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::Subscribe {
-            opt,
-            subject,
-            fn_name,
-            ..
-        } = message
-        else {
-            panic!("wrong message")
-        };
-
-        assert_eq!(subject.as_str(), "test.test_nats_subscribe");
-        assert_eq!(fn_name.as_str(), "test2");
-        worker_context
-            .handle_subscribe(opt, Arc::from(subject), Arc::from(fn_name))
-            .await;
-
-        nats.publish(
-            "test.test_nats_subscribe",
-            "Hello, subscriber!",
-            None::<String>,
-            None,
-        )
-        .await
-        .unwrap();
-
-        let message = msg_receiver.recv_timeout(Duration::from_secs(5)).unwrap();
-        let pgnats::bg_subscription::InternalWorkerMessage::CallbackCall {
-            client,
-            subject,
-            data,
-        } = message
-        else {
-            panic!("wrong message")
-        };
-
-        assert_eq!(&*client, &format!("127.0.0.1:{}", port));
-        assert_eq!(&*subject, "test.test_nats_subscribe");
-        assert_eq!(&*data, b"Hello, subscriber!".as_slice());
-
-        worker_context.handle_callback(&*client, &*subject, data, |fn_name, data| {
-            assert!(fn_name == "test1" || fn_name == "test2");
-            assert_eq!(data, b"Hello, subscriber!".as_slice());
-        });
-    }
-
     #[tokio::test]
     async fn test_nats_publish_text_tls() {
         let (_cont, port) = setup_with_tls().await;
 
         // Настройка async_nats клиента с TLS
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "localhost".to_string(),
-            port,
-            capacity: 128,
-            tls: Some(NatsTlsOptions::Tls {
-                ca: "./tests/certs/ca.crt".into(),
-            }),
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "localhost".to_string(),
+                port,
+                capacity: 128,
+                tls: Some(NatsTlsOptions::Tls {
+                    ca: "./tests/certs/ca.crt".into(),
+                }),
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_text_tls";
@@ -587,11 +401,15 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_with_reply() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_with_reply";
@@ -613,22 +431,23 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
-            assert_eq!(msg.reply.as_deref(), Some(reply_to));
-        } else {
-            panic!("did not receive a message");
-        }
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
+        assert_eq!(msg.reply.unwrap().as_str(), reply_to);
     }
 
     #[tokio::test]
     async fn test_nats_publish_with_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_with_headers";
@@ -654,31 +473,29 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
 
-            if let Some(hdrs) = msg.headers {
-                assert_eq!(hdrs.get("X-Custom").map(|v| v.as_str()), Some("123"));
-                assert_eq!(
-                    hdrs.get("Content-Type").map(|v| v.as_str()),
-                    Some("text/plain")
-                );
-            } else {
-                panic!("headers are missing from message");
-            }
-        } else {
-            panic!("did not receive a message");
-        }
+        let hdrs = msg.headers.expect("headers are missing from message");
+        assert_eq!(hdrs.get("X-Custom").map(|v| v.as_str()).unwrap(), "123");
+        assert_eq!(
+            hdrs.get("Content-Type").map(|v| v.as_str()).unwrap(),
+            "text/plain"
+        );
     }
 
     #[tokio::test]
     async fn test_nats_publish_with_reply_and_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_with_reply_and_headers";
@@ -710,35 +527,33 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
-            assert_eq!(msg.reply.as_deref(), Some(reply_to));
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
+        assert_eq!(msg.reply.as_deref(), Some(reply_to));
 
-            if let Some(hdrs) = msg.headers {
-                assert_eq!(
-                    hdrs.get("User-Agent").map(|v| v.as_str()),
-                    Some("nats-test")
-                );
-                assert_eq!(
-                    hdrs.get("Accept").map(|v| v.as_str()),
-                    Some("application/json")
-                );
-            } else {
-                panic!("headers are missing from message");
-            }
-        } else {
-            panic!("did not receive a message");
-        }
+        let hdrs = msg.headers.expect("headers are missing from message");
+        assert_eq!(
+            hdrs.get("User-Agent").map(|v| v.as_str()),
+            Some("nats-test")
+        );
+        assert_eq!(
+            hdrs.get("Accept").map(|v| v.as_str()),
+            Some("application/json")
+        );
     }
 
     #[tokio::test]
     async fn test_nats_publish_stream_with_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_publish_stream_with_headers";
@@ -764,28 +579,28 @@ mod nats_tests {
 
         assert!(res.is_ok(), "nats_publish_stream occurs error: {:?}", res);
 
-        if let Some(msg) = subscriber.next().await {
-            assert_eq!(msg.payload, message.as_bytes());
+        let msg = subscriber.next().await.expect("did not receive a message");
+        assert_eq!(msg.payload, message.as_bytes());
 
-            if let Some(hdrs) = msg.headers {
-                assert_eq!(hdrs.get("X-Stream").map(|v| v.as_str()), Some("true"));
-                assert_eq!(hdrs.get("X-Test-ID").map(|v| v.as_str()), Some("stream123"));
-            } else {
-                panic!("headers are missing from stream message");
-            }
-        } else {
-            panic!("did not receive a stream message");
-        }
+        let hdrs = msg
+            .headers
+            .expect("headers are missing from stream message");
+        assert_eq!(hdrs.get("X-Stream").map(|v| v.as_str()), Some("true"));
+        assert_eq!(hdrs.get("X-Test-ID").map(|v| v.as_str()), Some("stream123"));
     }
 
     #[tokio::test]
     async fn test_nats_request_timeout() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let subject = "test.test_nats_request_timeout";
@@ -803,11 +618,15 @@ mod nats_tests {
     #[tokio::test]
     async fn test_put_file() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(NatsConnectionOptions {
-            host: "127.0.0.1".to_string(),
-            port,
-            capacity: 128,
-            tls: None,
+        let mut nats = NatsConnection::new(Some(Config {
+            nats_opt: NatsConnectionOptions {
+                host: "127.0.0.1".to_string(),
+                port,
+                capacity: 128,
+                tls: None,
+            },
+            notify_subject: None,
+            patroni_url: None,
         }));
 
         let res = nats

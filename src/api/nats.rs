@@ -1,15 +1,10 @@
-use std::net::UdpSocket;
-
 use pgrx::{name, pg_extern};
 
-use crate::{
-    config::{BACKGROUND_WORKER_ADDR, GUC_SUB_DB_NAME},
-    ctx::{WorkerMessage, CTX},
-    errors::PgNatsError,
-    impl_nats_get, impl_nats_publish, impl_nats_put, impl_nats_request, log,
-};
+use super::conv::map_server_info;
+use crate::{ctx::CTX, impl_nats_publish, impl_nats_request};
 
-use super::types::{map_object_info, map_server_info};
+#[cfg(feature = "kv")]
+use crate::{impl_nats_get, impl_nats_put};
 
 impl_nats_publish! {
     /// Publishes a raw binary message to the specified NATS subject.
@@ -20,7 +15,6 @@ impl_nats_publish! {
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
-    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -38,6 +32,7 @@ impl_nats_publish! {
     /// - [`nats_publish_binary_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     binary, Vec<u8>
 }
+
 impl_nats_publish! {
     /// Publishes a UTF-8 text message to the specified NATS subject.
     ///
@@ -47,7 +42,6 @@ impl_nats_publish! {
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
-    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -75,7 +69,6 @@ impl_nats_publish! {
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
-    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -103,7 +96,6 @@ impl_nats_publish! {
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
-    /// * `Err(PgNatsError)` - If publish failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -132,7 +124,6 @@ impl_nats_request! {
     ///
     /// # Returns
     /// * `Ok(Vec<u8>)` - Binary response data on success
-    /// * `Err(PgNatsError)` - If request fails or times out
     ///
     /// # SQL Usage
     /// ```sql
@@ -152,7 +143,6 @@ impl_nats_request! {
     ///
     /// # Returns
     /// * `Ok(String)` - Text response on success
-    /// * `Err(PgNatsError)` - If request fails or times out
     ///
     /// # SQL Usage
     /// ```sql
@@ -172,7 +162,6 @@ impl_nats_request! {
     ///
     /// # Returns
     /// * `Ok(pgrx::Json)` - JSON response on success
-    /// * `Err(PgNatsError)` - If request fails or times out
     ///
     /// # SQL Usage
     /// ```sql
@@ -192,7 +181,6 @@ impl_nats_request! {
     ///
     /// # Returns
     /// * `Ok(pgrx::JsonB)` - Binary JSON response on success
-    /// * `Err(PgNatsError)` - If request fails or times out
     ///
     /// # SQL Usage
     /// ```sql
@@ -202,6 +190,7 @@ impl_nats_request! {
     jsonb, pgrx::JsonB
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a raw binary value in the KV bucket under the specified key.
     ///
@@ -212,7 +201,6 @@ impl_nats_put! {
     ///
     /// # Returns
     /// * `Ok(i64)` - The revision number of the stored value on success.
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -221,6 +209,7 @@ impl_nats_put! {
     binary, Vec<u8>
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a UTF-8 text value in the KV bucket under the specified key.
     ///
@@ -231,7 +220,6 @@ impl_nats_put! {
     ///
     /// # Returns
     /// * `Ok(i64)` - The revision number of the stored value on success.
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -240,6 +228,7 @@ impl_nats_put! {
     text, &str
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a JSON value in the KV bucket under the specified key.
     ///
@@ -250,7 +239,6 @@ impl_nats_put! {
     ///
     /// # Returns
     /// * `Ok(i64)` - The revision number of the stored value on success.
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -259,6 +247,7 @@ impl_nats_put! {
     json, pgrx::Json
 }
 
+#[cfg(feature = "kv")]
 impl_nats_put! {
     /// Stores a binary-encoded JSON (JSONB) value in the KV bucket under the specified key.
     ///
@@ -269,7 +258,6 @@ impl_nats_put! {
     ///
     /// # Returns
     /// * `Ok(i64)` - The revision number of the stored value on success.
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -278,6 +266,7 @@ impl_nats_put! {
     jsonb, pgrx::JsonB
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a raw binary value from the KV bucket by the specified key.
     ///
@@ -288,7 +277,6 @@ impl_nats_get! {
     /// # Returns
     /// * `Ok(Some(Vec<u8>))` - If value exists
     /// * `Ok(None)` - If key doesn't exist
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -297,6 +285,7 @@ impl_nats_get! {
     binary, Vec<u8>
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a UTF-8 text value from the KV bucket by the specified key.
     ///
@@ -307,7 +296,6 @@ impl_nats_get! {
     /// # Returns
     /// * `Ok(Some(String))` - If value exists
     /// * `Ok(None)` - If key doesn't exist
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -316,6 +304,7 @@ impl_nats_get! {
     text, String
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a JSON value from the KV bucket by the specified key.
     ///
@@ -326,7 +315,6 @@ impl_nats_get! {
     /// # Returns
     /// * `Ok(Some(pgrx::Json))` - If value exists
     /// * `Ok(None)` - If key doesn't exist
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -335,6 +323,7 @@ impl_nats_get! {
     json, pgrx::Json
 }
 
+#[cfg(feature = "kv")]
 impl_nats_get! {
     /// Retrieves a binary-encoded JSON (JSONB) value from the KV bucket by the specified key.
     ///
@@ -345,7 +334,6 @@ impl_nats_get! {
     /// # Returns
     /// * `Ok(Some(pgrx::JsonB))` - If value exists
     /// * `Ok(None)` - If key doesn't exist
-    /// * `Err(PgNatsError)` - If operation failed
     ///
     /// # SQL Usage
     /// ```sql
@@ -362,14 +350,14 @@ impl_nats_get! {
 ///
 /// # Returns
 /// * `Ok(())` - If the deletion was successful
-/// * `Err(PgNatsError)` - If an error occurred during deletion
 ///
 /// # SQL Usage
 /// ```sql
 /// SELECT nats_delete_value('user_profiles', 'inactive_user_123');
 /// ```
+#[cfg(feature = "kv")]
 #[pg_extern]
-pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
+pub fn nats_delete_value(bucket: String, key: &str) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
             let res = ctx.nats_connection.delete_value(bucket, key).await;
@@ -383,7 +371,6 @@ pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
 ///
 /// # Returns
 /// * `Ok(ServerInfo)` - Contains details about the NATS server if successful
-/// * `Err(PgNatsError)` - If an error occurred while fetching server information
 ///
 /// # SQL Usage
 /// ```sql
@@ -391,7 +378,7 @@ pub fn nats_delete_value(bucket: String, key: &str) -> Result<(), PgNatsError> {
 /// ```
 #[allow(clippy::type_complexity)]
 #[pg_extern]
-pub fn nats_get_server_info() -> Result<
+pub fn nats_get_server_info() -> anyhow::Result<
     pgrx::iter::TableIterator<
         'static,
         (
@@ -413,7 +400,6 @@ pub fn nats_get_server_info() -> Result<
             name!(lame_duck_mode, bool),
         ),
     >,
-    PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
@@ -434,14 +420,14 @@ pub fn nats_get_server_info() -> Result<
 ///
 /// # Returns
 /// * `Ok(Vec<u8>)` - The file content as a byte array if successful
-/// * `Err(PgNatsError)` - If an error occurred during retrieval
 ///
 /// # SQL Usage
 /// ```sql
 /// SELECT nats_get_file('documents', 'report.pdf');
 /// ```
 #[pg_extern]
-pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> {
+#[cfg(feature = "object_store")]
+pub fn nats_get_file(store: String, name: &str) -> anyhow::Result<Vec<u8>> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
             let res = ctx.nats_connection.get_file(store, name).await;
@@ -460,14 +446,14 @@ pub fn nats_get_file(store: String, name: &str) -> Result<Vec<u8>, PgNatsError> 
 ///
 /// # Returns
 /// * `Ok(())` - If the upload was successful
-/// * `Err(PgNatsError)` - If an error occurred during upload
 ///
 /// # SQL Usage
 /// ```sql
 /// SELECT nats_put_file('documents', 'report.pdf', 'binary data'::bytea);
 /// ```
 #[pg_extern]
-pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), PgNatsError> {
+#[cfg(feature = "object_store")]
+pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
             let res = ctx.nats_connection.put_file(store, name, content).await;
@@ -485,14 +471,14 @@ pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> Result<(), 
 ///
 /// # Returns
 /// * `Ok(())` - If the deletion was successful
-/// * `Err(PgNatsError)` - If an error occurred during deletion
 ///
 /// # SQL Usage
 /// ```sql
 /// SELECT nats_delete_file('documents', 'old_report.pdf');
 /// ```
 #[pg_extern]
-pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
+#[cfg(feature = "object_store")]
+pub fn nats_delete_file(store: String, name: &str) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
             let res = ctx.nats_connection.delete_file(store, name).await;
@@ -510,7 +496,6 @@ pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
 ///
 /// # Returns
 /// * `Ok(_)` - A row with file metadata if successful
-/// * `Err(PgNatsError)` - If an error occurred during retrieval
 ///
 /// # SQL Usage
 /// ```sql
@@ -518,10 +503,11 @@ pub fn nats_delete_file(store: String, name: &str) -> Result<(), PgNatsError> {
 /// ```
 #[allow(clippy::type_complexity)]
 #[pg_extern]
+#[cfg(feature = "object_store")]
 pub fn nats_get_file_info(
     store: String,
     name: &str,
-) -> Result<
+) -> anyhow::Result<
     pgrx::iter::TableIterator<
         'static,
         (
@@ -537,7 +523,6 @@ pub fn nats_get_file_info(
             name!(delete, bool),
         ),
     >,
-    PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
@@ -546,7 +531,7 @@ pub fn nats_get_file_info(
                 tokio::task::yield_now().await;
                 res
             })
-            .map(|v| map_object_info(std::iter::once(v)))
+            .map(|v| super::conv::map_object_info(std::iter::once(v)))
     })
 }
 
@@ -557,16 +542,16 @@ pub fn nats_get_file_info(
 ///
 /// # Returns
 /// * `Ok(_)` - Iterator with metadata for all files
-/// * `Err(PgNatsError)` - If an error occurred during retrieval
 ///
 /// # SQL Usage
 /// ```sql
 /// SELECT * FROM nats_get_file_list('documents');
 #[allow(clippy::type_complexity)]
 #[pg_extern]
+#[cfg(feature = "object_store")]
 pub fn nats_get_file_list(
     store: String,
-) -> Result<
+) -> anyhow::Result<
     pgrx::iter::TableIterator<
         'static,
         (
@@ -582,7 +567,6 @@ pub fn nats_get_file_list(
             name!(delete, bool),
         ),
     >,
-    PgNatsError,
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
@@ -591,7 +575,7 @@ pub fn nats_get_file_list(
                 tokio::task::yield_now().await;
                 res
             })
-            .map(|v| map_object_info(v))
+            .map(|v| super::conv::map_object_info(v))
     })
 }
 
@@ -606,7 +590,6 @@ pub fn nats_get_file_list(
 ///
 /// # Returns
 /// * `Ok(())` - If the subscription request was successfully sent
-/// * `Err(PgNatsError)` - If an error occurred while retrieving options or sending the request
 ///
 /// # SQL Usage
 /// ```sql
@@ -618,32 +601,22 @@ pub fn nats_get_file_list(
 /// The specified PostgreSQL function **must accept a single argument of type `bytea`**,
 /// which will contain the message payload received from NATS.
 #[pg_extern]
-pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
-    let Some(opt) = CTX.with_borrow_mut(|ctx| {
-        ctx.rt
-            .block_on(ctx.nats_connection.get_connection_options())
-    }) else {
-        return Err(PgNatsError::NoConnectionOptions);
-    };
-
-    let dbname = GUC_SUB_DB_NAME
-        .get()
-        .and_then(|s| s.into_string().ok())
-        .map(|s| s.to_owned())
-        .expect("Failed to get subscribtion database name");
-
-    let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
-    let msg = WorkerMessage::Subscribe {
-        dbname,
-        opt,
-        subject,
-        fn_name,
-    };
-    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-        if let Err(err) = socket.send_to(&buf, BACKGROUND_WORKER_ADDR) {
-            log!("Failed to send data: {}", err);
-        }
+#[cfg(feature = "sub")]
+pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
+    if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
+        anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
+
+    let msg = crate::worker_queue::WorkerMessage::Subscribe { subject, fn_name };
+    let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
+
+    anyhow::ensure!(
+        crate::worker_queue::WORKER_MESSAGE_QUEUE
+            .exclusive()
+            .try_send(&buf)
+            .is_ok(),
+        "Shared queue is full"
+    );
 
     Ok(())
 }
@@ -659,39 +632,28 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> Result<(), PgNatsErro
 ///
 /// # Returns
 /// * `Ok(())` - If the unsubscription request was successfully sent
-/// * `Err(PgNatsError)` - If an error occurred while retrieving options or sending the request
 ///
 /// # SQL Usage
 /// ```sql
 /// SELECT nats_unsubscribe('events.user.created', 'handle_user_created');
 /// ```
 #[pg_extern]
-pub fn nats_unsubscribe(subject: String, fn_name: String) -> Result<(), PgNatsError> {
-    let Some(opt) = CTX.with_borrow_mut(|ctx| {
-        ctx.rt
-            .block_on(ctx.nats_connection.get_connection_options())
-    }) else {
-        return Err(PgNatsError::NoConnectionOptions);
-    };
-
-    let dbname = GUC_SUB_DB_NAME
-        .get()
-        .and_then(|s| s.into_string().ok())
-        .map(|s| s.to_owned())
-        .expect("Failed to get subscribtion database name");
-
-    let socket = UdpSocket::bind("0.0.0.0:0").map_err(PgNatsError::from)?;
-    let msg = WorkerMessage::Unsubscribe {
-        dbname,
-        opt,
-        subject,
-        fn_name,
-    };
-    if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-        if let Err(err) = socket.send_to(&buf, BACKGROUND_WORKER_ADDR) {
-            log!("Failed to send data: {}", err);
-        }
+#[cfg(feature = "sub")]
+pub fn nats_unsubscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
+    if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
+        anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
+
+    let msg = crate::worker_queue::WorkerMessage::Unsubscribe { subject, fn_name };
+    let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
+
+    anyhow::ensure!(
+        crate::worker_queue::WORKER_MESSAGE_QUEUE
+            .exclusive()
+            .try_send(&buf)
+            .is_ok(),
+        "Shared queue is full"
+    );
 
     Ok(())
 }
