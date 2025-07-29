@@ -3,7 +3,7 @@
 %define         debug_package  %{nil}
 
 %{!?version:    %define version %{VERSION}}
-%{!?release:    %define release %(date +%%Y%%m%%d)}
+%{!?release:    %define release 1}
 %{!?pg_ver:     %define pg_ver 15}
 
 %define         dist .mosos
