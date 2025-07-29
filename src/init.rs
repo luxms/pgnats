@@ -2,27 +2,10 @@ use pgrx::prelude::*;
 
 use crate::ctx::CTX;
 
-#[cfg(feature = "sub")]
-pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
-
-#[cfg(feature = "sub")]
-extension_sql!(
-    r#"
-    CREATE SCHEMA IF NOT EXISTS pgnats;
-
-    CREATE TABLE IF NOT EXISTS pgnats.subscriptions (
-        subject TEXT NOT NULL,
-        callback TEXT NOT NULL,
-        UNIQUE(subject, callback)
-    );
-    "#,
-    name = "create_subscriptions_table",
-);
-
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
     #[cfg(feature = "sub")]
-    init_background_worker();
+    crate::bgw::init_background_worker_launcher();
 
     unsafe {
         pg_sys::on_proc_exit(Some(extension_exit_callback), pg_sys::Datum::from(0));
@@ -48,17 +31,4 @@ unsafe extern "C-unwind" fn extension_exit_callback(_: i32, _: pg_sys::Datum) {
             res
         })
     })
-}
-
-#[cfg(feature = "sub")]
-fn init_background_worker() {
-    use pgrx::{bgworkers::*, pg_shmem_init, shmem::*};
-
-    pg_shmem_init!(crate::worker_queue::WORKER_MESSAGE_QUEUE);
-
-    BackgroundWorkerBuilder::new("Background Worker Subscribtion")
-        .set_function("background_worker_launcher")
-        .set_library("pgnats")
-        .enable_spi_access()
-        .load();
 }

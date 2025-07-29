@@ -1,5 +1,3 @@
-pub const MSG_PREFIX: &str = "[PGNATS]";
-
 #[macro_export]
 macro_rules! info {
     ($($msg:tt)*) => {
@@ -57,7 +55,7 @@ macro_rules! report {
         pgrx::ereport!(
             $level,
             pgrx::PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-            &format!("{}: {}", $crate::log::MSG_PREFIX, format!($($msg)*))
+            &format!("[PGNATS]: {}", format!($($msg)*))
         )
     };
 }
@@ -66,6 +64,6 @@ macro_rules! report {
 #[macro_export]
 macro_rules! report {
     ($level:expr, $($msg:tt)*) => {
-        eprintln!("{}: {}", $crate::log::MSG_PREFIX, format!($($msg)*))
+        eprintln!("[PGNATS]: {}", format!($($msg)*))
     };
 }

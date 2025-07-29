@@ -88,13 +88,13 @@ pub(crate) fn extract_headers(v: serde_json::Value) -> async_nats::HeaderMap {
     map
 }
 
-pub fn pack_u32_to_i64(a: u32, b: u32) -> i64 {
-    ((a as u64) << 32 | (b as u64)) as i64
-}
+// pub fn pack_u32_to_i64(a: u32, b: u32) -> i64 {
+//     ((a as u64) << 32 | (b as u64)) as i64
+// }
 
-pub fn unpack_i64_to_u32(value: i64) -> (u32, u32) {
-    let val = value as u64;
-    let a = (val >> 32) as u32;
-    let b = (val & 0xFFFF_FFFF) as u32;
-    (a, b)
-}
+// pub fn unpack_i64_to_u32(value: i64) -> (u32, u32) {
+//     let val = value as u64;
+//     let a = (val >> 32) as u32;
+//     let b = (val & 0xFFFF_FFFF) as u32;
+//     (a, b)
+// }

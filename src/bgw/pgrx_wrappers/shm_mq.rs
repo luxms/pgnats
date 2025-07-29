@@ -51,7 +51,7 @@ impl ShmMqSender {
 
     fn send_internal(&mut self, data: &[u8], no_wait: bool) -> anyhow::Result<bool> {
         let res = unsafe {
-            #[cfg(feature = "pg14")]
+            #[cfg(any(feature = "pg13", feature = "pg14"))]
             let res = sys::shm_mq_send(
                 self.mqh.as_mut(),
                 data.len(),

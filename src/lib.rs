@@ -25,15 +25,6 @@
 
 mod pg_tests;
 
-#[cfg(feature = "sub")]
-mod fdw;
-
-#[cfg(feature = "sub")]
-mod notification;
-
-#[cfg(feature = "sub")]
-mod ring_queue;
-
 mod init;
 mod log;
 mod utils;
@@ -55,10 +46,6 @@ pub mod constants;
 
 #[doc(hidden)]
 pub mod ctx;
-
-#[doc(hidden)]
-#[cfg(feature = "sub")]
-pub mod worker_queue;
 
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.

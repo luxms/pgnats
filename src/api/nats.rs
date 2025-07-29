@@ -607,11 +607,11 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
         anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
 
-    let msg = crate::worker_queue::WorkerMessage::Subscribe { subject, fn_name };
+    let msg = crate::bgw::WorkerMessage::Subscribe { subject, fn_name };
     let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
 
     anyhow::ensure!(
-        crate::worker_queue::WORKER_MESSAGE_QUEUE
+        crate::bgw::LAUNCHER_MESSAGE_BUS
             .exclusive()
             .try_send(&buf)
             .is_ok(),
@@ -644,11 +644,11 @@ pub fn nats_unsubscribe(subject: String, fn_name: String) -> anyhow::Result<()> 
         anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
 
-    let msg = crate::worker_queue::WorkerMessage::Unsubscribe { subject, fn_name };
+    let msg = crate::bgw::WorkerMessage::Unsubscribe { subject, fn_name };
     let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
 
     anyhow::ensure!(
-        crate::worker_queue::WORKER_MESSAGE_QUEUE
+        crate::bgw::LAUNCHER_MESSAGE_BUS
             .exclusive()
             .try_send(&buf)
             .is_ok(),

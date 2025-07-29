@@ -1,9 +1,11 @@
+use std::ffi::CStr;
+
 use pgrx::{extension_sql, pg_extern, pg_sys as sys};
 
 use crate::{
+    bgw::{LAUNCHER_MESSAGE_BUS, WorkerMessage},
     config::parse_config,
     error,
-    worker_queue::{WORKER_MESSAGE_QUEUE, WorkerMessage},
 };
 
 extension_sql!(
@@ -55,16 +57,38 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
 
         let options = parse_config(&options);
 
-        let msg = WorkerMessage::NewConfig(options);
+        let Some(db_name) = get_database_name() else {
+            error!("Failed to get Database name");
+            return;
+        };
+
+        let msg = WorkerMessage::NewConfig {
+            config: options,
+            db_name,
+        };
 
         if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-            if WORKER_MESSAGE_QUEUE.exclusive().try_send(&buf).is_err() {
+            if LAUNCHER_MESSAGE_BUS.exclusive().try_send(&buf).is_err() {
                 error!("Shared queue is full, failed to configurate new connection");
             }
         } else {
             error!("Failed to encode message");
         }
     }
+}
+
+fn get_database_name() -> Option<String> {
+    let db_name = unsafe {
+        let db_name = sys::get_database_name(sys::MyDatabaseId);
+
+        if db_name.is_null() {
+            return None;
+        }
+
+        CStr::from_ptr(db_name)
+    };
+
+    Some(db_name.to_string_lossy().to_string())
 }
 
 // #[pg_extern]
