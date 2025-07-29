@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Cursor, path::PathBuf, time::Duration};
+use std::{collections::HashMap, io::Cursor, time::Duration};
 
 use async_nats::{
     Client, Request,
@@ -14,13 +14,13 @@ use pgrx::warning;
 use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::{
-    config::{Config, fetch_config},
+    config::{Config, NatsTlsOptions, fetch_config},
     info,
     utils::{FromBytes, ToBytes, extract_headers},
 };
 
 #[derive(Default)]
-pub struct NatsConnection {
+pub struct NatsClient {
     connection: Option<Client>,
     jetstream: Option<Context>,
     cached_buckets: HashMap<String, Store>,
@@ -28,29 +28,7 @@ pub struct NatsConnection {
     current_config: Option<Config>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
-pub enum NatsTlsOptions {
-    Tls {
-        ca: PathBuf,
-    },
-    MutualTls {
-        ca: PathBuf,
-        cert: PathBuf,
-        key: PathBuf,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
-pub struct NatsConnectionOptions {
-    pub host: String,
-    pub port: u16,
-    pub capacity: usize,
-    pub tls: Option<NatsTlsOptions>,
-}
-
-impl NatsConnection {
+impl NatsClient {
     pub fn new(config: Option<Config>) -> Self {
         Self {
             current_config: config,
@@ -277,7 +255,7 @@ impl NatsConnection {
     }
 }
 
-impl NatsConnection {
+impl NatsClient {
     async fn get_connection(&mut self) -> anyhow::Result<&Client> {
         if self.connection.is_none() {
             self.initialize_connection().await?;

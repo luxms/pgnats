@@ -2,13 +2,29 @@ use std::{borrow::Cow, collections::HashMap, ffi::CString, path::PathBuf};
 
 use pgrx::{PgTryBuilder, Spi};
 
-use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
+use crate::constants::{DEFAULT_NATS_CAPACITY, DEFAULT_NATS_HOST, DEFAULT_NATS_PORT};
 
-pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
+pub enum NatsTlsOptions {
+    Tls {
+        ca: PathBuf,
+    },
+    MutualTls {
+        ca: PathBuf,
+        cert: PathBuf,
+        key: PathBuf,
+    },
+}
 
-const DEFAULT_NATS_HOST: &str = "127.0.0.1";
-const DEFAULT_NATS_PORT: u16 = 4222;
-const DEFAULT_NATS_CAPACITY: usize = 128;
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
+pub struct NatsConnectionOptions {
+    pub host: String,
+    pub port: u16,
+    pub capacity: usize,
+    pub tls: Option<NatsTlsOptions>,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
@@ -21,6 +37,8 @@ pub struct Config {
 #[cfg(not(feature = "pg_test"))]
 pub fn fetch_config() -> Config {
     use std::str::FromStr;
+
+    use crate::constants::FDW_EXTENSION_NAME;
 
     let mut options = HashMap::new();
 
@@ -131,7 +149,7 @@ pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
     }
 }
 
-pub fn fetch_fdw_server_name(fdw_name: &str) -> Option<String> {
+fn fetch_fdw_server_name(fdw_name: &str) -> Option<String> {
     PgTryBuilder::new(|| {
         Spi::connect(|conn| {
             let Ok(result) = conn.select(

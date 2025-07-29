@@ -8,9 +8,8 @@ mod tests {
     const NATS_HOST: &str = "127.0.0.1";
     const NATS_PORT: u16 = 4222;
 
-    #[cfg(not(skip_pgnats_tests))]
     #[pg_test]
-    fn test_hello_world() {
+    fn test_pgnats_version() {
         assert_eq!(api::pgnats_version(), env!("CARGO_PKG_VERSION"));
     }
 

@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 
-use crate::connection::NatsConnection;
+use crate::nats_client::NatsClient;
 
 thread_local! {
     pub static CTX: RefCell<Context> = RefCell::new(create_context());
 }
 
 pub struct Context {
-    pub nats_connection: NatsConnection,
+    pub nats_connection: NatsClient,
     pub rt: tokio::runtime::Runtime,
 }
 

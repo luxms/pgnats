@@ -26,9 +26,6 @@
 mod pg_tests;
 
 #[cfg(feature = "sub")]
-mod dsm;
-
-#[cfg(feature = "sub")]
 mod fdw;
 
 #[cfg(feature = "sub")]
@@ -51,7 +48,10 @@ pub mod bgw;
 pub mod config;
 
 #[doc(hidden)]
-pub mod connection;
+pub mod nats_client;
+
+#[doc(hidden)]
+pub mod constants;
 
 #[doc(hidden)]
 pub mod ctx;
