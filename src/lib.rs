@@ -26,6 +26,9 @@
 mod pg_tests;
 
 #[cfg(feature = "sub")]
+mod dsm;
+
+#[cfg(feature = "sub")]
 mod fdw;
 
 #[cfg(feature = "sub")]

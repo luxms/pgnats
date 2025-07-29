@@ -1,44 +1,71 @@
-use std::ptr::null_mut;
+use std::{ffi::CStr, ptr::null_mut};
 
 use pgrx::{
     FromDatum, IntoDatum,
-    bgworkers::{BackgroundWorker, BackgroundWorkerBuilder},
+    bgworkers::{BackgroundWorker, BackgroundWorkerBuilder, SignalWakeFlags},
 };
 
 use crate::{
     bgw::{posgres::PostgresWorker, run::run_worker},
+    dsm::{DsmSegment, MessageQueue},
     error, log,
+    utils::{pack_u32_to_i64, unpack_i64_to_u32},
     worker_queue::WORKER_MESSAGE_QUEUE,
 };
 
 #[pgrx::pg_guard]
 #[unsafe(no_mangle)]
 pub extern "C-unwind" fn background_worker_subscriber(arg: pgrx::pg_sys::Datum) {
-    log!("Starting background worker: subscriber");
+    // log!("Starting background worker: subscriber");
 
-    let db_oid =
-        unsafe { pgrx::pg_sys::Oid::from_polymorphic_datum(arg, false, pgrx::pg_sys::OIDOID) }
-            .unwrap();
+    // let db_oid =
+    //     unsafe { pgrx::pg_sys::Oid::from_polymorphic_datum(arg, false, pgrx::pg_sys::OIDOID) }
+    //         .unwrap();
 
-    let worker = match PostgresWorker::new(db_oid) {
-        Ok(worker) => worker,
-        Err(err) => {
-            error!("Failed to initialize subscriber worker: {}", err);
-            return;
-        }
-    };
+    // let worker = match PostgresWorker::new(db_oid) {
+    //     Ok(worker) => worker,
+    //     Err(err) => {
+    //         error!("Failed to initialize subscriber worker: {}", err);
+    //         return;
+    //     }
+    // };
 
-    log!(
-        "Subscriber worker connected to database '{}'",
-        worker.connected_db_name()
-    );
+    // log!(
+    //     "Subscriber worker connected to database '{}'",
+    //     worker.connected_db_name()
+    // );
 
-    if let Err(err) = run_worker(worker, &WORKER_MESSAGE_QUEUE) {
-        error!("Error while running subscriber worker: {}", err);
-        return;
-    }
+    // if let Err(err) = run_worker(worker, &WORKER_MESSAGE_QUEUE) {
+    //     error!("Error while running subscriber worker: {}", err);
+    //     return;
+    // }
 
-    log!("Subscriber worker stopped gracefully");
+    // log!("Subscriber worker stopped gracefully");
+    //
+    BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGTERM | SignalWakeFlags::SIGHUP);
+
+    let packed = unsafe { i64::from_polymorphic_datum(arg, false, pgrx::pg_sys::INT8OID) }.unwrap();
+
+    let (oid, dsm_handle) = unpack_i64_to_u32(packed);
+    let oid = pgrx::pg_sys::Oid::from_u32(oid);
+
+    log!("DATABASE OID: {}", oid);
+    log!("HANDLE: {}", dsm_handle);
+
+    let dsm = DsmSegment::attach(dsm_handle).unwrap();
+    let mut mq = MessageQueue::open_in(&dsm);
+
+    let result = mq.receive_blocking().unwrap();
+
+    assert_eq!(result, b"Hello, World");
+
+    log!("FIRST MSG: {}", String::from_utf8_lossy(&result));
+
+    let result = mq.receive_blocking().unwrap();
+
+    assert_eq!(result, b"Hello, Rust");
+
+    log!("SECOND MSG: {}", String::from_utf8_lossy(&result));
 }
 
 #[pgrx::pg_guard]
@@ -48,7 +75,9 @@ pub extern "C-unwind" fn background_worker_launcher(_arg: pgrx::pg_sys::Datum) {
 
     BackgroundWorker::connect_worker_to_spi(None, None);
 
-    BackgroundWorker::transaction(|| unsafe {
+    let workers = BackgroundWorker::transaction(|| unsafe {
+        let mut workers = vec![];
+
         let rel = pgrx::pg_sys::table_open(
             pgrx::pg_sys::DatabaseRelationId,
             pgrx::pg_sys::AccessShareLock as _,
@@ -66,22 +95,30 @@ pub extern "C-unwind" fn background_worker_launcher(_arg: pgrx::pg_sys::Datum) {
                 continue;
             }
 
-            let name = pgrx::pg_sys::get_database_name((*pgdb).oid);
+            let dsm = DsmSegment::create(1024).unwrap();
+            let mut mq = MessageQueue::create_in(&dsm, 1024);
+            mq.send(b"Hello, World").unwrap();
+            mq.send(b"Hello, Rust").unwrap();
 
-            if !name.is_null() {
-                let worker = BackgroundWorkerBuilder::new("Example")
-                    .set_library("pgnats")
-                    .set_function("background_worker_subscriber")
-                    .enable_spi_access()
-                    .set_argument((*pgdb).oid.into_datum())
-                    .set_notify_pid(pgrx::pg_sys::MyProcPid)
-                    .load_dynamic()
-                    .expect("Failed to create");
+            log!("HANDLE TO PASS: {}", dsm.handle());
 
-                //let pid = worker.wait_for_startup().unwrap();
-                log!("Worker started");
-                //servers.insert((*pgdb).oid, worker);
-            }
+            let packed = pack_u32_to_i64((*pgdb).oid.to_u32(), dsm.handle());
+
+            let worker = BackgroundWorkerBuilder::new("Example")
+                .set_library("pgnats")
+                .set_function("background_worker_subscriber")
+                .enable_spi_access()
+                //.set_argument((*pgdb).oid.into_datum())
+                .set_argument(packed.into_datum())
+                .set_notify_pid(pgrx::pg_sys::MyProcPid)
+                .load_dynamic()
+                .expect("Failed to create");
+
+            workers.push(worker);
+            log!(
+                "Worker started: {:?}",
+                CStr::from_ptr((*pgdb).datname.data.as_ptr())
+            );
 
             tup =
                 pgrx::pg_sys::heap_getnext(scan, pgrx::pg_sys::ScanDirection::ForwardScanDirection);
@@ -89,5 +126,13 @@ pub extern "C-unwind" fn background_worker_launcher(_arg: pgrx::pg_sys::Datum) {
 
         pgrx::pg_sys::table_endscan(scan);
         pgrx::pg_sys::table_close(rel, pgrx::pg_sys::AccessShareLock as _);
+
+        workers
     });
+
+    for worker in workers {
+        worker.wait_for_startup().unwrap();
+        let status = worker.terminate();
+        status.wait_for_shutdown().unwrap();
+    }
 }
