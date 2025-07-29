@@ -4,13 +4,14 @@
 %define         debug_package  %{nil}
 
 %{!?version:    %define version %{VERSION}}
+%{!?release:    %define release %(date +%%Y%%m%%d)}
 %{!?pg_ver:     %define pg_ver 15}
 %define         dist alt10
 
 Name:           pgsql%{pg_ver}-nats
 Summary:        NATS connect for PostgreSQL
 Version:        %{version}
-Release:        1.%{?dist}
+Release:        %{release}.%{?dist}
 Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
