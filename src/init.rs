@@ -61,8 +61,7 @@ fn init_background_worker() {
     BackgroundWorkerBuilder::new("Background Worker Subscribtion")
         .set_function("background_worker_subscriber")
         .set_library("pgnats")
-        //.set_restart_time(Some(std::time::Duration::from_secs(1)))
-        .set_start_time(BgWorkerStartTime::PostmasterStart)
-        .enable_shmem_access(None)
+        .set_restart_time(Some(std::time::Duration::from_secs(1)))
+        .enable_spi_access()
         .load();
 }
