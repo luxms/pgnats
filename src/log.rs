@@ -1,5 +1,13 @@
 #[macro_export]
 macro_rules! info {
+    (context = $ctx:expr, $($msg:tt)*) => {
+        $crate::report!(
+            context = $ctx,
+            pgrx::PgLogLevel::INFO,
+            $($msg)*
+        )
+    };
+
     ($($msg:tt)*) => {
         $crate::report!(
             pgrx::PgLogLevel::INFO,
@@ -10,6 +18,14 @@ macro_rules! info {
 
 #[macro_export]
 macro_rules! log {
+    (context = $ctx:expr, $($msg:tt)*) => {
+        $crate::report!(
+            context = $ctx,
+            pgrx::PgLogLevel::LOG,
+            $($msg)*
+        )
+    };
+
     ($($msg:tt)*) => {
         $crate::report!(
             pgrx::PgLogLevel::LOG,
@@ -20,6 +36,14 @@ macro_rules! log {
 
 #[macro_export]
 macro_rules! warn {
+    (context = $ctx:expr, $($msg:tt)*) => {
+        $crate::report!(
+            context = $ctx,
+            pgrx::PgLogLevel::WARNING,
+            $($msg)*
+        )
+    };
+
     ($($msg:tt)*) => {
         $crate::report!(
             pgrx::PgLogLevel::WARNING,
@@ -30,6 +54,14 @@ macro_rules! warn {
 
 #[macro_export]
 macro_rules! error {
+    (context = $ctx:expr, $($msg:tt)*) => {
+        $crate::report!(
+            context = $ctx,
+            pgrx::PgLogLevel::ERROR,
+            $($msg)*
+        )
+    };
+
     ($($msg:tt)*) => {
         $crate::report!(
             pgrx::PgLogLevel::ERROR,
@@ -40,6 +72,14 @@ macro_rules! error {
 
 #[macro_export]
 macro_rules! debug {
+    (context = $ctx:expr, $($msg:tt)*) => {
+        $crate::report!(
+            context = $ctx,
+            pgrx::PgLogLevel::DEBUG2,
+            $($msg)*
+        )
+    };
+
     ($($msg:tt)*) => {
         $crate::report!(
             pgrx::PgLogLevel::DEBUG2,
@@ -51,6 +91,13 @@ macro_rules! debug {
 #[cfg(not(feature = "pg_test"))]
 #[macro_export]
 macro_rules! report {
+    (context = $ctx:expr, $level:expr, $($msg:tt)*) => {
+        pgrx::ereport!(
+            $level,
+            pgrx::PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
+            &format!("[PGNATS({})]: {}", $ctx, format!($($msg)*))
+        )
+    };
     ($level:expr, $($msg:tt)*) => {
         pgrx::ereport!(
             $level,
@@ -63,6 +110,9 @@ macro_rules! report {
 #[cfg(feature = "pg_test")]
 #[macro_export]
 macro_rules! report {
+    (context = $ctx:expr, $level:expr, $($msg:tt)*) => {
+        eprintln!("[PGNATS({})]: {}", $ctx, format!($($msg)*))
+    };
     ($level:expr, $($msg:tt)*) => {
         eprintln!("[PGNATS]: {}", format!($($msg)*))
     };
