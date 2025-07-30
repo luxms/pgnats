@@ -33,7 +33,7 @@ pub static LAUNCHER_MESSAGE_BUS: PgLwLock<RingQueue<65536>> = PgLwLock::new(c"sh
 
 #[derive(Debug, Encode, Decode)]
 pub enum WorkerMessage {
-    NewConfig { db_name: String, config: Config },
+    NewConfig { db_oid: u32, config: Config },
     Subscribe { subject: String, fn_name: String },
     Unsubscribe { subject: String, fn_name: String },
 }

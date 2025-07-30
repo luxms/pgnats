@@ -1,5 +1,3 @@
-use std::ffi::CStr;
-
 use pgrx::{extension_sql, pg_extern, pg_sys as sys};
 
 use crate::{
@@ -57,14 +55,9 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
 
         let options = parse_config(&options);
 
-        let Some(db_name) = get_database_name() else {
-            error!("Failed to get Database name");
-            return;
-        };
-
         let msg = WorkerMessage::NewConfig {
             config: options,
-            db_name,
+            db_oid: unsafe { sys::MyDatabaseId }.to_u32(),
         };
 
         if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
@@ -75,20 +68,6 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
             error!("Failed to encode message");
         }
     }
-}
-
-fn get_database_name() -> Option<String> {
-    let db_name = unsafe {
-        let db_name = sys::get_database_name(sys::MyDatabaseId);
-
-        if db_name.is_null() {
-            return None;
-        }
-
-        CStr::from_ptr(db_name)
-    };
-
-    Some(db_name.to_string_lossy().to_string())
 }
 
 // #[pg_extern]
