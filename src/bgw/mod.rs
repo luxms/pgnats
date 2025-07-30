@@ -1,18 +1,19 @@
-use bincode::{Decode, Encode};
 use pgrx::{
-    PgLwLock, PgSharedMemoryInitialization, bgworkers::BackgroundWorkerBuilder, pg_shmem_init,
+    PgLwLock, PgSharedMemoryInitialization,
+    bgworkers::{BackgroundWorkerBuilder, BgWorkerStartTime},
+    pg_shmem_init,
     prelude::*,
 };
 
-use crate::{bgw::ring_queue::RingQueue, config::Config, constants::EXTENSION_NAME};
+use crate::{bgw::ring_queue::RingQueue, constants::EXTENSION_NAME};
 
 mod fdw;
-mod launcher;
-mod ring_queue;
-mod subscriber;
 
+pub mod launcher;
 pub mod notification;
 pub mod pgrx_wrappers;
+pub mod ring_queue;
+pub mod subscriber;
 
 pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
 pub const LAUNCHER_ENTRY_POINT: &str = "background_worker_launcher_main";
@@ -37,13 +38,6 @@ extension_sql!(
 pub static LAUNCHER_MESSAGE_BUS: PgLwLock<RingQueue<MESSAGE_BUS_SIZE>> =
     PgLwLock::new(c"pgnats_launcher_message_bus");
 
-#[derive(Debug, Encode, Decode)]
-pub enum WorkerMessage {
-    NewConfig { db_oid: u32, config: Config },
-    Subscribe { subject: String, fn_name: String },
-    Unsubscribe { subject: String, fn_name: String },
-}
-
 pub fn init_background_worker_launcher() {
     pg_shmem_init!(LAUNCHER_MESSAGE_BUS);
 
@@ -51,5 +45,7 @@ pub fn init_background_worker_launcher() {
         .set_function(LAUNCHER_ENTRY_POINT)
         .set_library(EXTENSION_NAME)
         .enable_spi_access()
+        .set_start_time(BgWorkerStartTime::ConsistentState)
+        //.set_restart_time(Some(std::time::Duration::from_secs(20)))
         .load();
 }

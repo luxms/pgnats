@@ -1,5 +1,6 @@
-pub mod message;
 mod worker_entry;
+
+pub mod message;
 
 use std::collections::HashMap;
 use std::ptr::null_mut;
@@ -9,6 +10,7 @@ use pgrx::pg_sys as sys;
 
 use crate::bgw::launcher::message::LauncherMessage;
 use crate::bgw::launcher::worker_entry::WorkerEntry;
+use crate::bgw::subscriber::message::SubscriberMessage;
 use crate::bgw::{DSM_SIZE, LAUNCHER_MESSAGE_BUS, SUBSCRIBER_ENTRY_POINT};
 use crate::constants::EXTENSION_NAME;
 use crate::{debug, log, warn};
@@ -18,13 +20,10 @@ pub(super) const LAUNCHER_CTX: &str = "LAUNCHER";
 #[pgrx::pg_guard]
 #[unsafe(no_mangle)]
 pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Datum) {
-    BackgroundWorker::attach_signal_handlers(
-        SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM | SignalWakeFlags::SIGCHLD,
-    );
-
+    BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
     BackgroundWorker::connect_worker_to_spi(None, None);
 
-    let database_oids = BackgroundWorker::transaction(fetch_database_oids);
+    let database_oids = fetch_database_oids();
 
     log!(
         context = LAUNCHER_CTX,
@@ -97,17 +96,44 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
                             );
                         }
                     }
-                    LauncherMessage::NewConfig { db_oid, config } => todo!(),
+                    LauncherMessage::NewConfig { db_oid, config } => {
+                        if let Some(worker) = workers.get_mut(&db_oid) {
+                            let data = bincode::encode_to_vec(
+                                SubscriberMessage::NewConfig { config },
+                                bincode::config::standard(),
+                            )
+                            .expect("failed to encode");
+                            worker.sender.send(&data).unwrap();
+                        }
+                    }
                     LauncherMessage::Subscribe {
                         db_oid,
                         subject,
                         fn_name,
-                    } => todo!(),
+                    } => {
+                        if let Some(worker) = workers.get_mut(&db_oid) {
+                            let data = bincode::encode_to_vec(
+                                SubscriberMessage::Subscribe { subject, fn_name },
+                                bincode::config::standard(),
+                            )
+                            .expect("failed to encode");
+                            worker.sender.send(&data).unwrap();
+                        }
+                    }
                     LauncherMessage::Unsubscribe {
                         db_oid,
                         subject,
                         fn_name,
-                    } => todo!(),
+                    } => {
+                        if let Some(worker) = workers.get_mut(&db_oid) {
+                            let data = bincode::encode_to_vec(
+                                SubscriberMessage::Unsubscribe { subject, fn_name },
+                                bincode::config::standard(),
+                            )
+                            .expect("failed to encode");
+                            worker.sender.send(&data).unwrap();
+                        }
+                    }
                 }
             }
         }
@@ -117,6 +143,9 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
 fn fetch_database_oids() -> Vec<sys::Oid> {
     unsafe {
         let mut workers = vec![];
+
+        pgrx::pg_sys::StartTransactionCommand();
+        let _ = pgrx::pg_sys::GetTransactionSnapshot();
 
         let rel = pgrx::pg_sys::table_open(
             pgrx::pg_sys::DatabaseRelationId,
@@ -141,6 +170,8 @@ fn fetch_database_oids() -> Vec<sys::Oid> {
 
         pgrx::pg_sys::table_endscan(scan);
         pgrx::pg_sys::table_close(rel, pgrx::pg_sys::AccessShareLock as _);
+
+        pgrx::pg_sys::CommitTransactionCommand();
 
         workers
     }

@@ -1,7 +1,7 @@
 use pgrx::{extension_sql, pg_extern, pg_sys as sys};
 
 use crate::{
-    bgw::{LAUNCHER_MESSAGE_BUS, WorkerMessage},
+    bgw::{LAUNCHER_MESSAGE_BUS, launcher::message::LauncherMessage},
     config::parse_config,
     error,
 };
@@ -55,7 +55,7 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
 
         let options = parse_config(&options);
 
-        let msg = WorkerMessage::NewConfig {
+        let msg = LauncherMessage::NewConfig {
             config: options,
             db_oid: unsafe { sys::MyDatabaseId }.to_u32(),
         };

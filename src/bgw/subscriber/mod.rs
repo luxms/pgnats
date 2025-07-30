@@ -1,3 +1,5 @@
+pub mod message;
+
 use pgrx::{
     FromDatum,
     bgworkers::{BackgroundWorker, SignalWakeFlags},
@@ -5,10 +7,16 @@ use pgrx::{
 };
 
 use crate::{
-    bgw::{LAUNCHER_MESSAGE_BUS, launcher::message::LauncherMessage},
+    bgw::{
+        LAUNCHER_MESSAGE_BUS,
+        launcher::message::LauncherMessage,
+        pgrx_wrappers::{dsm::DynamicSharedMemory, shm_mq::ShmMqReceiver},
+        subscriber::message::SubscriberMessage,
+    },
     constants::EXTENSION_NAME,
     log,
     utils::{get_database_name, is_extension_installed, unpack_i64_to_oid_dsmh},
+    warn,
 };
 
 #[pgrx::pg_guard]
@@ -43,5 +51,39 @@ pub extern "C-unwind" fn background_worker_subscriber_main(arg: pgrx::pg_sys::Da
             .exclusive()
             .try_send(&data)
             .expect("failed to send");
+    }
+
+    let dsm = DynamicSharedMemory::attach(dsmh).expect("Failed to attach to DSM");
+    let mut recv = ShmMqReceiver::attach(&dsm).expect("Failed to get mq receiver");
+
+    while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
+        {
+            while let Ok(Some(buf)) = recv.try_recv() {
+                let parse_result: Result<(SubscriberMessage, _), _> =
+                    bincode::decode_from_slice(&buf[..], bincode::config::standard());
+                let msg = match parse_result {
+                    Ok((msg, _)) => msg,
+                    Err(err) => {
+                        warn!(
+                            context = db_name,
+                            "Failed to decode subscriber message: {}", err
+                        );
+                        continue;
+                    }
+                };
+
+                match msg {
+                    SubscriberMessage::NewConfig { config } => {
+                        log!(context = db_name, "Get new config")
+                    }
+                    SubscriberMessage::Subscribe { subject, fn_name } => {
+                        log!(context = db_name, "Get new sub")
+                    }
+                    SubscriberMessage::Unsubscribe { subject, fn_name } => {
+                        log!(context = db_name, "Get new unsub")
+                    }
+                }
+            }
+        }
     }
 }
