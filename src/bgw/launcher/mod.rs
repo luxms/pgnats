@@ -1,3 +1,4 @@
+pub mod message;
 mod worker_entry;
 
 use std::collections::HashMap;
@@ -6,9 +7,11 @@ use std::ptr::null_mut;
 use pgrx::bgworkers::{BackgroundWorker, SignalWakeFlags};
 use pgrx::pg_sys as sys;
 
+use crate::bgw::launcher::message::LauncherMessage;
 use crate::bgw::launcher::worker_entry::WorkerEntry;
-use crate::bgw::{DSM_SIZE, SUBSCRIBER_ENTRY_POINT};
-use crate::{log, warn};
+use crate::bgw::{DSM_SIZE, LAUNCHER_MESSAGE_BUS, SUBSCRIBER_ENTRY_POINT};
+use crate::constants::EXTENSION_NAME;
+use crate::{debug, log, warn};
 
 pub(super) const LAUNCHER_CTX: &str = "LAUNCHER";
 
@@ -29,7 +32,7 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
         database_oids.len()
     );
 
-    let mut workers: HashMap<sys::Oid, WorkerEntry> = database_oids
+    let mut workers: HashMap<u32, WorkerEntry> = database_oids
         .into_iter()
         .enumerate()
         .map(|(idx, oid)| {
@@ -45,7 +48,7 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
             )
         })
         .filter_map(|(oid, res)| match res {
-            Ok(entry) => Some((entry.oid, entry)),
+            Ok(entry) => Some((entry.oid.to_u32(), entry)),
             Err(err) => {
                 warn!(
                     context = LAUNCHER_CTX,
@@ -62,6 +65,53 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
             )
         })
         .collect();
+
+    while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
+        {
+            while let Some(buf) = LAUNCHER_MESSAGE_BUS.exclusive().try_recv() {
+                debug!(
+                    context = LAUNCHER_CTX,
+                    "Received message from shared queue: {:?}",
+                    String::from_utf8_lossy(&buf)
+                );
+
+                let parse_result: Result<(LauncherMessage, _), _> =
+                    bincode::decode_from_slice(&buf[..], bincode::config::standard());
+                let msg = match parse_result {
+                    Ok((msg, _)) => msg,
+                    Err(err) => {
+                        warn!("Failed to decode launcher message: {}", err);
+                        continue;
+                    }
+                };
+
+                match msg {
+                    LauncherMessage::DbExtensionStatus { db_oid, contains } => {
+                        if contains && let Some(worker) = workers.get(&db_oid) {
+                            log!("'{}' has extension '{}'", worker.db_name, EXTENSION_NAME);
+                        } else if let Some(worker) = workers.remove(&db_oid) {
+                            log!(
+                                "'{}' has NOT extension '{}'",
+                                worker.db_name,
+                                EXTENSION_NAME
+                            );
+                        }
+                    }
+                    LauncherMessage::NewConfig { db_oid, config } => todo!(),
+                    LauncherMessage::Subscribe {
+                        db_oid,
+                        subject,
+                        fn_name,
+                    } => todo!(),
+                    LauncherMessage::Unsubscribe {
+                        db_oid,
+                        subject,
+                        fn_name,
+                    } => todo!(),
+                }
+            }
+        }
+    }
 }
 
 fn fetch_database_oids() -> Vec<sys::Oid> {

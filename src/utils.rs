@@ -117,3 +117,12 @@ pub fn get_database_name(oid: sys::Oid) -> Option<String> {
 
     Some(db_name.to_string_lossy().to_string())
 }
+
+pub fn is_extension_installed(name: &str) -> bool {
+    let query = "SELECT 1 FROM pg_extension WHERE extname = $1";
+
+    pgrx::Spi::connect(|client| {
+        let result = client.select(query, None, &[name.into()]);
+        result.is_ok_and(|tuple| !tuple.is_empty())
+    })
+}
