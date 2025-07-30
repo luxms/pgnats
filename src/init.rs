@@ -63,5 +63,6 @@ fn init_background_worker() {
         .set_library("pgnats")
         .set_restart_time(Some(std::time::Duration::from_secs(1)))
         .enable_spi_access()
+        .set_start_time(BgWorkerStartTime::PostmasterStart)
         .load();
 }
