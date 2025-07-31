@@ -2,25 +2,21 @@ use std::ffi::CStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::bgw::subscriber::pg_api::PgInstanceStatus;
+
 const LISTEN_ADRESSES_GUC_NAME: &CStr = c"listen_addresses";
 const PORT_GUC_NAME: &CStr = c"port";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum PgInstanceTransition {
-    M2R,
-    R2M,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PgInstanceNotification {
-    pub transition: PgInstanceTransition,
+    pub status: PgInstanceStatus,
     pub listen_addresses: Vec<String>,
     pub port: u16,
     pub name: Option<String>,
 }
 
 impl PgInstanceNotification {
-    pub fn new(transition: PgInstanceTransition, patroni_url: Option<&str>) -> Option<Self> {
+    pub fn new(status: PgInstanceStatus, patroni_url: Option<&str>) -> Option<Self> {
         let listen_addresses = fetch_config_option(LISTEN_ADRESSES_GUC_NAME)?
             .split(',')
             .map(|s| s.trim())
@@ -32,7 +28,7 @@ impl PgInstanceNotification {
         let name = patroni_url.and_then(try_fetch_patroni_name);
 
         Some(Self {
-            transition,
+            status,
             listen_addresses,
             port,
             name,

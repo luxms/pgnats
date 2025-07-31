@@ -1,4 +1,9 @@
+mod context;
+
 pub mod message;
+pub mod pg_api;
+
+use std::sync::{Arc, mpsc::channel};
 
 use pgrx::{
     FromDatum,
@@ -11,11 +16,14 @@ use crate::{
         LAUNCHER_MESSAGE_BUS,
         launcher::message::{ExtensionStatus, LauncherMessage},
         pgrx_wrappers::{dsm::DynamicSharedMemory, shm_mq::ShmMqReceiver},
-        subscriber::message::SubscriberMessage,
+        subscriber::{
+            context::WorkerContext,
+            message::{InternalWorkerMessage, SubscriberMessage},
+        },
     },
-    config::fetch_fdw_server_name,
+    config::{fetch_config, fetch_fdw_server_name},
     constants::{EXTENSION_NAME, FDW_EXTENSION_NAME},
-    log,
+    debug, log,
     utils::{get_database_name, is_extension_installed, unpack_i64_to_oid_dsmh},
     warn,
 };
@@ -75,7 +83,28 @@ pub extern "C-unwind" fn background_worker_subscriber_main(arg: pgrx::pg_sys::Da
     let dsm = DynamicSharedMemory::attach(dsmh).expect("Failed to attach to DSM");
     let mut recv = ShmMqReceiver::attach(&dsm).expect("Failed to get mq receiver");
 
+    let (msg_sender, msg_receiver) = channel();
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("Failed to create runtime");
+
+    let mut ctx = WorkerContext::new(rt, msg_sender.clone());
+
+    if ctx.is_master() {
+        log!("Restoring NATS state");
+
+        let opt = BackgroundWorker::transaction(|| fetch_config());
+
+        if let Err(error) = ctx.restore_state(opt) {
+            warn!("Error restoring state: {}", error);
+        }
+    }
+
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
+        ctx.check_migration();
+
         {
             while let Ok(Some(buf)) = recv.try_recv() {
                 let parse_result: Result<(SubscriberMessage, _), _> =
@@ -93,16 +122,51 @@ pub extern "C-unwind" fn background_worker_subscriber_main(arg: pgrx::pg_sys::Da
 
                 match msg {
                     SubscriberMessage::NewConfig { config } => {
-                        log!(context = db_name, "Get new config")
+                        log!("Handling NewConnectionConfig update");
+
+                        if let Err(err) = ctx.restore_state(config) {
+                            log!("Error during restoring state: {}", err);
+                        }
                     }
                     SubscriberMessage::Subscribe { subject, fn_name } => {
-                        log!(context = db_name, "Get new sub")
+                        debug!(
+                            "Handling Subscribe for subject '{}', fn '{}'",
+                            subject, fn_name
+                        );
+
+                        msg_sender
+                            .send(InternalWorkerMessage::Subscribe {
+                                register: true,
+                                subject: subject.to_string(),
+                                fn_name: fn_name.to_string(),
+                            })
+                            .unwrap();
                     }
                     SubscriberMessage::Unsubscribe { subject, fn_name } => {
-                        log!(context = db_name, "Get new unsub")
+                        debug!(
+                            "Handling Unsubscribe for subject '{}', fn '{}'",
+                            subject, fn_name
+                        );
+
+                        msg_sender
+                            .send(InternalWorkerMessage::Unsubscribe {
+                                reason: None,
+                                subject: Arc::from(subject.as_str()),
+                                fn_name: Arc::from(fn_name.as_str()),
+                            })
+                            .unwrap();
                     }
                 }
             }
+        }
+
+        while let Ok(message) = msg_receiver.try_recv() {
+            if ctx.is_replica() {
+                debug!("Received internal message on replica. Ignoring.");
+                continue;
+            }
+
+            ctx.handle_internal_message(message);
         }
     }
 

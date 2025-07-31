@@ -16,8 +16,8 @@ pub struct WorkerEntry {
     pub oid: sys::Oid,
     pub db_name: String,
     pub worker: DynamicBackgroundWorker,
-    pub dsm: DynamicSharedMemory,
     pub sender: ShmMqSender,
+    _dsm: DynamicSharedMemory,
 }
 
 impl WorkerEntry {
@@ -52,8 +52,8 @@ impl WorkerEntry {
             oid,
             db_name,
             worker,
-            dsm,
             sender,
+            _dsm: dsm,
         })
     }
 }

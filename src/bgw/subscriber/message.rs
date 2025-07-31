@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bincode::{Decode, Encode};
 
 use crate::config::Config;
@@ -7,4 +9,21 @@ pub enum SubscriberMessage {
     NewConfig { config: Config },
     Subscribe { subject: String, fn_name: String },
     Unsubscribe { subject: String, fn_name: String },
+}
+
+pub(super) enum InternalWorkerMessage {
+    Subscribe {
+        register: bool,
+        subject: String,
+        fn_name: String,
+    },
+    Unsubscribe {
+        reason: Option<String>,
+        subject: Arc<str>,
+        fn_name: Arc<str>,
+    },
+    CallbackCall {
+        subject: Arc<str>,
+        data: Arc<[u8]>,
+    },
 }
