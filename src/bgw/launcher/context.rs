@@ -1,0 +1,153 @@
+use std::collections::HashMap;
+
+use pgrx::{
+    bgworkers::{BackgroundWorker, SignalWakeFlags},
+    pg_sys as sys,
+};
+
+use crate::{
+    bgw::{DSM_SIZE, launcher::worker_entry::WorkerEntry, subscriber::message::SubscriberMessage},
+    config::Config,
+};
+
+pub struct LauncherContext {
+    workers: HashMap<u32, WorkerEntry>,
+    counter: usize,
+}
+
+impl LauncherContext {
+    pub fn new() -> Self {
+        BackgroundWorker::attach_signal_handlers(
+            SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM,
+        );
+        BackgroundWorker::connect_worker_to_spi(None, None);
+
+        Self {
+            workers: HashMap::new(),
+            counter: 0,
+        }
+    }
+
+    pub fn handle_new_config_message(
+        &mut self,
+        db_oid: u32,
+        config: Config,
+        entry_point: &str,
+    ) -> anyhow::Result<Option<String>> {
+        if let Some(entry) = self.workers.get_mut(&db_oid) {
+            let data = bincode::encode_to_vec(
+                SubscriberMessage::NewConfig { config },
+                bincode::config::standard(),
+            )?;
+            entry.sender.send(&data)?;
+
+            Ok(None)
+        } else {
+            let we = self.start_subscribe_worker(db_oid, entry_point)?;
+            let db_name = we.db_name.clone();
+            let _ = self.add_subscribe_worker(db_oid, we)?;
+
+            Ok(Some(db_name))
+        }
+    }
+
+    pub fn handle_subscribe_message(
+        &mut self,
+        db_oid: u32,
+        subject: String,
+        fn_name: String,
+    ) -> anyhow::Result<()> {
+        if let Some(worker) = self.workers.get_mut(&db_oid) {
+            let data = bincode::encode_to_vec(
+                SubscriberMessage::Subscribe { subject, fn_name },
+                bincode::config::standard(),
+            )?;
+            worker.sender.send(&data)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_unsubscribe_message(
+        &mut self,
+        db_oid: u32,
+        subject: String,
+        fn_name: String,
+    ) -> anyhow::Result<()> {
+        if let Some(worker) = self.workers.get_mut(&db_oid) {
+            let data = bincode::encode_to_vec(
+                SubscriberMessage::Unsubscribe { subject, fn_name },
+                bincode::config::standard(),
+            )?;
+            worker.sender.send(&data)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_subscriber_exit_message(&mut self, db_oid: u32) -> anyhow::Result<WorkerEntry> {
+        self.shutdown_worker(db_oid)
+    }
+
+    pub fn start_subscribe_worker(
+        &mut self,
+        oid: u32,
+        entry_point: &str,
+    ) -> anyhow::Result<WorkerEntry> {
+        let entry = WorkerEntry::start(
+            sys::Oid::from_u32(oid),
+            &format!("PGNats Background Worker Subscriber {}", self.counter),
+            &format!("pgnats_bgw_subscriber_{}", self.counter),
+            entry_point,
+            DSM_SIZE,
+        )?;
+        self.counter += 1;
+
+        Ok(entry)
+    }
+
+    pub fn add_subscribe_worker(
+        &mut self,
+        oid: u32,
+        entry: WorkerEntry,
+    ) -> anyhow::Result<Option<WorkerEntry>> {
+        if let Some(entry) = self.workers.insert(oid, entry) {
+            let we = Self::shutdown_worker_entry(entry)?;
+            return Ok(Some(we));
+        }
+
+        Ok(None)
+    }
+
+    pub fn shutdown_worker(&mut self, db_oid: u32) -> anyhow::Result<WorkerEntry> {
+        let Some(entry) = self.workers.remove(&db_oid) else {
+            return Err(anyhow::anyhow!("Unknown Database OID: {db_oid}"));
+        };
+
+        Self::shutdown_worker_entry(entry)
+    }
+
+    pub fn shutdown_worker_entry(mut entry: WorkerEntry) -> anyhow::Result<WorkerEntry> {
+        if let Some(worker) = entry.worker.take() {
+            let terminate = worker.terminate();
+
+            terminate.wait_for_shutdown().map_err(|err| {
+                anyhow::anyhow!(
+                    "Failed to shutdown worker for '{}': {:?}",
+                    entry.db_name,
+                    err
+                )
+            })?;
+        }
+
+        Ok(entry)
+    }
+
+    pub fn get_worker(&self, db_oid: u32) -> Option<&WorkerEntry> {
+        self.workers.get(&db_oid)
+    }
+
+    pub fn drain_workers(&mut self) -> impl Iterator<Item = WorkerEntry> {
+        self.workers.drain().map(|(_, v)| v)
+    }
+}

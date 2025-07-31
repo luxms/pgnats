@@ -13,10 +13,10 @@ use crate::{
 const APPROX_SHM_HEADER_SIZE: usize = 64;
 
 pub struct WorkerEntry {
-    pub oid: sys::Oid,
     pub db_name: String,
-    pub worker: DynamicBackgroundWorker,
+    pub worker: Option<DynamicBackgroundWorker>,
     pub sender: ShmMqSender,
+    _oid: sys::Oid,
     _dsm: DynamicSharedMemory,
 }
 
@@ -49,10 +49,10 @@ impl WorkerEntry {
             .map_err(|err| anyhow::anyhow!("Failed to start worker. Reason: {:?}", err))?;
 
         Ok(Self {
-            oid,
             db_name,
-            worker,
+            worker: Some(worker),
             sender,
+            _oid: oid,
             _dsm: dsm,
         })
     }

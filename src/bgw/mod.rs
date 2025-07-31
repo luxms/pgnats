@@ -16,8 +16,8 @@ pub mod ring_queue;
 pub mod subscriber;
 
 pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
-pub const LAUNCHER_ENTRY_POINT: &str = "background_worker_launcher_main";
-pub const SUBSCRIBER_ENTRY_POINT: &str = "background_worker_subscriber_main";
+pub const LAUNCHER_ENTRY_POINT: &str = "background_worker_launcher_entry_point";
+pub const SUBSCRIBER_ENTRY_POINT: &str = "background_worker_subscriber_entry_point";
 
 pub const MESSAGE_BUS_SIZE: usize = 0x10000;
 pub const DSM_SIZE: usize = MESSAGE_BUS_SIZE >> 3;
@@ -46,6 +46,7 @@ pub fn init_background_worker_launcher() {
         .set_library(EXTENSION_NAME)
         .enable_spi_access()
         .set_start_time(BgWorkerStartTime::ConsistentState)
-        //.set_restart_time(Some(std::time::Duration::from_secs(20)))
+        .set_restart_time(Some(std::time::Duration::from_secs(20)))
+        .set_type("pgnats_bgw_launcher")
         .load();
 }

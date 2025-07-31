@@ -30,7 +30,7 @@ use crate::{
 
 #[pgrx::pg_guard]
 #[unsafe(no_mangle)]
-pub extern "C-unwind" fn background_worker_subscriber_main(arg: pgrx::pg_sys::Datum) {
+pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: pgrx::pg_sys::Datum) {
     let arg = unsafe {
         i64::from_polymorphic_datum(arg, false, sys::INT8OID).expect("Failed to get the argument")
     };
