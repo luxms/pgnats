@@ -49,6 +49,8 @@ pub fn run_worker<const N: usize, W: Worker, L: SharedQueue<N>>(
         }
     }
 
+    ctx.check_migration();
+
     Ok(())
 }
 
