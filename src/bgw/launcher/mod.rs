@@ -27,7 +27,10 @@ pub(super) const LAUNCHER_CTX: &str = "LAUNCHER";
 pub extern "C-unwind" fn background_worker_launcher_entry_point(_arg: pgrx::pg_sys::Datum) {
     if let Err(err) = background_worker_launcher_main(&LAUNCHER_MESSAGE_BUS, SUBSCRIBER_ENTRY_POINT)
     {
-        warn!("Launcher worker error: {}", err);
+        warn!(
+            context = LAUNCHER_CTX,
+            "Launcher worker exited with error: {}", err
+        );
     }
 }
 
@@ -41,8 +44,8 @@ pub fn background_worker_launcher_main<const N: usize>(
 
     log!(
         context = LAUNCHER_CTX,
-        "Found {} databases",
-        database_oids.len()
+        "Launcher started. Found {} databases.",
+        database_oids.len(),
     );
 
     add_subscribe_workers(&mut ctx, database_oids, subscriber_entry_point);
@@ -68,7 +71,7 @@ pub fn process_launcher_bus<const N: usize>(
     while let Some(buf) = guard.try_recv() {
         debug!(
             context = LAUNCHER_CTX,
-            "Received message from shared queue: {:?}",
+            "Received raw message from shared queue: {:?}",
             String::from_utf8_lossy(&buf)
         );
 
@@ -89,9 +92,10 @@ pub fn process_launcher_bus<const N: usize>(
                     if let Some(worker) = ctx.get_worker(db_oid) {
                         log!(
                             context = LAUNCHER_CTX,
-                            "Database '{}' has extension '{}'",
+                            "Extension '{}' is present in database '{}' (OID: {})",
+                            EXTENSION_NAME,
                             worker.db_name,
-                            EXTENSION_NAME
+                            db_oid
                         );
                     }
                 }
@@ -99,33 +103,53 @@ pub fn process_launcher_bus<const N: usize>(
                     Ok(entry) => {
                         log!(
                             context = LAUNCHER_CTX,
-                            "Database '{}' has NOT extension '{}'",
-                            entry.db_name,
-                            EXTENSION_NAME
+                            "Extension '{}' not found in database '{}'; worker shut down",
+                            EXTENSION_NAME,
+                            entry.db_name
                         );
                     }
-                    Err(err) => warn!("Got error: {}", err),
+                    Err(err) => warn!(
+                        context = LAUNCHER_CTX,
+                        "Failed to shutdown worker for db_oid {} (no extension): {}", db_oid, err
+                    ),
                 },
                 ExtensionStatus::NoForeignServer => match ctx.shutdown_worker(db_oid) {
                     Ok(entry) => {
                         log!(
                             context = LAUNCHER_CTX,
-                            "Database '{}' has NOT foreign server extension '{}'",
-                            entry.db_name,
-                            FDW_EXTENSION_NAME
+                            "Foreign server '{}' not found in database '{}'; worker shut down",
+                            FDW_EXTENSION_NAME,
+                            entry.db_name
                         );
                     }
-                    Err(err) => warn!("Got error: {}", err),
+                    Err(err) => warn!(
+                        context = LAUNCHER_CTX,
+                        "Failed to shutdown worker for db_oid {} (no foreign server): {}",
+                        db_oid,
+                        err
+                    ),
                 },
             },
             LauncherMessage::NewConfig { db_oid, config } => {
                 match ctx.handle_new_config_message(db_oid, config, entry_point) {
                     Ok(Some(db_name)) => {
-                        log!("Registered new db: {}", db_name);
+                        log!(
+                            context = LAUNCHER_CTX,
+                            "Trying to start background worker subscriber for '{}'",
+                            db_name
+                        );
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        debug!(
+                            context = LAUNCHER_CTX,
+                            "Updated configuration for existing database worker (OID: {})", db_oid
+                        );
+                    }
                     Err(err) => {
-                        warn!("Got error: {}", err);
+                        warn!(
+                            context = LAUNCHER_CTX,
+                            "Failed to apply config for db_oid {}: {}", db_oid, err
+                        );
                     }
                 }
             }
@@ -135,7 +159,15 @@ pub fn process_launcher_bus<const N: usize>(
                 fn_name,
             } => {
                 if let Err(err) = ctx.handle_subscribe_message(db_oid, subject, fn_name) {
-                    warn!("Got error: {}", err);
+                    warn!(
+                        context = LAUNCHER_CTX,
+                        "Failed to process subscription (db_oid: {}): {}", db_oid, err
+                    );
+                } else {
+                    debug!(
+                        context = LAUNCHER_CTX,
+                        "Registered subscription: db_oid={}", db_oid
+                    );
                 }
             }
             LauncherMessage::Unsubscribe {
@@ -144,12 +176,28 @@ pub fn process_launcher_bus<const N: usize>(
                 fn_name,
             } => {
                 if let Err(err) = ctx.handle_unsubscribe_message(db_oid, subject, fn_name) {
-                    warn!("Got error: {}", err);
+                    warn!(
+                        context = LAUNCHER_CTX,
+                        "Failed to process unsubscription (db_oid: {}): {}", db_oid, err
+                    );
+                } else {
+                    debug!(
+                        context = LAUNCHER_CTX,
+                        "Removed subscription: db_oid={}", db_oid
+                    );
                 }
             }
             LauncherMessage::SubscriberExit { db_oid } => {
                 if let Err(err) = ctx.handle_subscriber_exit_message(db_oid) {
-                    warn!("Got error: {}", err);
+                    warn!(
+                        context = LAUNCHER_CTX,
+                        "Subscriber exit handling failed for db_oid {}: {}", db_oid, err
+                    );
+                } else {
+                    debug!(
+                        context = LAUNCHER_CTX,
+                        "Subscriber for db_oid {} exited and cleaned up", db_oid
+                    );
                 }
             }
         }

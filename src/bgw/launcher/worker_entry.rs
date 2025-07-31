@@ -29,14 +29,25 @@ impl WorkerEntry {
         shm_size: usize,
     ) -> anyhow::Result<Self> {
         let db_name = BackgroundWorker::transaction(|| get_database_name(oid))
-            .ok_or_else(|| anyhow::anyhow!("Failed to get database name for {} oid", oid))?;
+            .ok_or_else(|| anyhow::anyhow!("Failed to resolve database name for OID {oid}."))?;
 
         let size = shm_size.min(unsafe { sys::shm_mq_minimum_size });
-        let dsm = DynamicSharedMemory::new(size + APPROX_SHM_HEADER_SIZE)?;
+        let dsm = DynamicSharedMemory::new(size + APPROX_SHM_HEADER_SIZE)
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to allocate dynamic shared memory segment (requested size: {}). Reason: {e}",
+                    size + APPROX_SHM_HEADER_SIZE
+                )
+            })?;
 
         let packed_arg = pack_oid_dsmh_to_i64(oid, dsm.handle());
 
-        let sender = ShmMqSender::new(&dsm, size)?;
+        let sender = ShmMqSender::new(&dsm, size).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to initialize shared memory message queue sender (size: {}). Reason: {e}",
+                size
+            )
+        })?;
 
         let worker = BackgroundWorkerBuilder::new(name)
             .set_type(ty)
@@ -46,7 +57,14 @@ impl WorkerEntry {
             .set_argument(packed_arg.into_datum())
             .set_notify_pid(unsafe { sys::MyProcPid })
             .load_dynamic()
-            .map_err(|err| anyhow::anyhow!("Failed to start worker. Reason: {:?}", err))?;
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "Failed to launch background worker '{}'. Entry point: '{}', database: '{}'. Error: {err:?}",
+                    name,
+                    entrypoint,
+                    db_name
+                )
+            })?;
 
         Ok(Self {
             db_name,

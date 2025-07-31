@@ -111,8 +111,8 @@ impl LauncherContext {
         oid: u32,
         entry: WorkerEntry,
     ) -> anyhow::Result<Option<WorkerEntry>> {
-        if let Some(entry) = self.workers.insert(oid, entry) {
-            let we = Self::shutdown_worker_entry(entry)?;
+        if let Some(prev_entry) = self.workers.insert(oid, entry) {
+            let we = Self::shutdown_worker_entry(prev_entry)?;
             return Ok(Some(we));
         }
 
@@ -121,7 +121,9 @@ impl LauncherContext {
 
     pub fn shutdown_worker(&mut self, db_oid: u32) -> anyhow::Result<WorkerEntry> {
         let Some(entry) = self.workers.remove(&db_oid) else {
-            return Err(anyhow::anyhow!("Unknown Database OID: {db_oid}"));
+            return Err(anyhow::anyhow!(
+                "Attempted to shutdown worker, but no worker found for database OID {db_oid}"
+            ));
         };
 
         Self::shutdown_worker_entry(entry)
@@ -133,9 +135,8 @@ impl LauncherContext {
 
             terminate.wait_for_shutdown().map_err(|err| {
                 anyhow::anyhow!(
-                    "Failed to shutdown worker for '{}': {:?}",
-                    entry.db_name,
-                    err
+                    "Failed to gracefully shutdown background worker for database '{}': {err:?}",
+                    entry.db_name
                 )
             })?;
         }
