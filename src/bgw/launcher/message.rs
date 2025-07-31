@@ -2,11 +2,18 @@ use bincode::{Decode, Encode};
 
 use crate::config::Config;
 
+#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq)]
+pub enum ExtensionStatus {
+    Exist,
+    NoExtension,
+    NoForeignServer,
+}
+
 #[derive(Encode, Decode)]
 pub enum LauncherMessage {
     DbExtensionStatus {
         db_oid: u32,
-        contains: bool,
+        status: ExtensionStatus,
     },
     NewConfig {
         db_oid: u32,
@@ -21,5 +28,8 @@ pub enum LauncherMessage {
         db_oid: u32,
         subject: String,
         fn_name: String,
+    },
+    SubscriberExit {
+        db_oid: u32,
     },
 }

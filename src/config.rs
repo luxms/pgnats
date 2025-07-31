@@ -149,7 +149,7 @@ pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
     }
 }
 
-fn fetch_fdw_server_name(fdw_name: &str) -> Option<String> {
+pub fn fetch_fdw_server_name(fdw_name: &str) -> Option<String> {
     PgTryBuilder::new(|| {
         Spi::connect(|conn| {
             let Ok(result) = conn.select(

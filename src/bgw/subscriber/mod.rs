@@ -9,11 +9,12 @@ use pgrx::{
 use crate::{
     bgw::{
         LAUNCHER_MESSAGE_BUS,
-        launcher::message::LauncherMessage,
+        launcher::message::{ExtensionStatus, LauncherMessage},
         pgrx_wrappers::{dsm::DynamicSharedMemory, shm_mq::ShmMqReceiver},
         subscriber::message::SubscriberMessage,
     },
-    constants::EXTENSION_NAME,
+    config::fetch_fdw_server_name,
+    constants::{EXTENSION_NAME, FDW_EXTENSION_NAME},
     log,
     utils::{get_database_name, is_extension_installed, unpack_i64_to_oid_dsmh},
     warn,
@@ -39,9 +40,22 @@ pub extern "C-unwind" fn background_worker_subscriber_main(arg: pgrx::pg_sys::Da
     let db_name = BackgroundWorker::transaction(|| get_database_name(db_oid)).unwrap();
 
     {
+        let is_installed = BackgroundWorker::transaction(|| is_extension_installed(EXTENSION_NAME));
+
+        let status = if is_installed {
+            if BackgroundWorker::transaction(|| fetch_fdw_server_name(FDW_EXTENSION_NAME)).is_some()
+            {
+                ExtensionStatus::Exist
+            } else {
+                ExtensionStatus::NoForeignServer
+            }
+        } else {
+            ExtensionStatus::NoExtension
+        };
+
         let msg = LauncherMessage::DbExtensionStatus {
             db_oid: db_oid.to_u32(),
-            contains: BackgroundWorker::transaction(|| is_extension_installed(EXTENSION_NAME)),
+            status,
         };
 
         let data =
@@ -51,6 +65,11 @@ pub extern "C-unwind" fn background_worker_subscriber_main(arg: pgrx::pg_sys::Da
             .exclusive()
             .try_send(&data)
             .expect("failed to send");
+
+        if status != ExtensionStatus::Exist {
+            log!(context = db_name, "Background worker exiting...");
+            return;
+        }
     }
 
     let dsm = DynamicSharedMemory::attach(dsmh).expect("Failed to attach to DSM");
@@ -86,4 +105,17 @@ pub extern "C-unwind" fn background_worker_subscriber_main(arg: pgrx::pg_sys::Da
             }
         }
     }
+
+    let msg = LauncherMessage::SubscriberExit {
+        db_oid: db_oid.to_u32(),
+    };
+
+    let data = bincode::encode_to_vec(msg, bincode::config::standard()).expect("failed to encode");
+
+    LAUNCHER_MESSAGE_BUS
+        .exclusive()
+        .try_send(&data)
+        .expect("failed to send");
+
+    log!(context = db_name, "Subscriber worker stopped gracefully");
 }

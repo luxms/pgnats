@@ -15,10 +15,13 @@ use pgrx::{
 use crate::{
     bgw::{
         DSM_SIZE, LAUNCHER_MESSAGE_BUS, SUBSCRIBER_ENTRY_POINT,
-        launcher::{message::LauncherMessage, worker_entry::WorkerEntry},
+        launcher::{
+            message::{ExtensionStatus, LauncherMessage},
+            worker_entry::WorkerEntry,
+        },
         subscriber::message::SubscriberMessage,
     },
-    constants::EXTENSION_NAME,
+    constants::{EXTENSION_NAME, FDW_EXTENSION_NAME},
     debug, info, log, warn,
 };
 
@@ -92,23 +95,38 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
                 };
 
                 match msg {
-                    LauncherMessage::DbExtensionStatus { db_oid, contains } => {
-                        if contains && let Some(worker) = workers.get(&db_oid) {
-                            log!(
-                                context = LAUNCHER_CTX,
-                                "'{}' has extension '{}'",
-                                worker.db_name,
-                                EXTENSION_NAME
-                            );
-                        } else if let Some(worker) = workers.remove(&db_oid) {
-                            log!(
-                                context = LAUNCHER_CTX,
-                                "'{}' has NOT extension '{}'",
-                                worker.db_name,
-                                EXTENSION_NAME
-                            );
+                    LauncherMessage::DbExtensionStatus { db_oid, status } => match status {
+                        ExtensionStatus::Exist => {
+                            if let Some(worker) = workers.get(&db_oid) {
+                                log!(
+                                    context = LAUNCHER_CTX,
+                                    "Database '{}' has extension '{}'",
+                                    worker.db_name,
+                                    EXTENSION_NAME
+                                );
+                            }
                         }
-                    }
+                        ExtensionStatus::NoExtension => {
+                            if let Some(worker) = workers.remove(&db_oid) {
+                                log!(
+                                    context = LAUNCHER_CTX,
+                                    "Database '{}' has NOT extension '{}'",
+                                    worker.db_name,
+                                    EXTENSION_NAME
+                                );
+                            }
+                        }
+                        ExtensionStatus::NoForeignServer => {
+                            if let Some(worker) = workers.remove(&db_oid) {
+                                log!(
+                                    context = LAUNCHER_CTX,
+                                    "Database '{}' has NOT foreign server for '{}'",
+                                    worker.db_name,
+                                    FDW_EXTENSION_NAME
+                                );
+                            }
+                        }
+                    },
                     LauncherMessage::NewConfig { db_oid, config } => match workers.entry(db_oid) {
                         Entry::Occupied(mut worker) => {
                             let data = bincode::encode_to_vec(
@@ -167,10 +185,34 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
                             worker.sender.send(&data).unwrap();
                         }
                     }
+                    LauncherMessage::SubscriberExit { db_oid } => {
+                        if let Some(worker) = workers.remove(&db_oid) {
+                            log!(
+                                context = LAUNCHER_CTX,
+                                "Worker from '{}' had stopped",
+                                worker.db_name
+                            );
+
+                            worker.worker.wait_for_shutdown().unwrap();
+                        }
+                    }
                 }
             }
         }
     }
+
+    let shutdown_handles: Vec<_> = workers
+        .into_iter()
+        .map(|(_, worker)| worker.worker.terminate())
+        .collect();
+
+    for handle in shutdown_handles {
+        if let Err(err) = handle.wait_for_shutdown() {
+            warn!(context = LAUNCHER_CTX, "Shutdown error: {:?}", err);
+        }
+    }
+
+    log!(context = LAUNCHER_CTX, "Launcher worker stopped gracefully");
 }
 
 fn fetch_database_oids() -> Vec<sys::Oid> {
