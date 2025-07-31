@@ -1,9 +1,12 @@
 #[cfg(any(test, feature = "pg_test"))]
 #[pgrx::prelude::pg_schema]
 mod tests {
-    use pgrx::bgworkers::{BackgroundWorkerBuilder, SignalWakeFlags};
-    use pgrx::{IntoDatum, pg_test};
-    use pgrx::{bgworkers::BackgroundWorker, datum::FromDatum};
+    use pgrx::{
+        IntoDatum,
+        bgworkers::{BackgroundWorker, BackgroundWorkerBuilder, SignalWakeFlags},
+        datum::FromDatum,
+        pg_test,
+    };
 
     use crate::bgw::pgrx_wrappers::{
         dsm::DynamicSharedMemory,

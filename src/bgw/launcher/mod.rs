@@ -2,18 +2,25 @@ mod worker_entry;
 
 pub mod message;
 
-use std::collections::HashMap;
-use std::ptr::null_mut;
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    ptr::null_mut,
+};
 
-use pgrx::bgworkers::{BackgroundWorker, SignalWakeFlags};
-use pgrx::pg_sys as sys;
+use pgrx::{
+    bgworkers::{BackgroundWorker, SignalWakeFlags},
+    pg_sys as sys,
+};
 
-use crate::bgw::launcher::message::LauncherMessage;
-use crate::bgw::launcher::worker_entry::WorkerEntry;
-use crate::bgw::subscriber::message::SubscriberMessage;
-use crate::bgw::{DSM_SIZE, LAUNCHER_MESSAGE_BUS, SUBSCRIBER_ENTRY_POINT};
-use crate::constants::EXTENSION_NAME;
-use crate::{debug, log, warn};
+use crate::{
+    bgw::{
+        DSM_SIZE, LAUNCHER_MESSAGE_BUS, SUBSCRIBER_ENTRY_POINT,
+        launcher::{message::LauncherMessage, worker_entry::WorkerEntry},
+        subscriber::message::SubscriberMessage,
+    },
+    constants::EXTENSION_NAME,
+    debug, info, log, warn,
+};
 
 pub(super) const LAUNCHER_CTX: &str = "LAUNCHER";
 
@@ -87,25 +94,51 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
                 match msg {
                     LauncherMessage::DbExtensionStatus { db_oid, contains } => {
                         if contains && let Some(worker) = workers.get(&db_oid) {
-                            log!("'{}' has extension '{}'", worker.db_name, EXTENSION_NAME);
+                            log!(
+                                context = LAUNCHER_CTX,
+                                "'{}' has extension '{}'",
+                                worker.db_name,
+                                EXTENSION_NAME
+                            );
                         } else if let Some(worker) = workers.remove(&db_oid) {
                             log!(
+                                context = LAUNCHER_CTX,
                                 "'{}' has NOT extension '{}'",
                                 worker.db_name,
                                 EXTENSION_NAME
                             );
                         }
                     }
-                    LauncherMessage::NewConfig { db_oid, config } => {
-                        if let Some(worker) = workers.get_mut(&db_oid) {
+                    LauncherMessage::NewConfig { db_oid, config } => match workers.entry(db_oid) {
+                        Entry::Occupied(mut worker) => {
                             let data = bincode::encode_to_vec(
                                 SubscriberMessage::NewConfig { config },
                                 bincode::config::standard(),
                             )
                             .expect("failed to encode");
-                            worker.sender.send(&data).unwrap();
+                            worker.get_mut().sender.send(&data).unwrap();
                         }
-                    }
+                        Entry::Vacant(worker) => {
+                            if let Ok(we) = WorkerEntry::start(
+                                sys::Oid::from_u32(db_oid),
+                                &format!("PGNats Background Worker Subscriber"),
+                                &format!("pgnats_bgw_subscriber_{}", 0),
+                                SUBSCRIBER_ENTRY_POINT,
+                                DSM_SIZE,
+                            ) {
+                                info!(
+                                    context = LAUNCHER_CTX,
+                                    "Registered new worker for database `{}`", we.db_name
+                                );
+                                let _ = worker.insert(we);
+                            } else {
+                                warn!(
+                                    context = LAUNCHER_CTX,
+                                    "Failed to initialized worker for db oid: {db_oid}"
+                                );
+                            }
+                        }
+                    },
                     LauncherMessage::Subscribe {
                         db_oid,
                         subject,
@@ -141,38 +174,28 @@ pub extern "C-unwind" fn background_worker_launcher_main(_arg: pgrx::pg_sys::Dat
 }
 
 fn fetch_database_oids() -> Vec<sys::Oid> {
-    unsafe {
+    BackgroundWorker::transaction(|| unsafe {
         let mut workers = vec![];
 
-        pgrx::pg_sys::StartTransactionCommand();
-        let _ = pgrx::pg_sys::GetTransactionSnapshot();
+        let rel = sys::table_open(sys::DatabaseRelationId, sys::AccessShareLock as _);
 
-        let rel = pgrx::pg_sys::table_open(
-            pgrx::pg_sys::DatabaseRelationId,
-            pgrx::pg_sys::AccessShareLock as _,
-        );
+        let scan = sys::table_beginscan_catalog(rel, 0, null_mut());
 
-        let scan = pgrx::pg_sys::table_beginscan_catalog(rel, 0, null_mut());
-
-        let mut tup =
-            pgrx::pg_sys::heap_getnext(scan, pgrx::pg_sys::ScanDirection::ForwardScanDirection);
+        let mut tup = sys::heap_getnext(scan, sys::ScanDirection::ForwardScanDirection);
 
         while !tup.is_null() {
-            let pgdb = &*(pgrx::pg_sys::GETSTRUCT(tup) as pgrx::pg_sys::Form_pg_database);
+            let pgdb = &*(sys::GETSTRUCT(tup) as sys::Form_pg_database);
 
             if pgdb.datallowconn && !pgdb.datistemplate {
                 workers.push(pgdb.oid);
             }
 
-            tup =
-                pgrx::pg_sys::heap_getnext(scan, pgrx::pg_sys::ScanDirection::ForwardScanDirection);
+            tup = sys::heap_getnext(scan, sys::ScanDirection::ForwardScanDirection);
         }
 
-        pgrx::pg_sys::table_endscan(scan);
-        pgrx::pg_sys::table_close(rel, pgrx::pg_sys::AccessShareLock as _);
-
-        pgrx::pg_sys::CommitTransactionCommand();
+        sys::table_endscan(scan);
+        sys::table_close(rel, sys::AccessShareLock as _);
 
         workers
-    }
+    })
 }
