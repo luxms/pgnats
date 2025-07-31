@@ -147,7 +147,9 @@ impl<T: Worker> WorkerContext<T> {
 
         match (self.state, state) {
             (WorkerState::Master, WorkerState::Replica) => {
+                log!("Try sending M2R message");
                 if let Some(nats) = self.nats_state.take() {
+                    log!("Sending M2R message");
                     self.send_notification(&nats, PgInstanceTransition::M2R);
                 }
 
