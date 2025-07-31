@@ -6,18 +6,22 @@ pub mod pg_api;
 use std::sync::{Arc, mpsc::channel};
 
 use pgrx::{
-    FromDatum,
+    FromDatum, PgLwLock,
     bgworkers::{BackgroundWorker, SignalWakeFlags},
     pg_sys as sys,
 };
 
 use crate::{
     bgw::{
-        LAUNCHER_MESSAGE_BUS,
+        LAUNCHER_MESSAGE_BUS, SUBSCRIPTIONS_TABLE_NAME,
         launcher::message::{ExtensionStatus, LauncherMessage},
-        pgrx_wrappers::{dsm::DynamicSharedMemory, shm_mq::ShmMqReceiver},
+        pgrx_wrappers::{
+            dsm::{DsmHandle, DynamicSharedMemory},
+            shm_mq::ShmMqReceiver,
+        },
+        ring_queue::RingQueue,
         subscriber::{
-            context::WorkerContext,
+            context::SubscriberContext,
             message::{InternalWorkerMessage, SubscriberMessage},
         },
     },
@@ -30,13 +34,33 @@ use crate::{
 
 #[pgrx::pg_guard]
 #[unsafe(no_mangle)]
-pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: pgrx::pg_sys::Datum) {
+pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: sys::Datum) {
     let arg = unsafe {
-        i64::from_polymorphic_datum(arg, false, sys::INT8OID).expect("Failed to get the argument")
+        i64::from_polymorphic_datum(arg, false, sys::INT8OID)
+            .expect("Failed to extract argument from Datum")
     };
 
     let (db_oid, dsmh) = unpack_i64_to_oid_dsmh(arg);
 
+    if let Err(err) = background_worker_subscriber_main(
+        &LAUNCHER_MESSAGE_BUS,
+        SUBSCRIPTIONS_TABLE_NAME,
+        db_oid,
+        dsmh,
+    ) {
+        warn!(
+            context = format!("Database OID {db_oid}"),
+            "Subscriber worker exited with error: {}", err
+        );
+    }
+}
+
+pub fn background_worker_subscriber_main<const N: usize>(
+    launcher_bus: &PgLwLock<RingQueue<N>>,
+    sub_table_name: &str,
+    db_oid: sys::Oid,
+    dsmh: DsmHandle,
+) -> anyhow::Result<()> {
     BackgroundWorker::attach_signal_handlers(
         SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM | SignalWakeFlags::SIGCHLD,
     );
@@ -45,7 +69,47 @@ pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: pgrx::pg_
         sys::BackgroundWorkerInitializeConnectionByOid(db_oid, sys::InvalidOid, 0);
     }
 
-    let db_name = BackgroundWorker::transaction(|| get_database_name(db_oid)).unwrap();
+    let db_name = BackgroundWorker::transaction(|| get_database_name(db_oid))
+        .ok_or_else(|| anyhow::anyhow!("Failed to fetch database name for oid: {}", db_oid))?;
+
+    let result = background_worker_subscriber_main_internal(
+        launcher_bus,
+        sub_table_name,
+        db_oid.to_u32(),
+        &db_name,
+        dsmh,
+    );
+
+    let msg = LauncherMessage::SubscriberExit {
+        db_oid: db_oid.to_u32(),
+    };
+
+    let data = bincode::encode_to_vec(msg, bincode::config::standard()).expect("failed to encode");
+
+    launcher_bus
+        .exclusive()
+        .try_send(&data)
+        .expect("failed to send");
+
+    log!(context = db_name, "Subscriber worker stopped gracefully");
+    result
+}
+
+fn background_worker_subscriber_main_internal<const N: usize>(
+    launcher_bus: &PgLwLock<RingQueue<N>>,
+    sub_table_name: &str,
+    db_oid: u32,
+    db_name: &str,
+    dsmh: DsmHandle,
+) -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|err| anyhow::anyhow!("Failed to create tokio runtime: {err}"))?;
+
+    let (msg_sender, msg_receiver) = channel();
+
+    let mut ctx = SubscriberContext::new(rt, msg_sender.clone());
 
     {
         let is_installed = BackgroundWorker::transaction(|| is_extension_installed(EXTENSION_NAME));
@@ -61,10 +125,7 @@ pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: pgrx::pg_
             ExtensionStatus::NoExtension
         };
 
-        let msg = LauncherMessage::DbExtensionStatus {
-            db_oid: db_oid.to_u32(),
-            status,
-        };
+        let msg = LauncherMessage::DbExtensionStatus { db_oid, status };
 
         let data =
             bincode::encode_to_vec(msg, bincode::config::standard()).expect("failed to encode");
@@ -76,21 +137,12 @@ pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: pgrx::pg_
 
         if status != ExtensionStatus::Exist {
             log!(context = db_name, "Background worker exiting...");
-            return;
+            return Ok(());
         }
     }
 
     let dsm = DynamicSharedMemory::attach(dsmh).expect("Failed to attach to DSM");
     let mut recv = ShmMqReceiver::attach(&dsm).expect("Failed to get mq receiver");
-
-    let (msg_sender, msg_receiver) = channel();
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .expect("Failed to create runtime");
-
-    let mut ctx = WorkerContext::new(rt, msg_sender.clone());
 
     if ctx.is_master() {
         log!("Restoring NATS state");
@@ -170,16 +222,5 @@ pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: pgrx::pg_
         }
     }
 
-    let msg = LauncherMessage::SubscriberExit {
-        db_oid: db_oid.to_u32(),
-    };
-
-    let data = bincode::encode_to_vec(msg, bincode::config::standard()).expect("failed to encode");
-
-    LAUNCHER_MESSAGE_BUS
-        .exclusive()
-        .try_send(&data)
-        .expect("failed to send");
-
-    log!(context = db_name, "Subscriber worker stopped gracefully");
+    Ok(())
 }

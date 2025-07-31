@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, mpsc::Sender},
 };
 
-use pgrx::bgworkers::BackgroundWorker;
+use pgrx::{
+    bgworkers::{BackgroundWorker, SignalWakeFlags},
+    pg_sys as sys,
+};
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 
@@ -20,7 +23,9 @@ use crate::{
         },
     },
     config::{Config, NatsConnectionOptions, NatsTlsOptions, fetch_config},
-    debug, log, warn,
+    debug, log,
+    utils::get_database_name,
+    warn,
 };
 
 struct NatsSubscription {
@@ -41,7 +46,7 @@ impl Drop for NatsConnectionState {
     }
 }
 
-pub struct WorkerContext {
+pub struct SubscriberContext {
     rt: tokio::runtime::Runtime,
     sender: Sender<InternalWorkerMessage>,
     config: Option<Config>,
@@ -49,7 +54,7 @@ pub struct WorkerContext {
     status: PgInstanceStatus,
 }
 
-impl WorkerContext {
+impl SubscriberContext {
     pub fn new(rt: tokio::runtime::Runtime, sender: Sender<InternalWorkerMessage>) -> Self {
         Self {
             rt,
@@ -357,7 +362,7 @@ impl WorkerContext {
     }
 }
 
-impl Drop for WorkerContext {
+impl Drop for SubscriberContext {
     fn drop(&mut self) {
         if let Some(nats) = self.nats_state.take() {
             let _ = self.rt.block_on(nats.client.drain());
