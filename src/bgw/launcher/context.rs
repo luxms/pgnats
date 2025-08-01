@@ -81,6 +81,10 @@ impl LauncherContext {
         self.shutdown_worker(db_oid)
     }
 
+    pub fn handle_foreign_server_dropped(&mut self, db_oid: u32) -> anyhow::Result<WorkerEntry> {
+        self.shutdown_worker(db_oid)
+    }
+
     pub fn start_subscribe_worker(
         &mut self,
         oid: u32,

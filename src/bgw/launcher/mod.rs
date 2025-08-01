@@ -195,16 +195,41 @@ pub fn process_launcher_bus<const N: usize>(
                 }
             }
             LauncherMessage::SubscriberExit { db_oid } => {
-                if let Err(err) = ctx.handle_subscriber_exit_message(db_oid) {
-                    warn!(
-                        context = LAUNCHER_CTX,
-                        "Subscriber exit handling failed for db_oid {}: {}", db_oid, err
-                    );
-                } else {
-                    debug!(
-                        context = LAUNCHER_CTX,
-                        "Subscriber for db_oid {} exited and cleaned up", db_oid
-                    );
+                match ctx.handle_subscriber_exit_message(db_oid) {
+                    Ok(we) => {
+                        debug!(
+                            context = LAUNCHER_CTX,
+                            "Subscriber for database '{}' (OID {}) exited and cleaned up",
+                            we.db_name,
+                            db_oid
+                        );
+                    }
+                    Err(err) => {
+                        warn!(
+                            context = LAUNCHER_CTX,
+                            "Subscriber exit handling failed for db_oid {}: {}", db_oid, err
+                        );
+                    }
+                }
+            }
+            LauncherMessage::ForeignServerDropped { db_oid } => {
+                match ctx.handle_foreign_server_dropped(db_oid) {
+                    Ok(we) => {
+                        debug!(
+                            context = LAUNCHER_CTX,
+                            "Foreign server for database '{}' (OID: {}) was dropped — subscriber worker terminated and cleaned up successfully",
+                            we.db_name,
+                            db_oid
+                        );
+                    }
+                    Err(err) => {
+                        warn!(
+                            context = LAUNCHER_CTX,
+                            "Failed to clean up subscriber after foreign server drop for db_oid {}: {}",
+                            db_oid,
+                            err
+                        );
+                    }
                 }
             }
         }

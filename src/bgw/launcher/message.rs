@@ -32,4 +32,7 @@ pub enum LauncherMessage {
     SubscriberExit {
         db_oid: u32,
     },
+    ForeignServerDropped {
+        db_oid: u32,
+    },
 }
