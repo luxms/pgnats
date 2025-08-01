@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use pgrx::pg_sys as sys;
 
 use crate::{
-    bgw::{DSM_SIZE, launcher::worker_entry::WorkerEntry, subscriber::message::SubscriberMessage},
+    bgw::{
+        DSM_SIZE, launcher::worker_entry::WorkerEntry, pgrx_wrappers::shm_mq::ShmMqSender,
+        subscriber::message::SubscriberMessage,
+    },
     config::Config,
 };
 
@@ -27,11 +30,12 @@ impl LauncherContext {
         entry_point: &str,
     ) -> anyhow::Result<Option<String>> {
         if let Some(entry) = self.workers.get_mut(&db_oid) {
-            let data = bincode::encode_to_vec(
+            send_subscriber_message(
+                &mut entry.sender,
                 SubscriberMessage::NewConfig { config },
-                bincode::config::standard(),
+                5,
+                std::time::Duration::from_secs(1),
             )?;
-            entry.sender.send(&data)?;
 
             Ok(None)
         } else {
@@ -49,12 +53,13 @@ impl LauncherContext {
         subject: String,
         fn_name: String,
     ) -> anyhow::Result<()> {
-        if let Some(worker) = self.workers.get_mut(&db_oid) {
-            let data = bincode::encode_to_vec(
+        if let Some(entry) = self.workers.get_mut(&db_oid) {
+            send_subscriber_message(
+                &mut entry.sender,
                 SubscriberMessage::Subscribe { subject, fn_name },
-                bincode::config::standard(),
+                5,
+                std::time::Duration::from_secs(1),
             )?;
-            worker.sender.send(&data)?;
         }
 
         Ok(())
@@ -66,12 +71,13 @@ impl LauncherContext {
         subject: String,
         fn_name: String,
     ) -> anyhow::Result<()> {
-        if let Some(worker) = self.workers.get_mut(&db_oid) {
-            let data = bincode::encode_to_vec(
+        if let Some(entry) = self.workers.get_mut(&db_oid) {
+            send_subscriber_message(
+                &mut entry.sender,
                 SubscriberMessage::Unsubscribe { subject, fn_name },
-                bincode::config::standard(),
+                5,
+                std::time::Duration::from_secs(1),
             )?;
-            worker.sender.send(&data)?;
         }
 
         Ok(())
@@ -151,4 +157,29 @@ impl LauncherContext {
     pub fn drain_workers(&mut self) -> impl Iterator<Item = WorkerEntry> {
         self.workers.drain().map(|(_, v)| v)
     }
+}
+
+fn send_subscriber_message(
+    sender: &mut ShmMqSender,
+    msg: SubscriberMessage,
+    tries: usize,
+    interval: std::time::Duration,
+) -> anyhow::Result<()> {
+    let data = bincode::encode_to_vec(msg, bincode::config::standard())?;
+    let mut n = 0;
+
+    while n < tries {
+        match sender.try_send(&data) {
+            Ok(true) => return Ok(()),
+            Ok(false) | Err(_) => {
+                n += 1;
+                std::thread::sleep(interval);
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "Failed to send subscriber message after {} tries",
+        tries
+    ))
 }

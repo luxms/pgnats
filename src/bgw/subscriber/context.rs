@@ -41,8 +41,9 @@ impl Drop for NatsConnectionState {
 }
 
 pub struct SubscriberContext {
+    pub sender: Sender<InternalWorkerMessage>,
+
     rt: tokio::runtime::Runtime,
-    sender: Sender<InternalWorkerMessage>,
     config: Option<Config>,
     nats_state: Option<NatsConnectionState>,
     status: PgInstanceStatus,

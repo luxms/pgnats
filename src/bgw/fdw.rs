@@ -1,7 +1,10 @@
 use pgrx::{extension_sql, pg_extern, pg_sys as sys};
 
 use crate::{
-    bgw::{LAUNCHER_MESSAGE_BUS, launcher::message::LauncherMessage},
+    bgw::{
+        LAUNCHER_MESSAGE_BUS,
+        launcher::{message::LauncherMessage, send_message_to_launcher_with_retry},
+    },
     config::parse_config,
     error,
 };
@@ -93,90 +96,16 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
 
         let options = parse_config(&options);
 
-        let msg = LauncherMessage::NewConfig {
-            config: options,
-            db_oid: unsafe { sys::MyDatabaseId }.to_u32(),
-        };
-
-        if let Ok(buf) = bincode::encode_to_vec(msg, bincode::config::standard()) {
-            if LAUNCHER_MESSAGE_BUS.exclusive().try_send(&buf).is_err() {
-                error!("Shared queue is full, failed to configurate new connection");
-            }
-        } else {
-            error!("Failed to encode message");
+        if let Err(err) = send_message_to_launcher_with_retry(
+            &LAUNCHER_MESSAGE_BUS,
+            LauncherMessage::NewConfig {
+                config: options,
+                db_oid: unsafe { sys::MyDatabaseId }.to_u32(),
+            },
+            5,
+            std::time::Duration::from_secs(1),
+        ) {
+            error!("{err}");
         }
     }
 }
-
-// #[pg_extern]
-// fn pgnats_fdw_handler() -> PgBox<sys::FdwRoutine, AllocatedByRust> {
-//     let mut fdwroutine = unsafe {
-//         PgBox::<sys::FdwRoutine, AllocatedByRust>::alloc_node(sys::NodeTag::T_FdwRoutine)
-//     };
-
-//     fdwroutine.GetForeignRelSize = Some(nats_get_foreign_rel_size);
-//     fdwroutine.GetForeignPaths = Some(nats_get_foreign_paths);
-//     fdwroutine.GetForeignPlan = Some(nats_get_foreign_plan);
-//     fdwroutine.BeginForeignScan = Some(nats_begin_foreign_scan);
-//     fdwroutine.IterateForeignScan = Some(nats_iterate_foreign_scan);
-//     fdwroutine.ReScanForeignScan = Some(nats_re_scan_foreign_scan);
-//     fdwroutine.EndForeignScan = Some(nats_end_foreign_scan);
-
-//     fdwroutine
-// }
-
-/*#[pg_guard]
-unsafe extern "C-unwind" fn nats_get_foreign_rel_size(
-    _root: *mut pg_sys::PlannerInfo,
-    _baserel: *mut pg_sys::RelOptInfo,
-    _oid: pg_sys::Oid,
-) {
-    panic!("nats_get_foreign_rel_size is not implemented");
-}
-
-#[pg_guard]
-unsafe extern "C-unwind" fn nats_get_foreign_paths(
-    _root: *mut pg_sys::PlannerInfo,
-    _baserel: *mut pg_sys::RelOptInfo,
-    _oid: pg_sys::Oid,
-) {
-    panic!("nats_get_foreign_paths is not implemented");
-}
-
-#[pg_guard]
-unsafe extern "C-unwind" fn nats_get_foreign_plan(
-    _root: *mut pg_sys::PlannerInfo,
-    _baserel: *mut pg_sys::RelOptInfo,
-    _oid: pg_sys::Oid,
-    _best_path: *mut pg_sys::ForeignPath,
-    _tlist: *mut pg_sys::List,
-    _scan_clauses: *mut pg_sys::List,
-    _outer_plan: *mut pg_sys::Plan,
-) -> *mut pg_sys::ForeignScan {
-    panic!("nats_get_foreign_plan is not implemented");
-}
-
-#[pg_guard]
-unsafe extern "C-unwind" fn nats_begin_foreign_scan(
-    _node: *mut pg_sys::ForeignScanState,
-    _eflags: ::std::os::raw::c_int,
-) {
-    panic!("nats_begin_foreign_scan is not implemented");
-}
-
-#[pg_guard]
-unsafe extern "C-unwind" fn nats_iterate_foreign_scan(
-    _node: *mut pg_sys::ForeignScanState,
-) -> *mut pg_sys::TupleTableSlot {
-    panic!("nats_iterate_foreign_scan is not implemented");
-}
-
-#[pg_guard]
-unsafe extern "C-unwind" fn nats_re_scan_foreign_scan(_node: *mut pg_sys::ForeignScanState) {
-    panic!("nats_re_scan_foreign_scan is not implemented");
-}
-
-#[pg_guard]
-unsafe extern "C-unwind" fn nats_end_foreign_scan(_node: *mut pg_sys::ForeignScanState) {
-    panic!("nats_end_foreign_scan is not implemented");
-}*/

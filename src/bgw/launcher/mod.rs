@@ -240,6 +240,43 @@ pub fn process_launcher_bus<const N: usize>(
     }
 }
 
+pub fn send_message_to_launcher<const N: usize>(
+    bus: &PgLwLock<RingQueue<N>>,
+    msg: LauncherMessage,
+) -> anyhow::Result<()> {
+    let data = bincode::encode_to_vec(msg, bincode::config::standard())?;
+
+    bus.exclusive()
+        .try_send(&data)
+        .map_err(|_| anyhow::anyhow!("Failed to send to launcher message"))?;
+
+    Ok(())
+}
+
+pub fn send_message_to_launcher_with_retry<const N: usize>(
+    bus: &PgLwLock<RingQueue<N>>,
+    msg: LauncherMessage,
+    tries: usize,
+    interval: std::time::Duration,
+) -> anyhow::Result<()> {
+    let data = bincode::encode_to_vec(msg, bincode::config::standard())?;
+    let mut n = 0;
+
+    while n < tries {
+        if bus.exclusive().try_send(&data).is_ok() {
+            return Ok(());
+        }
+
+        n += 1;
+        std::thread::sleep(interval);
+    }
+
+    Err(anyhow::anyhow!(
+        "Failed to send launcher message after {} tries",
+        tries
+    ))
+}
+
 fn add_subscribe_workers(
     ctx: &mut LauncherContext,
     oids: impl IntoIterator<Item = sys::Oid>,

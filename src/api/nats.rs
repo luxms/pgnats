@@ -607,22 +607,16 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
         anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
 
-    let msg = crate::bgw::launcher::message::LauncherMessage::Subscribe {
-        db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
-        subject,
-        fn_name,
-    };
-    let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
-
-    anyhow::ensure!(
-        crate::bgw::LAUNCHER_MESSAGE_BUS
-            .exclusive()
-            .try_send(&buf)
-            .is_ok(),
-        "Shared queue is full"
-    );
-
-    Ok(())
+    crate::bgw::launcher::send_message_to_launcher_with_retry(
+        &crate::bgw::LAUNCHER_MESSAGE_BUS,
+        crate::bgw::launcher::message::LauncherMessage::Subscribe {
+            db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
+            subject,
+            fn_name,
+        },
+        5,
+        std::time::Duration::from_secs(1),
+    )
 }
 
 /// Unsubscribes from a NATS subject and removes the associated PostgreSQL callback function.
@@ -648,20 +642,14 @@ pub fn nats_unsubscribe(subject: String, fn_name: String) -> anyhow::Result<()> 
         anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
 
-    let msg = crate::bgw::launcher::message::LauncherMessage::Unsubscribe {
-        db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
-        subject,
-        fn_name,
-    };
-    let buf = bincode::encode_to_vec(msg, bincode::config::standard())?;
-
-    anyhow::ensure!(
-        crate::bgw::LAUNCHER_MESSAGE_BUS
-            .exclusive()
-            .try_send(&buf)
-            .is_ok(),
-        "Shared queue is full"
-    );
-
-    Ok(())
+    crate::bgw::launcher::send_message_to_launcher_with_retry(
+        &crate::bgw::LAUNCHER_MESSAGE_BUS,
+        crate::bgw::launcher::message::LauncherMessage::Unsubscribe {
+            db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
+            subject,
+            fn_name,
+        },
+        5,
+        std::time::Duration::from_secs(1),
+    )
 }
