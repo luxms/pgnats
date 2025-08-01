@@ -99,7 +99,7 @@ impl NatsConnectionState {
         }
     }
 
-    pub(super) fn set_new_connection(
+    pub(super) fn reconnect_nats(
         &mut self,
         config: &NatsConnectionOptions,
         rt: &tokio::runtime::Runtime,

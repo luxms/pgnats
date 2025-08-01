@@ -7,18 +7,14 @@ use crate::{
         notification::PgInstanceNotification,
         subscriber::{
             InternalWorkerMessage, NatsConnectionState,
-            pg_api::{
-                PgInstanceStatus, call_function, delete_subject_callback, fetch_status,
-                fetch_subject_with_callbacks, insert_subject_callback,
-            },
+            pg_api::{PgInstanceStatus, fetch_status, fetch_subject_with_callbacks},
         },
     },
     config::Config,
-    debug, warn,
 };
 
 pub struct SubscriberContext {
-    pub sender: Sender<InternalWorkerMessage>,
+    sender: Sender<InternalWorkerMessage>,
 
     rt: tokio::runtime::Runtime,
     config: Config,
@@ -27,7 +23,7 @@ pub struct SubscriberContext {
 }
 
 impl SubscriberContext {
-    pub fn new(
+    pub(super) fn new(
         rt: tokio::runtime::Runtime,
         sender: Sender<InternalWorkerMessage>,
         nats: NatsConnectionState,
@@ -42,106 +38,32 @@ impl SubscriberContext {
         }
     }
 
-    pub fn handle_internal_message(
-        &mut self,
-        msg: InternalWorkerMessage,
-        subscriptions_table_name: &str,
-    ) {
-        match msg {
-            InternalWorkerMessage::Subscribe {
-                register,
-                subject,
-                fn_name,
-            } => {
-                debug!(
-                    "Received subscription request: subject='{}', fn='{}'",
-                    subject, fn_name
-                );
-
-                if register {
-                    if let Err(error) = BackgroundWorker::transaction(|| {
-                        insert_subject_callback(subscriptions_table_name, &subject, &fn_name)
-                    }) {
-                        warn!(
-                            "Error subscribing: subject='{}', callback='{}': {}",
-                            subject, fn_name, error,
-                        );
-                    } else {
-                        debug!(
-                            "Inserted subject callback: subject='{}', callback='{}'",
-                            subject, fn_name
-                        );
-                    }
-                }
-
-                self.handle_subscribe(Arc::from(subject), Arc::from(fn_name));
-            }
-            InternalWorkerMessage::Unsubscribe { subject, fn_name } => {
-                debug!(
-                    "Received unsubscription request: subject='{}', fn='{}'",
-                    subject, fn_name,
-                );
-
-                if let Err(error) = BackgroundWorker::transaction(|| {
-                    delete_subject_callback(subscriptions_table_name, &subject, &fn_name)
-                }) {
-                    warn!(
-                        "Error unsubscribing: subject='{}', callback='{}': {}",
-                        subject, fn_name, error
-                    );
-                } else {
-                    debug!(
-                        "Deleted subject callback: subject='{}', callback='{}'",
-                        subject, fn_name
-                    );
-                }
-
-                self.handle_unsubscribe(subject, fn_name);
-            }
-            InternalWorkerMessage::CallbackCall { subject, data } => {
-                debug!("Dispatching callbacks for subject '{}'", subject);
-
-                self.handle_callback(&subject, data, |callback, data| {
-                    if let Err(err) =
-                        BackgroundWorker::transaction(|| call_function(callback, data))
-                    {
-                        warn!("Error invoking callback '{}': {:?}", callback, err);
-                    }
-                });
-            }
-            InternalWorkerMessage::UnsubscribeSubject { subject, reason } => {
-                warn!("LOG: {reason}");
-                self.handle_unsubscribe_subject(&subject)
-            }
-        }
-    }
-
-    pub fn check_migration(&mut self, subscriptions_table_name: &str) {
+    pub fn check_migration(&mut self, subscriptions_table_name: &str) -> anyhow::Result<()> {
         let state = BackgroundWorker::transaction(fetch_status);
 
         match (self.status, state) {
             (PgInstanceStatus::Master, PgInstanceStatus::Replica) => {
                 self.status = PgInstanceStatus::Replica;
-                self.send_notification();
-
                 let _ = self.nats.unsubscribe_all();
+
+                self.send_notification()?;
             }
             (PgInstanceStatus::Replica, PgInstanceStatus::Master) => {
                 self.status = PgInstanceStatus::Master;
-                self.send_notification();
+                self.restore_state(subscriptions_table_name)?;
 
-                if let Err(err) = self.restore_state(subscriptions_table_name) {
-                    warn!("Error during restoring state: {}", err);
-                }
+                self.send_notification()?;
             }
             _ => {}
         }
+
+        Ok(())
     }
 
-    pub fn set_new_nats_config(&mut self, config: Config) -> anyhow::Result<()> {
+    pub fn apply_config(&mut self, config: Config) -> anyhow::Result<()> {
         if self.config.nats_opt != config.nats_opt {
             self.nats
-                .set_new_connection(&config.nats_opt, &self.rt, self.sender.clone())?;
+                .reconnect_nats(&config.nats_opt, &self.rt, self.sender.clone())?;
         }
         self.config = config;
         Ok(())
@@ -171,43 +93,44 @@ impl SubscriberContext {
         self.status == PgInstanceStatus::Replica
     }
 
-    fn handle_subscribe(&mut self, subject: Arc<str>, fn_name: Arc<str>) {
+    pub fn handle_subscribe(&mut self, subject: Arc<str>, fn_name: Arc<str>) {
         self.nats
             .subscribe(subject, fn_name, &self.rt, self.sender.clone());
     }
 
-    fn handle_unsubscribe(&mut self, subject: Arc<str>, fn_name: Arc<str>) {
+    pub fn handle_unsubscribe(&mut self, subject: Arc<str>, fn_name: Arc<str>) {
         self.nats.unsubscribe(subject, fn_name);
     }
 
-    fn handle_unsubscribe_subject(&mut self, subject: &str) {
+    pub fn handle_unsubscribe_subject(&mut self, subject: &str) {
         self.nats.unsubscribe_subject(subject);
     }
 
-    fn handle_callback(&self, subject: &str, data: Arc<[u8]>, callback: impl Fn(&str, &[u8])) {
+    pub fn handle_callback(&self, subject: &str, data: Arc<[u8]>, callback: impl Fn(&str, &[u8])) {
         self.nats.run_callbacks(subject, data, callback);
     }
 
-    fn send_notification(&self) {
+    pub fn send_notification(&self) -> anyhow::Result<()> {
         let config = &self.config;
         let status = self.status;
-        if let Some(notify_subject) = &config.notify_subject
-            && let Some(notification) = BackgroundWorker::transaction(|| {
-                PgInstanceNotification::new(status, config.patroni_url.as_deref())
-            })
-            && let Ok(notification) = serde_json::to_vec(&notification)
-        {
-            let subject = notify_subject.clone();
 
-            let result: anyhow::Result<()> =
-                self.rt.block_on(self.nats.publish(subject, notification));
+        let notify_subject = config
+            .notify_subject
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("notify_subject is not set in config"))?;
 
-            if let Err(err) = result {
-                warn!("Notification publish error: {}", err);
-            }
-        } else {
-            warn!("Failed to send notification about Postgres instance");
-        }
+        let notification = BackgroundWorker::transaction(|| {
+            PgInstanceNotification::new(status, config.patroni_url.as_deref())
+        })
+        .ok_or_else(|| anyhow::anyhow!("Failed to construct PgInstanceNotification: missing or invalid listen_addresses or port GUC"))?;
+
+        let notification = serde_json::to_vec(&notification).map_err(|err| {
+            anyhow::anyhow!("Failed to serialize PgInstanceNotification: {}", err)
+        })?;
+
+        self.rt
+            .block_on(self.nats.publish(notify_subject.clone(), notification))
+            .map_err(|err| anyhow::anyhow!("Failed to publish notification to NATS: {}", err))
     }
 }
 

@@ -2,7 +2,7 @@ use bincode::{Decode, Encode};
 
 use crate::config::Config;
 
-#[derive(Clone, Copy, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum ExtensionStatus {
     Exist,
     NoExtension,
