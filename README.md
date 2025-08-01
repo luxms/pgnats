@@ -80,18 +80,9 @@ cargo doc --open
 
 The exported PostgreSQL API is implemented in the `api` module.
 
-## 🧩 Extension Configuration
-
-- `pgnats.sub_dbname` - A database to which all queries from subscriptions will be directed (default: `pgnats`)
-
 ## 📘 Usage
 
 ### ⚙️ Configuration
-
-```sql
--- Configuration
-ALTER SYSTEM SET nats.sub_dbname = 'postgres';
-```
 
 To configure the NATS connection, you need to create a Foreign Server:
 
@@ -128,7 +119,7 @@ CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (
 
 ```json
 {
-  "transition": "M2R", // M2R - master to replica, R2M - replica to master
+  "status": "Master",
   "listen_adresses": ["127.0.0.1", "127.0.0.2"],
   "port": 5432,
   "name": "pg-instance-01" // may be null
