@@ -3,16 +3,12 @@ use std::{
     sync::{Arc, mpsc::Sender},
 };
 
-use pgrx::{
-    bgworkers::{BackgroundWorker, SignalWakeFlags},
-    pg_sys as sys,
-};
+use pgrx::bgworkers::BackgroundWorker;
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 
 use crate::{
     bgw::{
-        SUBSCRIPTIONS_TABLE_NAME,
         notification::PgInstanceNotification,
         subscriber::{
             InternalWorkerMessage,
@@ -23,9 +19,7 @@ use crate::{
         },
     },
     config::{Config, NatsConnectionOptions, NatsTlsOptions, fetch_config},
-    debug, log,
-    utils::get_database_name,
-    warn,
+    debug, log, warn,
 };
 
 struct NatsSubscription {
@@ -65,7 +59,11 @@ impl SubscriberContext {
         }
     }
 
-    pub fn handle_internal_message(&mut self, msg: InternalWorkerMessage) {
+    pub fn handle_internal_message(
+        &mut self,
+        msg: InternalWorkerMessage,
+        subscriptions_table_name: &str,
+    ) {
         match msg {
             InternalWorkerMessage::Subscribe {
                 register,
@@ -84,7 +82,7 @@ impl SubscriberContext {
 
                 if register {
                     if let Err(error) = BackgroundWorker::transaction(|| {
-                        insert_subject_callback(SUBSCRIPTIONS_TABLE_NAME, &subject, &fn_name)
+                        insert_subject_callback(subscriptions_table_name, &subject, &fn_name)
                     }) {
                         warn!(
                             "Error subscribing: subject='{}', callback='{}': {}",
@@ -118,7 +116,7 @@ impl SubscriberContext {
                 }
 
                 if let Err(error) = BackgroundWorker::transaction(|| {
-                    delete_subject_callback(SUBSCRIPTIONS_TABLE_NAME, &subject, &fn_name)
+                    delete_subject_callback(subscriptions_table_name, &subject, &fn_name)
                 }) {
                     warn!(
                         "Error unsubscribing: subject='{}', callback='{}': {}",
@@ -147,7 +145,7 @@ impl SubscriberContext {
         }
     }
 
-    pub fn check_migration(&mut self) {
+    pub fn check_migration(&mut self, subscriptions_table_name: &str) {
         let state = BackgroundWorker::transaction(fetch_status);
 
         match (self.status, state) {
@@ -161,7 +159,7 @@ impl SubscriberContext {
             (PgInstanceStatus::Replica, PgInstanceStatus::Master) => {
                 log!("Restoring NATS state");
                 let opt = BackgroundWorker::transaction(fetch_config);
-                if let Err(err) = self.restore_state(opt) {
+                if let Err(err) = self.restore_state(opt, subscriptions_table_name) {
                     warn!("Error during restoring state: {}", err);
                 }
 
@@ -175,7 +173,11 @@ impl SubscriberContext {
         }
     }
 
-    pub fn restore_state(&mut self, config: Config) -> anyhow::Result<()> {
+    pub fn restore_state(
+        &mut self,
+        config: Config,
+        subscriptions_table_name: &str,
+    ) -> anyhow::Result<()> {
         if self.config.as_ref().map(|s| &s.nats_opt) != Some(&config.nats_opt) {
             let _ = self.nats_state.take();
 
@@ -190,7 +192,7 @@ impl SubscriberContext {
         }
 
         let subs = BackgroundWorker::transaction(|| {
-            fetch_subject_with_callbacks(SUBSCRIPTIONS_TABLE_NAME)
+            fetch_subject_with_callbacks(subscriptions_table_name)
         })?;
 
         for (subject, fn_name) in subs {

@@ -84,12 +84,12 @@ pub fn background_worker_subscriber_main<const N: usize>(
         db_oid: db_oid.to_u32(),
     };
 
-    let data = bincode::encode_to_vec(msg, bincode::config::standard()).expect("failed to encode");
+    let data = bincode::encode_to_vec(msg, bincode::config::standard())?;
 
     launcher_bus
         .exclusive()
         .try_send(&data)
-        .expect("failed to send");
+        .map_err(|_| anyhow::anyhow!("Failed to send to launcher SubscriberExit message"))?;
 
     log!(context = db_name, "Subscriber worker stopped gracefully");
     result
@@ -130,7 +130,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
         let data =
             bincode::encode_to_vec(msg, bincode::config::standard()).expect("failed to encode");
 
-        LAUNCHER_MESSAGE_BUS
+        launcher_bus
             .exclusive()
             .try_send(&data)
             .expect("failed to send");
@@ -149,13 +149,13 @@ fn background_worker_subscriber_main_internal<const N: usize>(
 
         let opt = BackgroundWorker::transaction(|| fetch_config());
 
-        if let Err(error) = ctx.restore_state(opt) {
+        if let Err(error) = ctx.restore_state(opt, sub_table_name) {
             warn!("Error restoring state: {}", error);
         }
     }
 
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
-        ctx.check_migration();
+        ctx.check_migration(sub_table_name);
 
         {
             while let Ok(Some(buf)) = recv.try_recv() {
@@ -176,7 +176,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
                     SubscriberMessage::NewConfig { config } => {
                         log!("Handling NewConnectionConfig update");
 
-                        if let Err(err) = ctx.restore_state(config) {
+                        if let Err(err) = ctx.restore_state(config, sub_table_name) {
                             log!("Error during restoring state: {}", err);
                         }
                     }
@@ -218,7 +218,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
                 continue;
             }
 
-            ctx.handle_internal_message(message);
+            ctx.handle_internal_message(message, sub_table_name);
         }
     }
 
