@@ -114,7 +114,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
 ) -> anyhow::Result<()> {
     let status = check_extension_status()?;
     send_message_to_launcher(
-        &launcher_bus,
+        launcher_bus,
         LauncherMessage::DbExtensionStatus { db_oid, status },
     )?;
 
@@ -203,7 +203,7 @@ fn handle_message_from_shared_queue(
     db_name: &str,
 ) {
     let parse_result: Result<(SubscriberMessage, _), _> =
-        bincode::decode_from_slice(&buf[..], bincode::config::standard());
+        bincode::decode_from_slice(buf, bincode::config::standard());
     let msg = match parse_result {
         Ok((msg, _)) => msg,
         Err(err) => {

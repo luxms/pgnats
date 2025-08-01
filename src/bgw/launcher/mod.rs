@@ -45,7 +45,7 @@ pub fn background_worker_launcher_main<const N: usize>(
     BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
     BackgroundWorker::connect_worker_to_spi(None, None);
 
-    let mut ctx = LauncherContext::new();
+    let mut ctx = LauncherContext::default();
 
     let database_oids = BackgroundWorker::transaction(fetch_database_oids);
 

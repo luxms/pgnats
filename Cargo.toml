@@ -64,6 +64,7 @@ unused_results = { level = "warn" }
 
 [lints.clippy]
 redundant_field_names = "allow"
+result_unit_err = "allow"
 
 [profile.dev]
 panic = "unwind"

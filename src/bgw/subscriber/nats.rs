@@ -45,12 +45,8 @@ impl NatsConnectionState {
             // First time subscribing to this subject
             Entry::Vacant(se) => {
                 // Spawn a new handler task for the function
-                let handler = Self::spawn_subscription_task(
-                    self.client.clone(),
-                    &rt,
-                    sender,
-                    subject.clone(),
-                );
+                let handler =
+                    Self::spawn_subscription_task(self.client.clone(), rt, sender, subject.clone());
 
                 let _ = se.insert(NatsSubscription {
                     handler,
@@ -79,7 +75,7 @@ impl NatsConnectionState {
 
     pub(super) fn unsubscribe_all(&mut self) -> HashMap<Arc<str>, NatsSubscription> {
         let subs = std::mem::take(&mut self.subscriptions);
-        for (_, sub) in &subs {
+        for sub in subs.values() {
             sub.handler.abort();
         }
 

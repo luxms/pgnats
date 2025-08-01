@@ -10,19 +10,13 @@ use crate::{
     config::Config,
 };
 
+#[derive(Default)]
 pub struct LauncherContext {
     workers: HashMap<u32, WorkerEntry>,
     counter: usize,
 }
 
 impl LauncherContext {
-    pub fn new() -> Self {
-        Self {
-            workers: HashMap::new(),
-            counter: 0,
-        }
-    }
-
     pub fn handle_new_config_message(
         &mut self,
         db_oid: u32,
@@ -132,7 +126,7 @@ impl LauncherContext {
             return Ok(None);
         };
 
-        Self::shutdown_worker_entry(entry).map(|we| Some(we))
+        Self::shutdown_worker_entry(entry).map(Some)
     }
 
     pub fn shutdown_worker_entry(mut entry: WorkerEntry) -> anyhow::Result<WorkerEntry> {

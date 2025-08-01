@@ -18,7 +18,7 @@ pub fn fetch_status() -> PgInstanceStatus {
 pub fn fetch_subject_with_callbacks(table_name: &str) -> anyhow::Result<Vec<(String, String)>> {
     PgTryBuilder::new(|| {
         Spi::connect_mut(|client| {
-            let sql = format!("SELECT subject, callback FROM {}", table_name);
+            let sql = format!("SELECT subject, callback FROM {table_name}");
             let tuples = client.select(&sql, None, &[])?;
             let subject_callbacks: Vec<(String, String)> = tuples
                 .into_iter()
@@ -55,7 +55,7 @@ pub fn insert_subject_callback(
 ) -> anyhow::Result<()> {
     PgTryBuilder::new(|| {
         Spi::connect_mut(|client| {
-            let sql = format!("INSERT INTO {} VALUES ($1, $2)", table_name);
+            let sql = format!("INSERT INTO {table_name} VALUES ($1, $2)");
             let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
 
             Ok(())
@@ -80,10 +80,7 @@ pub fn delete_subject_callback(
 ) -> anyhow::Result<()> {
     PgTryBuilder::new(|| {
         Spi::connect_mut(|client| {
-            let sql = format!(
-                "DELETE FROM {} WHERE subject = $1 AND callback = $2",
-                table_name
-            );
+            let sql = format!("DELETE FROM {table_name} WHERE subject = $1 AND callback = $2",);
             let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
 
             Ok(())
@@ -111,7 +108,7 @@ pub fn call_function(callback: &str, data: &[u8]) -> anyhow::Result<()> {
 
     PgTryBuilder::new(|| {
         Spi::connect_mut(|client| {
-            let sql = format!("SELECT {}($1)", callback);
+            let sql = format!("SELECT {callback}($1)");
             let _ = client.update(&sql, None, &[data.into()])?;
             Ok(())
         })
