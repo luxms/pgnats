@@ -18,12 +18,15 @@ pub(super) enum InternalWorkerMessage {
         fn_name: String,
     },
     Unsubscribe {
-        reason: Option<String>,
         subject: Arc<str>,
         fn_name: Arc<str>,
     },
     CallbackCall {
         subject: Arc<str>,
         data: Arc<[u8]>,
+    },
+    UnsubscribeSubject {
+        subject: Arc<str>,
+        reason: String,
     },
 }

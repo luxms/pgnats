@@ -196,7 +196,22 @@ pub fn process_launcher_bus<const N: usize>(
                     );
                 }
             }
-            LauncherMessage::SubscriberExit { db_oid } => {
+            LauncherMessage::SubscriberExit { db_oid, reason } => {
+                match reason {
+                    Ok(()) => {
+                        debug!(
+                            context = LAUNCHER_CTX,
+                            "Subscriber for db_oid {} exited normally (SIGTERM)", db_oid
+                        );
+                    }
+                    Err(msg) => {
+                        debug!(
+                            context = LAUNCHER_CTX,
+                            "Subscriber for db_oid {} exited with error: {}", db_oid, msg
+                        );
+                    }
+                }
+
                 match ctx.handle_subscriber_exit_message(db_oid) {
                     Ok(Some(we)) => {
                         debug!(

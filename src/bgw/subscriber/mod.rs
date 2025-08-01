@@ -1,4 +1,5 @@
 mod context;
+mod nats;
 
 pub mod message;
 pub mod pg_api;
@@ -26,6 +27,7 @@ use crate::{
         subscriber::{
             context::SubscriberContext,
             message::{InternalWorkerMessage, SubscriberMessage},
+            nats::NatsConnectionState,
         },
     },
     config::{fetch_config, fetch_fdw_server_name},
@@ -87,6 +89,7 @@ pub fn background_worker_subscriber_main<const N: usize>(
         launcher_bus,
         LauncherMessage::SubscriberExit {
             db_oid: db_oid.to_u32(),
+            reason: result.as_ref().map(|v| *v).map_err(|err| err.to_string()),
         },
     )?;
 
@@ -118,17 +121,18 @@ fn background_worker_subscriber_main_internal<const N: usize>(
         .map_err(|err| anyhow::anyhow!("Failed to create tokio runtime: {err}"))?;
     let (msg_sender, msg_receiver) = channel();
 
-    let mut ctx = SubscriberContext::new(rt, msg_sender.clone());
+    let config = BackgroundWorker::transaction(fetch_config);
+    let nats = rt.block_on(NatsConnectionState::new(&config.nats_opt))?;
+
+    let mut ctx = SubscriberContext::new(rt, msg_sender.clone(), nats, config);
 
     let dsm = DynamicSharedMemory::attach(dsmh)?;
     let mut recv = ShmMqReceiver::attach(&dsm)?;
 
     if ctx.is_master() {
-        log!("Restoring NATS state");
+        log!("Restoring prev state");
 
-        let opt = BackgroundWorker::transaction(|| fetch_config());
-
-        if let Err(error) = ctx.restore_state(opt, sub_table_name) {
+        if let Err(error) = ctx.restore_state(sub_table_name) {
             warn!("Error restoring state: {}", error);
         }
     }
@@ -138,9 +142,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
 
         loop {
             match recv.try_recv() {
-                Ok(Some(buf)) => {
-                    handle_message_from_shared_queue(&buf, &mut ctx, db_name, sub_table_name)
-                }
+                Ok(Some(buf)) => handle_message_from_shared_queue(&buf, &mut ctx, db_name),
                 Ok(None) => break,
                 Err(err) => {
                     warn!(context = db_name, "Got error: {err}");
@@ -162,12 +164,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
     Ok(())
 }
 
-fn handle_message_from_shared_queue(
-    buf: &[u8],
-    ctx: &mut SubscriberContext,
-    db_name: &str,
-    sub_table_name: &str,
-) {
+fn handle_message_from_shared_queue(buf: &[u8], ctx: &mut SubscriberContext, db_name: &str) {
     let parse_result: Result<(SubscriberMessage, _), _> =
         bincode::decode_from_slice(&buf[..], bincode::config::standard());
     let msg = match parse_result {
@@ -185,7 +182,7 @@ fn handle_message_from_shared_queue(
         SubscriberMessage::NewConfig { config } => {
             debug!("Handling NewConnectionConfig update");
 
-            if let Err(err) = ctx.restore_state(config, sub_table_name) {
+            if let Err(err) = ctx.set_new_nats_config(config) {
                 warn!("Error during restoring state: {}", err);
             }
         }
@@ -208,7 +205,6 @@ fn handle_message_from_shared_queue(
             );
 
             let _ = ctx.sender.send(InternalWorkerMessage::Unsubscribe {
-                reason: None,
                 subject: Arc::from(subject.as_str()),
                 fn_name: Arc::from(fn_name.as_str()),
             });
