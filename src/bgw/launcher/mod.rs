@@ -4,7 +4,11 @@ pub mod context;
 pub mod message;
 pub mod pg_api;
 
-use pgrx::{PgLwLock, bgworkers::BackgroundWorker, pg_sys as sys};
+use pgrx::{
+    PgLwLock,
+    bgworkers::{BackgroundWorker, SignalWakeFlags},
+    pg_sys as sys,
+};
 
 use crate::{
     bgw::{
@@ -38,6 +42,9 @@ pub fn background_worker_launcher_main<const N: usize>(
     launcher_bus: &PgLwLock<RingQueue<N>>,
     subscriber_entry_point: &str,
 ) -> anyhow::Result<()> {
+    BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
+    BackgroundWorker::connect_worker_to_spi(None, None);
+
     let mut ctx = LauncherContext::new();
 
     let database_oids = BackgroundWorker::transaction(fetch_database_oids);

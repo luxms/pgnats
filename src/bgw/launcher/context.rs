@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use pgrx::{
-    bgworkers::{BackgroundWorker, SignalWakeFlags},
-    pg_sys as sys,
-};
+use pgrx::pg_sys as sys;
 
 use crate::{
     bgw::{DSM_SIZE, launcher::worker_entry::WorkerEntry, subscriber::message::SubscriberMessage},
@@ -17,11 +14,6 @@ pub struct LauncherContext {
 
 impl LauncherContext {
     pub fn new() -> Self {
-        BackgroundWorker::attach_signal_handlers(
-            SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM,
-        );
-        BackgroundWorker::connect_worker_to_spi(None, None);
-
         Self {
             workers: HashMap::new(),
             counter: 0,
