@@ -12,6 +12,8 @@ impl_nats_publish! {
     /// # Arguments
     /// * `subject` - NATS subject to publish to
     /// * `payload` - Binary data to publish as `Vec<u8>`
+    /// * `reply_to` *(optional)* – Subject to which any reply should be sent
+    /// * `headers` *(optional)* – Key-value headers to include in the message, as `jsonb`
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
@@ -24,12 +26,6 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_binary_stream`] provides JetStream
     /// persistence and delivery guarantees.
-    ///
-    /// # Alternative
-    /// For additional functionality, consider the following variants:
-    /// - [`nats_publish_binary_reply`] – Publishes a message with a reply subject.
-    /// - [`nats_publish_binary_with_headers`] – Publishes a message with headers.
-    /// - [`nats_publish_binary_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     binary, Vec<u8>
 }
 
@@ -39,6 +35,8 @@ impl_nats_publish! {
     /// # Arguments
     /// * `subject` - NATS subject to publish to
     /// * `payload` - Text message to publish as `String`
+    /// * `reply_to` *(optional)* – Subject to which any reply should be sent
+    /// * `headers` *(optional)* – Key-value headers to include in the message, as `jsonb`
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
@@ -51,12 +49,6 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_text_stream`] provides JetStream
     /// persistence and delivery guarantees.
-    ///
-    /// # Alternative
-    /// For additional functionality, consider the following variants:
-    /// - [`nats_publish_text_reply`] – Publishes a message with a reply subject.
-    /// - [`nats_publish_text_with_headers`] – Publishes a message with headers.
-    /// - [`nats_publish_text_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     text, String
 }
 
@@ -66,6 +58,8 @@ impl_nats_publish! {
     /// # Arguments
     /// * `subject` - NATS subject to publish to
     /// * `payload` - JSON data to publish as `pgrx::Json`
+    /// * `reply_to` *(optional)* – Subject to which any reply should be sent
+    /// * `headers` *(optional)* – Key-value headers to include in the message, as `jsonb`
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
@@ -78,12 +72,6 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_json_stream`] provides JetStream
     /// persistence and delivery guarantees.
-    ///
-    /// # Alternative
-    /// For additional functionality, consider the following variants:
-    /// - [`nats_publish_json_reply`] – Publishes a message with a reply subject.
-    /// - [`nats_publish_json_with_headers`] – Publishes a message with headers.
-    /// - [`nats_publish_json_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     json, pgrx::Json
 }
 
@@ -93,6 +81,8 @@ impl_nats_publish! {
     /// # Arguments
     /// * `subject` - NATS subject to publish to
     /// * `payload` - Binary JSON data to publish as `pgrx::JsonB`
+    /// * `reply_to` *(optional)* – Subject to which any reply should be sent
+    /// * `headers` *(optional)* – Key-value headers to include in the message, as `jsonb`
     ///
     /// # Returns
     /// * `Ok(())` - On successful publish
@@ -105,12 +95,6 @@ impl_nats_publish! {
     /// # JetStream Version
     /// The stream version [`nats_publish_jsonb_stream`] provides JetStream
     /// persistence and delivery guarantees.
-    ///
-    /// # Alternative
-    /// For additional functionality, consider the following variants:
-    /// - [`nats_publish_jsonb_reply`] – Publishes a message with a reply subject.
-    /// - [`nats_publish_jsonb_with_headers`] – Publishes a message with headers.
-    /// - [`nats_publish_jsonb_reply_with_headers`] – Publishes a message with both a reply subject and headers.
     jsonb, pgrx::JsonB
 }
 
