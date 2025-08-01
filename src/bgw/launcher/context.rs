@@ -24,12 +24,7 @@ impl LauncherContext {
         entry_point: &str,
     ) -> anyhow::Result<Option<String>> {
         if let Some(entry) = self.workers.get_mut(&db_oid) {
-            send_subscriber_message(
-                &mut entry.sender,
-                SubscriberMessage::NewConfig { config },
-                5,
-                std::time::Duration::from_secs(1),
-            )?;
+            send_subscriber_message(&mut entry.sender, SubscriberMessage::NewConfig { config })?;
 
             Ok(None)
         } else {
@@ -51,8 +46,6 @@ impl LauncherContext {
             send_subscriber_message(
                 &mut entry.sender,
                 SubscriberMessage::Subscribe { subject, fn_name },
-                5,
-                std::time::Duration::from_secs(1),
             )?;
         }
 
@@ -69,8 +62,6 @@ impl LauncherContext {
             send_subscriber_message(
                 &mut entry.sender,
                 SubscriberMessage::Unsubscribe { subject, fn_name },
-                5,
-                std::time::Duration::from_secs(1),
             )?;
         }
 
@@ -153,27 +144,8 @@ impl LauncherContext {
     }
 }
 
-fn send_subscriber_message(
-    sender: &mut ShmMqSender,
-    msg: SubscriberMessage,
-    tries: usize,
-    interval: std::time::Duration,
-) -> anyhow::Result<()> {
+fn send_subscriber_message(sender: &mut ShmMqSender, msg: SubscriberMessage) -> anyhow::Result<()> {
     let data = bincode::encode_to_vec(msg, bincode::config::standard())?;
-    let mut n = 0;
 
-    while n < tries {
-        match sender.try_send(&data) {
-            Ok(true) => return Ok(()),
-            Ok(false) | Err(_) => {
-                n += 1;
-                std::thread::sleep(interval);
-            }
-        }
-    }
-
-    Err(anyhow::anyhow!(
-        "Failed to send subscriber message after {} tries",
-        tries
-    ))
+    sender.send(&data)
 }

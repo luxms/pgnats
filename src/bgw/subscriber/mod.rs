@@ -217,16 +217,27 @@ fn handle_message_from_shared_queue(
 
     match msg {
         SubscriberMessage::NewConfig { config } => {
-            debug!("Handling NewConnectionConfig update");
+            debug!(
+                context = db_name,
+                "Received NewConfig message. Applying updated NATS configuration..."
+            );
 
             if let Err(err) = ctx.apply_config(config) {
-                warn!("Error during restoring state: {}", err);
+                warn!(
+                    context = db_name,
+                    "Failed to apply new NATS configuration: {}", err
+                );
+            } else {
+                debug!(
+                    context = db_name,
+                    "Successfully applied new NATS configuration"
+                );
             }
         }
         SubscriberMessage::Subscribe { subject, fn_name } => {
             debug!(
-                "Handling Subscribe for subject '{}', fn '{}'",
-                subject, fn_name
+                context = db_name,
+                "Handling Subscribe for subject '{}', fn '{}'", subject, fn_name
             );
 
             let _ = sender.send(InternalWorkerMessage::Subscribe {
@@ -237,8 +248,8 @@ fn handle_message_from_shared_queue(
         }
         SubscriberMessage::Unsubscribe { subject, fn_name } => {
             debug!(
-                "Handling Unsubscribe for subject '{}', fn '{}'",
-                subject, fn_name
+                context = db_name,
+                "Handling Unsubscribe for subject '{}', fn '{}'", subject, fn_name
             );
 
             let _ = sender.send(InternalWorkerMessage::Unsubscribe {
@@ -262,8 +273,8 @@ fn handle_internal_message(
             fn_name,
         } => {
             debug!(
-                "Received subscription request: subject='{}', fn='{}'",
-                subject, fn_name
+                context = db_name,
+                "Received subscription request: subject='{}', fn='{}'", subject, fn_name
             );
 
             if register {
@@ -279,8 +290,8 @@ fn handle_internal_message(
                     );
                 } else {
                     debug!(
-                        "Inserted subject callback: subject='{}', callback='{}'",
-                        subject, fn_name
+                        context = db_name,
+                        "Inserted subject callback: subject='{}', callback='{}'", subject, fn_name
                     );
                 }
             }
@@ -289,8 +300,8 @@ fn handle_internal_message(
         }
         InternalWorkerMessage::Unsubscribe { subject, fn_name } => {
             debug!(
-                "Received unsubscription request: subject='{}', fn='{}'",
-                subject, fn_name,
+                context = db_name,
+                "Received unsubscription request: subject='{}', fn='{}'", subject, fn_name,
             );
 
             if let Err(error) = BackgroundWorker::transaction(|| {
@@ -305,15 +316,18 @@ fn handle_internal_message(
                 );
             } else {
                 debug!(
-                    "Deleted subject callback: subject='{}', callback='{}'",
-                    subject, fn_name
+                    context = db_name,
+                    "Deleted subject callback: subject='{}', callback='{}'", subject, fn_name
                 );
             }
 
             ctx.handle_unsubscribe(subject, fn_name);
         }
         InternalWorkerMessage::CallbackCall { subject, data } => {
-            debug!("Dispatching callbacks for subject '{}'", subject);
+            debug!(
+                context = db_name,
+                "Dispatching callbacks for subject '{}'", subject
+            );
 
             ctx.handle_callback(&subject, data, |callback, data| {
                 if let Err(err) = BackgroundWorker::transaction(|| call_function(callback, data)) {
