@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, ffi::CString, path::PathBuf};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 
 use pgrx::{PgTryBuilder, Spi};
 
@@ -47,7 +47,7 @@ pub fn fetch_config() -> Config {
         return parse_config(&options);
     };
 
-    let Ok(fdw_server_name) = CString::from_str(&fdw_server_name) else {
+    let Ok(fdw_server_name) = std::ffi::CString::from_str(&fdw_server_name) else {
         crate::warn!("Failed to parse FDW server name");
         return parse_config(&options);
     };
