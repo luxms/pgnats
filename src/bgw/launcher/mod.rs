@@ -107,7 +107,7 @@ pub fn process_launcher_bus<const N: usize>(
                     }
                 }
                 ExtensionStatus::NoExtension => match ctx.shutdown_worker(db_oid) {
-                    Ok(entry) => {
+                    Ok(Some(entry)) => {
                         log!(
                             context = LAUNCHER_CTX,
                             "Extension '{}' not found in database '{}'; worker shut down",
@@ -115,13 +115,14 @@ pub fn process_launcher_bus<const N: usize>(
                             entry.db_name
                         );
                     }
+                    Ok(None) => { /* ignore */ }
                     Err(err) => warn!(
                         context = LAUNCHER_CTX,
                         "Failed to shutdown worker for db_oid {} (no extension): {}", db_oid, err
                     ),
                 },
                 ExtensionStatus::NoForeignServer => match ctx.shutdown_worker(db_oid) {
-                    Ok(entry) => {
+                    Ok(Some(entry)) => {
                         log!(
                             context = LAUNCHER_CTX,
                             "Foreign server '{}' not found in database '{}'; worker shut down",
@@ -129,6 +130,7 @@ pub fn process_launcher_bus<const N: usize>(
                             entry.db_name
                         );
                     }
+                    Ok(None) => { /* ignore */ }
                     Err(err) => warn!(
                         context = LAUNCHER_CTX,
                         "Failed to shutdown worker for db_oid {} (no foreign server): {}",
@@ -196,7 +198,7 @@ pub fn process_launcher_bus<const N: usize>(
             }
             LauncherMessage::SubscriberExit { db_oid } => {
                 match ctx.handle_subscriber_exit_message(db_oid) {
-                    Ok(we) => {
+                    Ok(Some(we)) => {
                         debug!(
                             context = LAUNCHER_CTX,
                             "Subscriber for database '{}' (OID {}) exited and cleaned up",
@@ -204,6 +206,7 @@ pub fn process_launcher_bus<const N: usize>(
                             db_oid
                         );
                     }
+                    Ok(None) => { /* ignore */ }
                     Err(err) => {
                         warn!(
                             context = LAUNCHER_CTX,
@@ -214,7 +217,7 @@ pub fn process_launcher_bus<const N: usize>(
             }
             LauncherMessage::ForeignServerDropped { db_oid } => {
                 match ctx.handle_foreign_server_dropped(db_oid) {
-                    Ok(we) => {
+                    Ok(Some(we)) => {
                         debug!(
                             context = LAUNCHER_CTX,
                             "Foreign server for database '{}' (OID: {}) was dropped — subscriber worker terminated and cleaned up successfully",
@@ -222,6 +225,7 @@ pub fn process_launcher_bus<const N: usize>(
                             db_oid
                         );
                     }
+                    Ok(None) => { /* ignore */ }
                     Err(err) => {
                         warn!(
                             context = LAUNCHER_CTX,

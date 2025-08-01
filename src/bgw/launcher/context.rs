@@ -77,11 +77,17 @@ impl LauncherContext {
         Ok(())
     }
 
-    pub fn handle_subscriber_exit_message(&mut self, db_oid: u32) -> anyhow::Result<WorkerEntry> {
+    pub fn handle_subscriber_exit_message(
+        &mut self,
+        db_oid: u32,
+    ) -> anyhow::Result<Option<WorkerEntry>> {
         self.shutdown_worker(db_oid)
     }
 
-    pub fn handle_foreign_server_dropped(&mut self, db_oid: u32) -> anyhow::Result<WorkerEntry> {
+    pub fn handle_foreign_server_dropped(
+        &mut self,
+        db_oid: u32,
+    ) -> anyhow::Result<Option<WorkerEntry>> {
         self.shutdown_worker(db_oid)
     }
 
@@ -115,14 +121,12 @@ impl LauncherContext {
         Ok(None)
     }
 
-    pub fn shutdown_worker(&mut self, db_oid: u32) -> anyhow::Result<WorkerEntry> {
+    pub fn shutdown_worker(&mut self, db_oid: u32) -> anyhow::Result<Option<WorkerEntry>> {
         let Some(entry) = self.workers.remove(&db_oid) else {
-            return Err(anyhow::anyhow!(
-                "Attempted to shutdown worker, but no worker found for database OID {db_oid}"
-            ));
+            return Ok(None);
         };
 
-        Self::shutdown_worker_entry(entry)
+        Self::shutdown_worker_entry(entry).map(|we| Some(we))
     }
 
     pub fn shutdown_worker_entry(mut entry: WorkerEntry) -> anyhow::Result<WorkerEntry> {
