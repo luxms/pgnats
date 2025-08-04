@@ -2,89 +2,27 @@
 pub fn init_test_shared_memory() {
     use pgrx::{PgSharedMemoryInitialization, pg_guard, pg_shmem_init, pg_sys};
 
-    use crate::pg_tests::bgw_tests::tests::{LAUNCHER_MESSAGE_BUS1, RESULT1};
+    use crate::pg_tests::bgw_tests::tests_items::*;
 
     pg_shmem_init!(LAUNCHER_MESSAGE_BUS1);
-    pg_shmem_init!(RESULT1);
+    pg_shmem_init!(TEST_RESULT1);
 }
 
 #[cfg(any(test, feature = "pg_test"))]
-#[pgrx::pg_guard]
-#[unsafe(no_mangle)]
-extern "C-unwind" fn background_worker_launcher_entry_point_test_1(_arg: pgrx::pg_sys::Datum) {
-    use crate::{bgw::launcher::background_worker_launcher_main, warn};
+mod tests_items {
+    use crate::generate_test_background_worker;
 
-    use crate::pg_tests::bgw_tests::tests::LAUNCHER_MESSAGE_BUS1;
-
-    if let Err(err) = background_worker_launcher_main(
-        &LAUNCHER_MESSAGE_BUS1,
-        "background_worker_subscriber_entry_point_test_1",
-    ) {
-        warn!("Launcher worker exited with error: {}", err);
-    }
-}
-
-#[cfg(any(test, feature = "pg_test"))]
-#[pgrx::pg_guard]
-#[unsafe(no_mangle)]
-extern "C-unwind" fn background_worker_subscriber_entry_point_test_1(arg: pgrx::pg_sys::Datum) {
-    use crate::{
-        bgw::subscriber::background_worker_subscriber_main, utils::unpack_i64_to_oid_dsmh, warn,
-    };
-
-    use pgrx::{FromDatum, pg_sys as sys};
-
-    use crate::pg_tests::bgw_tests::tests::LAUNCHER_MESSAGE_BUS1;
-
-    let arg = unsafe {
-        i64::from_polymorphic_datum(arg, false, sys::INT8OID)
-            .expect("Subscriber: failed to extract i64 argument from Datum")
-    };
-
-    let (db_oid, dsmh) = unpack_i64_to_oid_dsmh(arg);
-
-    if let Err(err) = background_worker_subscriber_main(
-        &LAUNCHER_MESSAGE_BUS1,
-        "test_background_worker_sub_call_unsub_call",
-        "pgnats_fdw_test_1",
-        db_oid,
-        dsmh,
-    ) {
-        warn!(
-            context = format!("Database OID {db_oid}"),
-            "Subscriber worker exited with error: {}", err
+    generate_test_background_worker!(1, c"l1", c"r1", "create_test_fdw_1",
+        r#"
+        CREATE TABLE test_background_worker_sub_call_unsub_call (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
         );
-    }
-}
-
-#[cfg(any(test, feature = "pg_test"))]
-pgrx::extension_sql!(
-    r#"
-    CREATE TABLE test_background_worker_sub_call_unsub_call (
-        subject TEXT NOT NULL,
-        callback TEXT NOT NULL,
-        UNIQUE(subject, callback)
+        CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_1;
+        CREATE SERVER test_background_worker_sub_call_unsub_call FOREIGN DATA WRAPPER pgnats_fdw_test_1 OPTIONS (host 'localhost', port '4222');
+        "#
     );
-    CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_1;
-    CREATE SERVER test_background_worker_sub_call_unsub_call FOREIGN DATA WRAPPER pgnats_fdw_test_1 OPTIONS (host 'localhost', port '4222');
-    "#,
-    name = "create_test_fdw_1",
-    requires = []
-);
-
-#[cfg(any(test, feature = "pg_test"))]
-#[pgrx::pg_extern]
-pub fn test_1_fn(bytes: Vec<u8>) {
-    use std::hash::{DefaultHasher, Hasher};
-
-    use crate::pg_tests::bgw_tests::tests::RESULT1;
-
-    let mut hasher = DefaultHasher::new();
-    hasher.write(&bytes);
-
-    let hash = hasher.finish();
-
-    *RESULT1.exclusive() = hash;
 }
 
 #[cfg(any(test, feature = "pg_test"))]
@@ -94,13 +32,7 @@ pub(super) mod tests {
 
     use pgrx::{bgworkers::BackgroundWorkerBuilder, pg_test, PgLwLock};
 
-    use crate::{api, bgw::ring_queue::RingQueue, constants::EXTENSION_NAME};
-
-    pub(super) static LAUNCHER_MESSAGE_BUS1: PgLwLock<RingQueue<1024>> =
-        PgLwLock::new(c"pgnats_launcher_test_message_bus_1");
-
-    pub(super) static RESULT1: PgLwLock<u64> = PgLwLock::new(c"pgnats_callback_result_test_1");
-
+    use crate::{api, bgw::ring_queue::RingQueue, constants::EXTENSION_NAME, pg_tests::bgw_tests::tests_items::*};
 
     #[pg_test]
     fn test_background_worker_sub_call_unsub_call() {
@@ -137,7 +69,7 @@ pub(super) mod tests {
 
         let mut hasher = DefaultHasher::new();
         hasher.write(content.as_bytes());
-        assert_eq!(*RESULT1.share(), hasher.finish());
+        assert_eq!(*TEST_RESULT1.share(), hasher.finish());
 
         pgnats_unsubscribe(
             subject.to_string(),
