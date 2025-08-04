@@ -141,7 +141,8 @@ fn background_worker_subscriber_main_internal<const N: usize>(
 
     let (msg_sender, msg_receiver) = channel();
 
-    let config = BackgroundWorker::transaction(fetch_config);
+    let config = BackgroundWorker::transaction(|| fetch_config(fdw_extension_name));
+
     let nats = rt.block_on(NatsConnectionState::new(&config.nats_opt))?;
 
     let mut ctx = SubscriberContext::new(rt, msg_sender.clone(), nats, config);

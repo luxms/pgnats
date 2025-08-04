@@ -34,15 +34,12 @@ pub struct Config {
     pub patroni_url: Option<String>,
 }
 
-#[cfg(not(feature = "pg_test"))]
-pub fn fetch_config() -> Config {
+pub fn fetch_config(fdw_extension_name: &str) -> Config {
     use std::str::FromStr;
-
-    use crate::constants::FDW_EXTENSION_NAME;
 
     let mut options = HashMap::new();
 
-    let Some(fdw_server_name) = fetch_fdw_server_name(FDW_EXTENSION_NAME) else {
+    let Some(fdw_server_name) = fetch_fdw_server_name(fdw_extension_name) else {
         crate::warn!("Failed to get FDW server name");
         return parse_config(&options);
     };
@@ -92,11 +89,6 @@ pub fn fetch_config() -> Config {
     };
 
     parse_config(&options)
-}
-
-#[cfg(feature = "pg_test")]
-pub fn fetch_config() -> Config {
-    parse_config(&HashMap::new())
 }
 
 pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {

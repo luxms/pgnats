@@ -51,8 +51,7 @@ pub mod ctx;
 /// It must be visible at the root of your extension crate.
 #[cfg(test)]
 pub mod pg_test {
-    pub fn setup(_options: Vec<&str>) {
-    }
+    pub fn setup(_options: Vec<&str>) {}
 
     #[must_use]
     pub fn postgresql_conf_options() -> Vec<&'static str> {

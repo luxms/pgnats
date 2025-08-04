@@ -1,11 +1,4 @@
 #[macro_export]
-macro_rules! cstr {
-    ($s:expr) => (
-        concat!($s, "\0") as *const str as *const [::std::os::raw::c_char] as *const ::std::os::raw::c_char
-    )
-}
-
-#[macro_export]
 macro_rules! generate_test_background_worker {
     ($n:literal, $launcher_name:expr, $result_name:expr, $sql_ext_name:literal, $sql:literal) => {
         ::paste::paste! {
@@ -66,10 +59,18 @@ macro_rules! generate_test_background_worker {
                 }
             }
 
+
+            #[pgrx::pg_extern]
+            fn [<pgnats_fdw_validator_test_ $n>](options: Vec<String>, oid: pgrx::pg_sys::Oid) {
+                if crate::config::fetch_fdw_server_name(concat!("pgnats_fdw_test_", stringify!($n))).is_some() {
+                    crate::bgw::fdw::fdw_validator(&[<LAUNCHER_MESSAGE_BUS $n>], options, oid);
+                }
+            }
+
             pgrx::extension_sql!(
                 $sql,
                 name = $sql_ext_name,
-                requires = []
+                requires = [[<pgnats_fdw_validator_test_ $n>]]
             );
 
             #[pgrx::pg_extern]

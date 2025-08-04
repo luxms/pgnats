@@ -14,9 +14,7 @@ use pgrx::warning;
 use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::{
-    config::{Config, NatsTlsOptions, fetch_config},
-    info,
-    utils::{FromBytes, ToBytes, extract_headers},
+    config::{fetch_config, Config, NatsTlsOptions}, constants::FDW_EXTENSION_NAME, info, utils::{extract_headers, FromBytes, ToBytes}
 };
 
 #[derive(Default)]
@@ -137,7 +135,7 @@ impl NatsClient {
     pub async fn check_and_invalidate_connection(&mut self) {
         let (changed, new_config) = {
             let config = &self.current_config;
-            let fetched_config = fetch_config();
+            let fetched_config = fetch_config(FDW_EXTENSION_NAME);
 
             let changed = config.as_ref().map(|c| &c.nats_opt) != Some(&fetched_config.nats_opt);
 
@@ -328,7 +326,7 @@ impl NatsClient {
     }
 
     async fn initialize_connection(&mut self) -> anyhow::Result<()> {
-        let config = self.current_config.get_or_insert_with(fetch_config);
+        let config = self.current_config.get_or_insert_with(|| fetch_config(FDW_EXTENSION_NAME));
 
         let mut opts = async_nats::ConnectOptions::new().client_capacity(config.nats_opt.capacity);
 
