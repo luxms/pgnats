@@ -6,6 +6,9 @@ pub fn init_test_shared_memory() {
 
     pg_shmem_init!(LAUNCHER_MESSAGE_BUS1);
     pg_shmem_init!(TEST_RESULT1);
+
+    pg_shmem_init!(LAUNCHER_MESSAGE_BUS2);
+    pg_shmem_init!(TEST_RESULT2);
 }
 
 #[cfg(any(test, feature = "pg_test"))]
@@ -14,13 +17,31 @@ mod tests_items {
 
     generate_test_background_worker!(1, c"l1", c"r1", "create_test_fdw_1",
         r#"
-        CREATE TABLE test_background_worker_sub_call_unsub_call (
+        CREATE TABLE test_subscription_table_1 (
             subject TEXT NOT NULL,
             callback TEXT NOT NULL,
             UNIQUE(subject, callback)
         );
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_1;
         CREATE SERVER test_background_worker_sub_call_unsub_call FOREIGN DATA WRAPPER pgnats_fdw_test_1 OPTIONS (host 'localhost', port '4222');
+        "#
+    );
+
+    generate_test_background_worker!(2, c"l2", c"r2", "create_test_fdw_2",
+        r#"
+        CREATE TABLE test_subscription_table_2 (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );
+
+        INSERT INTO test_subscription_table_2 (subject, callback) VALUES
+            ('test_background_worker_restore_after_restart', 'test_2_fn'),
+            ('test_background_worker_restore_after_restart', 'example_fn_2')
+        ;
+
+        CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_2;
+        CREATE SERVER test_background_worker_restore_after_restart FOREIGN DATA WRAPPER pgnats_fdw_test_2 OPTIONS (host 'localhost', port '4222');
         "#
     );
 }
@@ -87,357 +108,37 @@ pub(super) mod tests {
         terminate.wait_for_shutdown().unwrap();
     }
 
-    // use std::{
-    //     collections::HashMap,
-    //     sync::{
-    //         Arc, Mutex,
-    //         mpsc::{Receiver, Sender},
-    //     },
-    // };
+    #[pg_test]
+    fn test_background_worker_restore_after_restart() {
+        use pgrx::function_name;
 
-    // use pgrx::{PgTryBuilder, Spi, pg_test};
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
 
-    // use crate::{
-    //     api,
-    //     bgw::{SharedQueue, Worker, WorkerState},
-    //     config::{Config, parse_config},
-    //     connection::NatsConnectionOptions,
-    //     log,
-    //     notification::{PgInstanceNotification, PgInstanceTransition},
-    //     worker_queue::WorkerMessage,
-    // };
+        let worker = BackgroundWorkerBuilder::new("PGNats Background Worker Launcher 2")
+            .set_function("background_worker_launcher_entry_point_test_2")
+            .set_library(EXTENSION_NAME)
+            .enable_spi_access()
+            .set_notify_pid(unsafe { pgrx::pg_sys::MyProcPid })
+            .load_dynamic()
+            .unwrap();
 
-    // #[derive(Debug)]
-    // enum InternalMockMessage {
-    //     Fetch,
-    //     Insert(String, String),
-    //     Delete(String, String),
-    //     Call(String, Vec<u8>),
-    // }
+        let _ = worker.wait_for_startup().unwrap();
 
-    // struct MockWorker {
-    //     msg_bus: Sender<InternalMockMessage>,
-    //     fetch_recv: Receiver<anyhow::Result<Vec<(String, String)>>>,
-    //     notification_recv: Receiver<Option<PgInstanceNotification>>,
-    //     quit_recv: Receiver<()>,
-    //     state: Arc<Mutex<WorkerState>>,
-    //     notify_subject: Option<String>,
-    // }
+        std::thread::sleep(std::time::Duration::from_secs(3));
 
-    // impl MockWorker {
-    //     pub fn new(
-    //         msg_bus: Sender<InternalMockMessage>,
-    //         fetch_recv: Receiver<anyhow::Result<Vec<(String, String)>>>,
-    //         notification_recv: Receiver<Option<PgInstanceNotification>>,
-    //         quit_recv: Receiver<()>,
-    //         state: Arc<Mutex<WorkerState>>,
-    //         notify_subject: Option<String>,
-    //     ) -> Self {
-    //         Self {
-    //             msg_bus,
-    //             fetch_recv,
-    //             notification_recv,
-    //             quit_recv,
-    //             state,
-    //             notify_subject,
-    //         }
-    //     }
-    // }
+        api::nats_publish_text(subject, content.to_string(), None, None).unwrap();
 
-    // impl Worker for MockWorker {
-    //     fn wait(&self, duration: std::time::Duration) -> bool {
-    //         std::thread::sleep(duration);
-    //         self.quit_recv.try_recv().is_err()
-    //     }
+        std::thread::sleep(std::time::Duration::from_secs(3));
 
-    //     fn fetch_state(&self) -> WorkerState {
-    //         *self.state.lock().unwrap()
-    //     }
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content.as_bytes());
+        assert_eq!(*TEST_RESULT2.share(), hasher.finish());
 
-    //     fn fetch_subject_with_callbacks(&self) -> anyhow::Result<Vec<(String, String)>> {
-    //         self.msg_bus.send(InternalMockMessage::Fetch).unwrap();
-    //         self.fetch_recv
-    //             .recv_timeout(std::time::Duration::from_secs(5))
-    //             .unwrap()
-    //     }
-
-    //     fn insert_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()> {
-    //         self.msg_bus
-    //             .send(InternalMockMessage::Insert(
-    //                 subject.to_string(),
-    //                 callback.to_string(),
-    //             ))
-    //             .unwrap();
-    //         Ok(())
-    //     }
-
-    //     fn delete_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()> {
-    //         self.msg_bus
-    //             .send(InternalMockMessage::Delete(
-    //                 subject.to_string(),
-    //                 callback.to_string(),
-    //             ))
-    //             .unwrap();
-    //         Ok(())
-    //     }
-
-    //     fn call_function(&self, callback: &str, data: &[u8]) -> anyhow::Result<()> {
-    //         self.msg_bus
-    //             .send(InternalMockMessage::Call(
-    //                 callback.to_string(),
-    //                 data.to_vec(),
-    //             ))
-    //             .unwrap();
-    //         Ok(())
-    //     }
-
-    //     fn fetch_config(&self) -> Config {
-    //         if let Some(notify_subject) = &self.notify_subject {
-    //             parse_config(&HashMap::from_iter([(
-    //                 "notify_subject".into(),
-    //                 notify_subject.into(),
-    //             )]))
-    //         } else {
-    //             parse_config(&HashMap::new())
-    //         }
-    //     }
-
-    //     fn make_notification(
-    //         &self,
-    //         _: PgInstanceTransition,
-    //         _: Option<&str>,
-    //     ) -> Option<PgInstanceNotification> {
-    //         self.notification_recv
-    //             .recv_timeout(std::time::Duration::from_secs(5))
-    //             .unwrap()
-    //     }
-
-    //     fn recv_kill_signal(&self) -> bool {
-    //         false
-    //     }
-    // }
-
-    // #[pg_test]
-    // fn test_background_worker_sub_call_unsub_call() {
-    //     use std::sync::{RwLock, mpsc::channel};
-
-    //     use pgrx::function_name;
-
-    //     use crate::{bgw::run::run_worker, ring_queue::RingQueue};
-
-    //     static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
-
-    //     // INIT
-    //     let table_name = function_name!().split("::").last().unwrap();
-    //     let subject = table_name;
-    //     let fn_name = "example";
-    //     let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
-
-    //     Spi::run(&format!(
-    //         "CREATE TEMP TABLE {} (
-    //         subject TEXT NOT NULL,
-    //         callback TEXT NOT NULL,
-    //         UNIQUE(subject, callback)
-    //     );",
-    //         table_name
-    //     ))
-    //     .unwrap();
-
-    //     let state = Arc::new(Mutex::new(WorkerState::Master));
-    //     let (msg_sdr, msg_recv) = channel();
-    //     let (fetch_sdr, fetch_recv) = channel();
-    //     let (_, notification_recv) = channel();
-    //     let (quit_sdr, quit_recv) = channel();
-    //     let worker = MockWorker::new(
-    //         msg_sdr,
-    //         fetch_recv,
-    //         notification_recv,
-    //         quit_recv,
-    //         state.clone(),
-    //         None,
-    //     );
-
-    //     let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
-    //     {
-    //         match msg_recv
-    //             .recv_timeout(std::time::Duration::from_secs(5))
-    //             .expect("Failed to get fetch")
-    //         {
-    //             InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
-    //             InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
-    //             InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
-    //             _ => {}
-    //         };
-    //         fetch_sdr
-    //             .send(fetch_subject_with_callbacks(table_name))
-    //             .unwrap();
-    //     }
-
-    //     // LOOP
-
-    //     pgnats_subscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
-
-    //     {
-    //         match msg_recv
-    //             .recv_timeout(std::time::Duration::from_secs(5))
-    //             .expect("Failed to get insert")
-    //         {
-    //             InternalMockMessage::Insert(sub, callback) => {
-    //                 assert_eq!(sub, subject);
-    //                 assert_eq!(callback, fn_name);
-
-    //                 insert_subject_callback(table_name, &sub, &callback).unwrap();
-    //             }
-    //             InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Insert'"),
-    //             InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Insert'"),
-    //             InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Insert'"),
-    //         }
-    //     }
-
-    //     let subs = fetch_subject_with_callbacks(table_name).unwrap();
-    //     assert_eq!(subs[0].0, subject);
-    //     assert_eq!(subs[0].1, fn_name);
-
-    //     api::nats_publish_text(subject, content.to_string()).unwrap();
-
-    //     {
-    //         match msg_recv
-    //             .recv_timeout(std::time::Duration::from_secs(5))
-    //             .expect("Failed to get call")
-    //         {
-    //             InternalMockMessage::Call(callback, data) => {
-    //                 assert_eq!(callback, fn_name);
-    //                 assert_eq!(data, content.as_bytes());
-
-    //                 assert!(call_function(&callback, &data).is_err());
-    //             }
-    //             InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Call'"),
-    //             InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Call'"),
-    //             InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Call'"),
-    //         }
-    //     }
-
-    //     pgnats_unsubscribe(subject.to_string(), fn_name.to_string(), &SHARED_QUEUE);
-
-    //     {
-    //         match msg_recv
-    //             .recv_timeout(std::time::Duration::from_secs(5))
-    //             .expect("Failed to get delete")
-    //         {
-    //             InternalMockMessage::Delete(sub, callback) => {
-    //                 assert_eq!(sub, subject);
-    //                 assert_eq!(callback, fn_name);
-
-    //                 delete_subject_callback(table_name, &sub, &callback).unwrap();
-    //             }
-    //             InternalMockMessage::Fetch => panic!("Got 'Fetch' expected 'Delete'"),
-    //             InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Delete'"),
-    //             InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Delete'"),
-    //         }
-    //     }
-
-    //     let subs = fetch_subject_with_callbacks(table_name).unwrap();
-    //     assert_eq!(subs.len(), 0);
-
-    //     api::nats_publish_text(subject, content.to_string()).unwrap();
-
-    //     {
-    //         assert!(matches!(
-    //             msg_recv.recv_timeout(std::time::Duration::from_secs(5)),
-    //             Err(std::sync::mpsc::RecvTimeoutError::Timeout)
-    //         ));
-    //     }
-
-    //     // FAKE SIGTERM
-
-    //     quit_sdr.send(()).unwrap();
-    //     assert!(handle.join().is_ok());
-    // }
-
-    // #[pg_test]
-    // fn test_background_worker_restore_after_restart() {
-    //     use std::sync::{RwLock, mpsc::channel};
-
-    //     use pgrx::function_name;
-
-    //     use crate::{bgw::run::run_worker, ring_queue::RingQueue};
-
-    //     static SHARED_QUEUE: RwLock<RingQueue<65536>> = RwLock::new(RingQueue::new());
-
-    //     // INIT
-    //     let table_name = function_name!().split("::").last().unwrap();
-    //     let subject1 = format!("{}_1", table_name);
-    //     let subject2 = format!("{}_2", table_name);
-    //     let fn_name = "example";
-
-    //     Spi::run(&format!(
-    //         "CREATE TEMP TABLE {} (
-    //         subject TEXT NOT NULL,
-    //         callback TEXT NOT NULL,
-    //         UNIQUE(subject, callback)
-    //     );",
-    //         table_name
-    //     ))
-    //     .unwrap();
-
-    //     Spi::run(&format!(
-    //         "INSERT INTO {} (subject, callback) VALUES
-    //             ('{}', '{}'),
-    //             ('{}', '{}');",
-    //         table_name, subject1, fn_name, subject2, fn_name
-    //     ))
-    //     .unwrap();
-
-    //     let state = Arc::new(Mutex::new(WorkerState::Master));
-    //     let (msg_sdr, msg_recv) = channel();
-    //     let (fetch_sdr, fetch_recv) = channel();
-    //     let (_, notification_recv) = channel();
-    //     let (quit_sdr, quit_recv) = channel();
-    //     let worker = MockWorker::new(
-    //         msg_sdr,
-    //         fetch_recv,
-    //         notification_recv,
-    //         quit_recv,
-    //         state.clone(),
-    //         None,
-    //     );
-
-    //     let handle = std::thread::spawn(move || run_worker(worker, &SHARED_QUEUE));
-
-    //     {
-    //         match msg_recv
-    //             .recv_timeout(std::time::Duration::from_secs(5))
-    //             .expect("Failed to get fetch")
-    //         {
-    //             InternalMockMessage::Insert(_, _) => panic!("Got 'Insert' expected 'Fetch'"),
-    //             InternalMockMessage::Delete(_, _) => panic!("Got 'Delete' expected 'Fetch'"),
-    //             InternalMockMessage::Call(_, _) => panic!("Got 'Call' expected 'Fetch'"),
-    //             _ => {}
-    //         };
-
-    //         let result = fetch_subject_with_callbacks(table_name).unwrap();
-
-    //         assert_eq!(result.len(), 2);
-    //         assert!(
-    //             result
-    //                 .iter()
-    //                 .find(|(sub, call)| sub == &subject1 && call == fn_name)
-    //                 .is_some()
-    //         );
-    //         assert!(
-    //             result
-    //                 .iter()
-    //                 .find(|(sub, call)| sub == &subject2 && call == fn_name)
-    //                 .is_some()
-    //         );
-    //         fetch_sdr.send(Ok(result)).unwrap();
-    //     }
-
-    //     // FAKE SIGTERM
-
-    //     quit_sdr.send(()).unwrap();
-    //     assert!(handle.join().is_ok());
-    // }
+        let terminate = worker.terminate();
+        terminate.wait_for_shutdown().unwrap();
+    }
 
     // #[pg_test]
     // fn test_background_worker_changed_fdw_config() {

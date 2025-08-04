@@ -54,7 +54,7 @@ macro_rules! generate_test_background_worker {
 
                 if let Err(err) = background_worker_subscriber_main(
                     &[<LAUNCHER_MESSAGE_BUS $n>],
-                    concat!("test_background_worker_sub_call_unsub_call_", stringify!($n)),
+                    concat!("test_subscription_table_", stringify!($n)),
                     concat!("pgnats_fdw_test_", stringify!($n)),
                     db_oid,
                     dsmh,
