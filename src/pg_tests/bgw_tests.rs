@@ -1,6 +1,160 @@
 #[cfg(any(test, feature = "pg_test"))]
+pub fn init_test_shared_memory() {
+    use pgrx::{PgSharedMemoryInitialization, pg_guard, pg_shmem_init, pg_sys};
+
+    use crate::pg_tests::bgw_tests::tests::{LAUNCHER_MESSAGE_BUS1, RESULT1};
+
+    pg_shmem_init!(LAUNCHER_MESSAGE_BUS1);
+    pg_shmem_init!(RESULT1);
+}
+
+#[cfg(any(test, feature = "pg_test"))]
+#[pgrx::pg_guard]
+#[unsafe(no_mangle)]
+extern "C-unwind" fn background_worker_launcher_entry_point_test_1(_arg: pgrx::pg_sys::Datum) {
+    use crate::{bgw::launcher::background_worker_launcher_main, warn};
+
+    use crate::pg_tests::bgw_tests::tests::LAUNCHER_MESSAGE_BUS1;
+
+    if let Err(err) = background_worker_launcher_main(
+        &LAUNCHER_MESSAGE_BUS1,
+        "background_worker_subscriber_entry_point_test_1",
+    ) {
+        warn!("Launcher worker exited with error: {}", err);
+    }
+}
+
+#[cfg(any(test, feature = "pg_test"))]
+#[pgrx::pg_guard]
+#[unsafe(no_mangle)]
+extern "C-unwind" fn background_worker_subscriber_entry_point_test_1(arg: pgrx::pg_sys::Datum) {
+    use crate::{
+        bgw::subscriber::background_worker_subscriber_main, utils::unpack_i64_to_oid_dsmh, warn,
+    };
+
+    use pgrx::{FromDatum, pg_sys as sys};
+
+    use crate::pg_tests::bgw_tests::tests::LAUNCHER_MESSAGE_BUS1;
+
+    let arg = unsafe {
+        i64::from_polymorphic_datum(arg, false, sys::INT8OID)
+            .expect("Subscriber: failed to extract i64 argument from Datum")
+    };
+
+    let (db_oid, dsmh) = unpack_i64_to_oid_dsmh(arg);
+
+    if let Err(err) = background_worker_subscriber_main(
+        &LAUNCHER_MESSAGE_BUS1,
+        "test_background_worker_sub_call_unsub_call",
+        "pgnats_fdw_test_1",
+        db_oid,
+        dsmh,
+    ) {
+        warn!(
+            context = format!("Database OID {db_oid}"),
+            "Subscriber worker exited with error: {}", err
+        );
+    }
+}
+
+#[cfg(any(test, feature = "pg_test"))]
+pgrx::extension_sql!(
+    r#"
+    CREATE TABLE test_background_worker_sub_call_unsub_call (
+        subject TEXT NOT NULL,
+        callback TEXT NOT NULL,
+        UNIQUE(subject, callback)
+    );
+    CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_1;
+    CREATE SERVER test_background_worker_sub_call_unsub_call FOREIGN DATA WRAPPER pgnats_fdw_test_1 OPTIONS (host 'localhost', port '4222');
+    "#,
+    name = "create_test_fdw_1",
+    requires = []
+);
+
+#[cfg(any(test, feature = "pg_test"))]
+#[pgrx::pg_extern]
+pub fn test_1_fn(bytes: Vec<u8>) {
+    use std::hash::{DefaultHasher, Hasher};
+
+    use crate::pg_tests::bgw_tests::tests::RESULT1;
+
+    let mut hasher = DefaultHasher::new();
+    hasher.write(&bytes);
+
+    let hash = hasher.finish();
+
+    *RESULT1.exclusive() = hash;
+}
+
+#[cfg(any(test, feature = "pg_test"))]
 #[pgrx::prelude::pg_schema]
-mod tests {
+pub(super) mod tests {
+    use std::hash::{DefaultHasher, Hasher};
+
+    use pgrx::{bgworkers::BackgroundWorkerBuilder, pg_test, PgLwLock};
+
+    use crate::{api, bgw::ring_queue::RingQueue, constants::EXTENSION_NAME};
+
+    pub(super) static LAUNCHER_MESSAGE_BUS1: PgLwLock<RingQueue<1024>> =
+        PgLwLock::new(c"pgnats_launcher_test_message_bus_1");
+
+    pub(super) static RESULT1: PgLwLock<u64> = PgLwLock::new(c"pgnats_callback_result_test_1");
+
+
+    #[pg_test]
+    fn test_background_worker_sub_call_unsub_call() {
+        use pgrx::function_name;
+
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let fn_name = "test_1_fn";
+        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
+
+        let worker = BackgroundWorkerBuilder::new("PGNats Background Worker Launcher 1")
+            .set_function("background_worker_launcher_entry_point_test_1")
+            .set_library(EXTENSION_NAME)
+            .enable_spi_access()
+            .set_notify_pid(unsafe { pgrx::pg_sys::MyProcPid })
+            .load_dynamic()
+            .unwrap();
+
+        let _ = worker.wait_for_startup().unwrap();
+
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        pgnats_subscribe(
+            subject.to_string(),
+            fn_name.to_string(),
+            &LAUNCHER_MESSAGE_BUS1,
+        );
+
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        api::nats_publish_text(subject, content.to_string(), None, None).unwrap();
+
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content.as_bytes());
+        assert_eq!(*RESULT1.share(), hasher.finish());
+
+        pgnats_unsubscribe(
+            subject.to_string(),
+            fn_name.to_string(),
+            &LAUNCHER_MESSAGE_BUS1,
+        );
+
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        api::nats_publish_text(subject, content.to_string(), None, None).unwrap();
+
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let terminate = worker.terminate();
+        terminate.wait_for_shutdown().unwrap();
+    }
+
     // use std::{
     //     collections::HashMap,
     //     sync::{
@@ -1274,155 +1428,41 @@ mod tests {
     //     queue.unique().try_send(&buf).unwrap();
     // }
 
-    // fn pgnats_subscribe<const N: usize, Q>(subject: String, fn_name: String, queue: &Q)
-    // where
-    //     Q: SharedQueue<N>,
-    // {
-    //     let msg = WorkerMessage::Subscribe { subject, fn_name };
-    //     let buf = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
+    fn pgnats_subscribe<const N: usize>(
+        subject: String,
+        fn_name: String,
+        queue: &PgLwLock<RingQueue<N>>,
+    ) {
+        crate::bgw::launcher::send_message_to_launcher_with_retry(
+            queue,
+            crate::bgw::launcher::message::LauncherMessage::Subscribe {
+                db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
+                subject,
+                fn_name,
+            },
+            5,
+            std::time::Duration::from_secs(1),
+        )
+        .unwrap();
+    }
 
-    //     queue.unique().try_send(&buf).unwrap();
-    // }
-
-    // fn pgnats_unsubscribe<const N: usize, Q>(subject: String, fn_name: String, queue: &Q)
-    // where
-    //     Q: SharedQueue<N>,
-    // {
-    //     let msg = WorkerMessage::Unsubscribe { subject, fn_name };
-    //     let buf = bincode::encode_to_vec(msg, bincode::config::standard()).unwrap();
-
-    //     queue.unique().try_send(&buf).unwrap();
-    // }
-
-    // fn fetch_subject_with_callbacks(table_name: &str) -> anyhow::Result<Vec<(String, String)>> {
-    //     PgTryBuilder::new(|| {
-    //         Spi::connect_mut(|client| {
-    //             let sql = format!("SELECT subject, callback FROM {}", table_name);
-    //             let tuples = client.select(&sql, None, &[])?;
-    //             let subject_callbacks: Vec<(String, String)> = tuples
-    //                 .into_iter()
-    //                 .filter_map(|tuple| {
-    //                     let subject = tuple.get_by_name::<String, _>("subject");
-    //                     let callback = tuple.get_by_name::<String, _>("callback");
-
-    //                     match (subject, callback) {
-    //                         (Ok(Some(subject)), Ok(Some(callback))) => Some((subject, callback)),
-    //                         _ => None,
-    //                     }
-    //                 })
-    //                 .collect();
-
-    //             log!(
-    //                 "Fetched {} registered subject callbacks",
-    //                 subject_callbacks.len()
-    //             );
-
-    //             Ok(subject_callbacks)
-    //         })
-    //     })
-    //     .catch_others(|e| match e {
-    //         pgrx::pg_sys::panic::CaughtError::PostgresError(err) => Err(anyhow::anyhow!(
-    //             "Code '{}': {}. ({:?})",
-    //             err.sql_error_code(),
-    //             err.message(),
-    //             err.hint()
-    //         )),
-    //         _ => Err(anyhow::anyhow!("{:?}", e)),
-    //     })
-    //     .execute()
-    // }
-
-    // fn insert_subject_callback(
-    //     table_name: &str,
-    //     subject: &str,
-    //     callback: &str,
-    // ) -> anyhow::Result<()> {
-    //     PgTryBuilder::new(|| {
-    //         Spi::connect_mut(|client| {
-    //             let sql = format!("INSERT INTO {} VALUES ($1, $2)", table_name);
-    //             let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
-
-    //             log!(
-    //                 "Inserted subject callback: subject='{}', callback='{}'",
-    //                 subject,
-    //                 callback
-    //             );
-
-    //             Ok(())
-    //         })
-    //     })
-    //     .catch_others(|e| match e {
-    //         pgrx::pg_sys::panic::CaughtError::PostgresError(err) => Err(anyhow::anyhow!(
-    //             "Code '{}': {}. ({:?})",
-    //             err.sql_error_code(),
-    //             err.message(),
-    //             err.hint()
-    //         )),
-    //         _ => Err(anyhow::anyhow!("{:?}", e)),
-    //     })
-    //     .execute()
-    // }
-
-    // fn delete_subject_callback(
-    //     table_name: &str,
-    //     subject: &str,
-    //     callback: &str,
-    // ) -> anyhow::Result<()> {
-    //     PgTryBuilder::new(|| {
-    //         Spi::connect_mut(|client| {
-    //             let sql = format!(
-    //                 "DELETE FROM {} WHERE subject = $1 AND callback = $2",
-    //                 table_name
-    //             );
-    //             let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
-
-    //             log!(
-    //                 "Deleted subject callback: subject='{}', callback='{}'",
-    //                 subject,
-    //                 callback
-    //             );
-
-    //             Ok(())
-    //         })
-    //     })
-    //     .catch_others(|e| match e {
-    //         pgrx::pg_sys::panic::CaughtError::PostgresError(err) => Err(anyhow::anyhow!(
-    //             "Code '{}': {}. ({:?})",
-    //             err.sql_error_code(),
-    //             err.message(),
-    //             err.hint()
-    //         )),
-    //         _ => Err(anyhow::anyhow!("{:?}", e)),
-    //     })
-    //     .execute()
-    // }
-
-    // fn call_function(callback: &str, data: &[u8]) -> anyhow::Result<()> {
-    //     if !callback
-    //         .chars()
-    //         .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    //     {
-    //         return Err(anyhow::anyhow!("Invalid callback function name"));
-    //     }
-
-    //     PgTryBuilder::new(|| {
-    //         Spi::connect_mut(|client| {
-    //             let sql = format!("SELECT {}($1)", callback);
-    //             let _ = client.update(&sql, None, &[data.into()])?;
-    //             Ok(())
-    //         })
-    //     })
-    //     .catch_others(|e| match e {
-    //         pgrx::pg_sys::panic::CaughtError::PostgresError(err) => Err(anyhow::anyhow!(
-    //             "Code '{}': {}. ({:?})",
-    //             err.sql_error_code(),
-    //             err.message(),
-    //             err.hint()
-    //         )),
-    //         _ => Err(anyhow::anyhow!("{:?}", e)),
-    //     })
-    //     .execute()
-    // }
+    fn pgnats_unsubscribe<const N: usize>(
+        subject: String,
+        fn_name: String,
+        queue: &PgLwLock<RingQueue<N>>,
+    ) {
+        crate::bgw::launcher::send_message_to_launcher_with_retry(
+            queue,
+            crate::bgw::launcher::message::LauncherMessage::Unsubscribe {
+                db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
+                subject,
+                fn_name,
+            },
+            5,
+            std::time::Duration::from_secs(1),
+        )
+        .unwrap();
+    }
 
     // async fn start_subscription(
     //     notify_subject: &str,

@@ -54,6 +54,7 @@ pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: sys::Datu
     if let Err(err) = background_worker_subscriber_main(
         &LAUNCHER_MESSAGE_BUS,
         SUBSCRIPTIONS_TABLE_NAME,
+        FDW_EXTENSION_NAME,
         db_oid,
         dsmh,
     ) {
@@ -67,6 +68,7 @@ pub extern "C-unwind" fn background_worker_subscriber_entry_point(arg: sys::Datu
 pub fn background_worker_subscriber_main<const N: usize>(
     launcher_bus: &PgLwLock<RingQueue<N>>,
     sub_table_name: &str,
+    fdw_extension_name: &str,
     db_oid: sys::Oid,
     dsmh: DsmHandle,
 ) -> anyhow::Result<()> {
@@ -88,6 +90,7 @@ pub fn background_worker_subscriber_main<const N: usize>(
     let result = background_worker_subscriber_main_internal(
         launcher_bus,
         sub_table_name,
+        fdw_extension_name,
         db_oid.to_u32(),
         &db_name,
         dsmh,
@@ -108,11 +111,13 @@ pub fn background_worker_subscriber_main<const N: usize>(
 fn background_worker_subscriber_main_internal<const N: usize>(
     launcher_bus: &PgLwLock<RingQueue<N>>,
     sub_table_name: &str,
+    fdw_extension_name: &str,
     db_oid: u32,
     db_name: &str,
     dsmh: DsmHandle,
 ) -> anyhow::Result<()> {
-    let status = check_extension_status()?;
+    let status = check_extension_status(fdw_extension_name)?;
+
     send_message_to_launcher(
         launcher_bus,
         LauncherMessage::DbExtensionStatus { db_oid, status },
@@ -348,11 +353,11 @@ fn handle_internal_message(
     }
 }
 
-fn check_extension_status() -> anyhow::Result<ExtensionStatus> {
+fn check_extension_status(fdw_extension_name: &str) -> anyhow::Result<ExtensionStatus> {
     let is_installed = BackgroundWorker::transaction(|| is_extension_installed(EXTENSION_NAME));
 
     let status = if is_installed {
-        if BackgroundWorker::transaction(|| fetch_fdw_server_name(FDW_EXTENSION_NAME)).is_some() {
+        if BackgroundWorker::transaction(|| fetch_fdw_server_name(fdw_extension_name)).is_some() {
             ExtensionStatus::Exist
         } else {
             ExtensionStatus::NoForeignServer

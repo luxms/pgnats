@@ -9,7 +9,7 @@ pub enum ExtensionStatus {
     NoForeignServer,
 }
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode)]
 pub enum LauncherMessage {
     DbExtensionStatus {
         db_oid: u32,

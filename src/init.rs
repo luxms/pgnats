@@ -4,8 +4,11 @@ use crate::ctx::CTX;
 
 #[pg_guard]
 pub extern "C-unwind" fn _PG_init() {
-    #[cfg(feature = "sub")]
+    #[cfg(all(feature = "sub", not(feature = "pg_test")))]
     crate::bgw::init_background_worker_launcher();
+
+    #[cfg(any(test, feature = "pg_test"))]
+    crate::pg_tests::bgw_tests::init_test_shared_memory();
 
     unsafe {
         pg_sys::on_proc_exit(Some(extension_exit_callback), pg_sys::Datum::from(0));

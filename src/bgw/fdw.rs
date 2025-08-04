@@ -1,9 +1,10 @@
-use pgrx::{extension_sql, pg_extern, pg_sys as sys};
+use pgrx::{PgLwLock, extension_sql, pg_extern, pg_sys as sys};
 
 use crate::{
     bgw::{
         LAUNCHER_MESSAGE_BUS,
         launcher::{message::LauncherMessage, send_message_to_launcher_with_retry},
+        ring_queue::RingQueue,
     },
     config::parse_config,
     error,
@@ -87,6 +88,14 @@ extension_sql!(
 
 #[pg_extern]
 fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
+    fdw_validator(&LAUNCHER_MESSAGE_BUS, options, oid);
+}
+
+pub fn fdw_validator<const N: usize>(
+    launcher_bus: &PgLwLock<RingQueue<N>>,
+    options: Vec<String>,
+    oid: sys::Oid,
+) {
     if oid == sys::ForeignServerRelationId {
         let options = options
             .iter()
@@ -97,7 +106,7 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
         let options = parse_config(&options);
 
         if let Err(err) = send_message_to_launcher_with_retry(
-            &LAUNCHER_MESSAGE_BUS,
+            launcher_bus,
             LauncherMessage::NewConfig {
                 config: options,
                 db_oid: unsafe { sys::MyDatabaseId }.to_u32(),

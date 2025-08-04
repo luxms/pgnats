@@ -7,8 +7,7 @@ use pgrx::{
 
 use crate::{bgw::ring_queue::RingQueue, constants::EXTENSION_NAME};
 
-mod fdw;
-
+pub mod fdw;
 pub mod launcher;
 pub mod notification;
 pub mod pgrx_wrappers;
