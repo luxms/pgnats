@@ -88,7 +88,6 @@ macro_rules! debug {
     };
 }
 
-#[cfg(not(feature = "pg_test"))]
 #[macro_export]
 macro_rules! report {
     (context = $ctx:expr, $level:expr, $($msg:tt)*) => {
@@ -104,16 +103,5 @@ macro_rules! report {
             pgrx::PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
             &format!("[PGNATS]: {}", format!($($msg)*))
         )
-    };
-}
-
-#[cfg(feature = "pg_test")]
-#[macro_export]
-macro_rules! report {
-    (context = $ctx:expr, $level:expr, $($msg:tt)*) => {
-        eprintln!("[PGNATS({})]: {}", $ctx, format!($($msg)*))
-    };
-    ($level:expr, $($msg:tt)*) => {
-        eprintln!("[PGNATS]: {}", format!($($msg)*))
     };
 }

@@ -15,7 +15,7 @@ macro_rules! generate_test_background_worker {
             pub extern "C-unwind" fn [<background_worker_launcher_entry_point_test_ $n>](
                 _arg: pgrx::pg_sys::Datum,
             ) {
-                use crate::{bgw::launcher::background_worker_launcher_main, warn};
+                use $crate::{bgw::launcher::background_worker_launcher_main, warn};
 
                 if let Err(err) = background_worker_launcher_main(
                     &[<LAUNCHER_MESSAGE_BUS $n>],
@@ -30,7 +30,7 @@ macro_rules! generate_test_background_worker {
             pub extern "C-unwind" fn [<background_worker_subscriber_entry_point_test_ $n>](
                 arg: pgrx::pg_sys::Datum,
             ) {
-                use crate::{
+                use $crate::{
                     bgw::subscriber::background_worker_subscriber_main,
                     utils::unpack_i64_to_oid_dsmh,
                     warn,
@@ -62,8 +62,8 @@ macro_rules! generate_test_background_worker {
 
             #[pgrx::pg_extern]
             fn [<pgnats_fdw_validator_test_ $n>](options: Vec<String>, oid: pgrx::pg_sys::Oid) {
-                if crate::config::fetch_fdw_server_name(concat!("pgnats_fdw_test_", stringify!($n))).is_some() {
-                    crate::bgw::fdw::fdw_validator(&[<LAUNCHER_MESSAGE_BUS $n>], options, oid);
+                if $crate::config::fetch_fdw_server_name(concat!("pgnats_fdw_test_", stringify!($n))).is_some() {
+                    $crate::bgw::fdw::fdw_validator(&[<LAUNCHER_MESSAGE_BUS $n>], options, oid);
                 }
             }
 

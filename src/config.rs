@@ -5,7 +5,6 @@ use pgrx::{PgTryBuilder, Spi};
 use crate::constants::{DEFAULT_NATS_CAPACITY, DEFAULT_NATS_HOST, DEFAULT_NATS_PORT};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub enum NatsTlsOptions {
     Tls {
         ca: PathBuf,
@@ -18,7 +17,6 @@ pub enum NatsTlsOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct NatsConnectionOptions {
     pub host: String,
     pub port: u16,
@@ -27,7 +25,6 @@ pub struct NatsConnectionOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct Config {
     pub nats_opt: NatsConnectionOptions,
     pub notify_subject: Option<String>,
@@ -40,7 +37,7 @@ pub fn fetch_config(fdw_extension_name: &str) -> Config {
     let mut options = HashMap::new();
 
     let Some(fdw_server_name) = fetch_fdw_server_name(fdw_extension_name) else {
-        crate::warn!("Failed to get FDW server name");
+        crate::warn!("Failed to get FDW server name for {fdw_extension_name}");
         return parse_config(&options);
     };
 
