@@ -93,8 +93,6 @@ pub fn process_launcher_bus<const N: usize>(
             }
         };
 
-        log!("MSG: {:?}", msg);
-
         match msg {
             LauncherMessage::DbExtensionStatus { db_oid, status } => match status {
                 ExtensionStatus::Exist => {
