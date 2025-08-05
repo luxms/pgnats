@@ -174,9 +174,13 @@ fn background_worker_subscriber_main_internal<const N: usize>(
 
         loop {
             match recv.try_recv() {
-                Ok(Some(buf)) => {
-                    handle_message_from_shared_queue(&buf, &msg_sender, &mut ctx, db_name)
-                }
+                Ok(Some(buf)) => handle_message_from_shared_queue(
+                    &buf,
+                    &msg_sender,
+                    &mut ctx,
+                    db_name,
+                    fdw_extension_name,
+                ),
                 Ok(None) => break,
                 Err(err) => {
                     warn!(
@@ -207,6 +211,7 @@ fn handle_message_from_shared_queue(
     sender: &Sender<InternalWorkerMessage>,
     ctx: &mut SubscriberContext,
     db_name: &str,
+    fdw_extension_name: &str,
 ) {
     let parse_result: Result<(SubscriberMessage, _), _> =
         bincode::decode_from_slice(buf, bincode::config::standard());
@@ -222,11 +227,13 @@ fn handle_message_from_shared_queue(
     };
 
     match msg {
-        SubscriberMessage::NewConfig { config } => {
+        SubscriberMessage::NewConfig => {
             debug!(
                 context = db_name,
                 "Received NewConfig message. Applying updated NATS configuration..."
             );
+
+            let config = BackgroundWorker::transaction(|| fetch_config(fdw_extension_name));
 
             if let Err(err) = ctx.apply_config(config) {
                 warn!(

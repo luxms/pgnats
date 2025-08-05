@@ -5,7 +5,6 @@ use pgrx::{PgTryBuilder, Spi};
 use crate::constants::{DEFAULT_NATS_CAPACITY, DEFAULT_NATS_HOST, DEFAULT_NATS_PORT};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub enum NatsTlsOptions {
     Tls {
         ca: PathBuf,
@@ -18,7 +17,6 @@ pub enum NatsTlsOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct NatsConnectionOptions {
     pub host: String,
     pub port: u16,
@@ -27,7 +25,6 @@ pub struct NatsConnectionOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct Config {
     pub nats_opt: NatsConnectionOptions,
     pub notify_subject: Option<String>,

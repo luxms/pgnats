@@ -2,12 +2,9 @@ use std::collections::HashMap;
 
 use pgrx::pg_sys as sys;
 
-use crate::{
-    bgw::{
-        DSM_SIZE, launcher::worker_entry::WorkerEntry, pgrx_wrappers::shm_mq::ShmMqSender,
-        subscriber::message::SubscriberMessage,
-    },
-    config::Config,
+use crate::bgw::{
+    DSM_SIZE, launcher::worker_entry::WorkerEntry, pgrx_wrappers::shm_mq::ShmMqSender,
+    subscriber::message::SubscriberMessage,
 };
 
 #[derive(Default)]
@@ -20,11 +17,10 @@ impl LauncherContext {
     pub fn handle_new_config_message(
         &mut self,
         db_oid: u32,
-        config: Config,
         entry_point: &str,
     ) -> anyhow::Result<Option<String>> {
         if let Some(entry) = self.workers.get_mut(&db_oid) {
-            send_subscriber_message(&mut entry.sender, SubscriberMessage::NewConfig { config })?;
+            send_subscriber_message(&mut entry.sender, SubscriberMessage::NewConfig)?;
 
             Ok(None)
         } else {

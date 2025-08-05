@@ -2,13 +2,9 @@ use std::sync::Arc;
 
 use bincode::{Decode, Encode};
 
-use crate::config::Config;
-
 #[derive(Encode, Decode)]
 pub enum SubscriberMessage {
-    NewConfig {
-        config: Config,
-    },
+    NewConfig,
     Subscribe {
         subject: String,
         fn_name: String,

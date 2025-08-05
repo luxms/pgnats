@@ -139,8 +139,8 @@ pub fn process_launcher_bus<const N: usize>(
                     ),
                 },
             },
-            LauncherMessage::NewConfig { db_oid, config } => {
-                match ctx.handle_new_config_message(db_oid, config, entry_point) {
+            LauncherMessage::NewConfig { db_oid } => {
+                match ctx.handle_new_config_message(db_oid, entry_point) {
                     Ok(Some(db_name)) => {
                         log!(
                             context = LAUNCHER_CTX,
