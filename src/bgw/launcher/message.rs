@@ -36,4 +36,9 @@ pub enum LauncherMessage {
     ForeignServerDropped {
         db_oid: u32,
     },
+    #[cfg(any(test, feature = "pg_test"))]
+    ChangeStatus {
+        db_oid: u32,
+        master: bool,
+    },
 }

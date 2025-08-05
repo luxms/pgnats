@@ -20,6 +20,9 @@ pub struct SubscriberContext {
     config: Config,
     nats: NatsConnectionState,
     status: PgInstanceStatus,
+
+    #[cfg(any(test, feature = "pg_test"))]
+    pub(super) fetch_status: PgInstanceStatus,
 }
 
 impl SubscriberContext {
@@ -29,17 +32,25 @@ impl SubscriberContext {
         nats: NatsConnectionState,
         config: Config,
     ) -> Self {
+        let status = BackgroundWorker::transaction(fetch_status);
+
         Self {
             rt,
             sender,
             nats,
             config,
-            status: BackgroundWorker::transaction(fetch_status),
+            status,
+            #[cfg(any(test, feature = "pg_test"))]
+            fetch_status: status,
         }
     }
 
     pub fn check_migration(&mut self, subscriptions_table_name: &str) -> anyhow::Result<()> {
+        #[cfg(not(feature = "pg_test"))]
         let state = BackgroundWorker::transaction(fetch_status);
+
+        #[cfg(feature = "pg_test")]
+        let state = self.fetch_status;
 
         match (self.status, state) {
             (PgInstanceStatus::Master, PgInstanceStatus::Replica) => {

@@ -6,9 +6,21 @@ use crate::config::Config;
 
 #[derive(Encode, Decode)]
 pub enum SubscriberMessage {
-    NewConfig { config: Config },
-    Subscribe { subject: String, fn_name: String },
-    Unsubscribe { subject: String, fn_name: String },
+    NewConfig {
+        config: Config,
+    },
+    Subscribe {
+        subject: String,
+        fn_name: String,
+    },
+    Unsubscribe {
+        subject: String,
+        fn_name: String,
+    },
+    #[cfg(any(test, feature = "pg_test"))]
+    ChangeStatus {
+        is_master: bool,
+    },
 }
 
 pub(super) enum InternalWorkerMessage {

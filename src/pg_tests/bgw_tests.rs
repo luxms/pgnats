@@ -18,6 +18,12 @@ pub fn init_test_shared_memory() {
 
     pg_shmem_init!(LAUNCHER_MESSAGE_BUS5);
     pg_shmem_init!(TEST_RESULT5);
+
+    pg_shmem_init!(LAUNCHER_MESSAGE_BUS6);
+    pg_shmem_init!(TEST_RESULT6);
+
+    pg_shmem_init!(LAUNCHER_MESSAGE_BUS7);
+    pg_shmem_init!(TEST_RESULT7);
 }
 
 #[cfg(any(test, feature = "pg_test"))]
@@ -25,10 +31,10 @@ mod tests_items {
     use crate::generate_test_background_worker;
 
     generate_test_background_worker!(
-        1,
-        c"l1",
-        c"r1",
-        "create_test_fdw_1",
+        1,                   // test number
+        c"l1",               // launcher message bus shared memory name
+        c"r1",               // result shared memory name
+        "create_test_fdw_1", // name of extension_sql
         r#"
         CREATE TABLE test_subscription_table_1 (
             subject TEXT NOT NULL,
@@ -37,7 +43,7 @@ mod tests_items {
         );
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_1;
         CREATE SERVER test_background_worker_sub_call_unsub_call FOREIGN DATA WRAPPER pgnats_fdw_test_1 OPTIONS (host 'localhost', port '4222');
-        "#
+        "#  // Extension SQL code
     );
 
     generate_test_background_worker!(
@@ -112,17 +118,59 @@ mod tests_items {
         CREATE SERVER test_background_worker_whoami FOREIGN DATA WRAPPER pgnats_fdw_test_5 OPTIONS (host 'localhost', port '4222', notify_subject 'test_background_worker_whoami', patroni_url 'http://localhost:28008/patroni/');
         "#
     );
+
+    generate_test_background_worker!(
+        6,
+        c"l6",
+        c"r6",
+        "create_test_fdw_6",
+        r#"
+        CREATE TABLE test_subscription_table_6 (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );
+
+        CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_6 VALIDATOR pgnats_fdw_validator_test_6;
+        CREATE SERVER test_background_worker_m2r FOREIGN DATA WRAPPER pgnats_fdw_test_6 OPTIONS (host 'localhost', port '4222');
+        "#
+    );
+
+    generate_test_background_worker!(
+        7,
+        c"l7",
+        c"r7",
+        "create_test_fdw_7",
+        r#"
+        CREATE TABLE test_subscription_table_7 (
+            subject TEXT NOT NULL,
+            callback TEXT NOT NULL,
+            UNIQUE(subject, callback)
+        );
+
+        CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_7 VALIDATOR pgnats_fdw_validator_test_7;
+        CREATE SERVER test_background_worker_r2m FOREIGN DATA WRAPPER pgnats_fdw_test_7 OPTIONS (host 'localhost', port '4222');
+        "#
+    );
 }
 
 #[cfg(any(test, feature = "pg_test"))]
 #[pgrx::prelude::pg_schema]
 pub(super) mod tests {
-    use std::{hash::{DefaultHasher, Hasher}, sync::mpsc::Sender};
+    use std::{
+        hash::{DefaultHasher, Hasher},
+        sync::mpsc::Sender,
+    };
 
-    use pgrx::{bgworkers::BackgroundWorkerBuilder, pg_test, PgLwLock, Spi};
+    use pgrx::{PgLwLock, Spi, bgworkers::BackgroundWorkerBuilder, pg_test};
 
     use crate::{
-        api, bgw::{notification::PgInstanceNotification, ring_queue::RingQueue, subscriber::pg_api::PgInstanceStatus}, constants::EXTENSION_NAME,
+        api,
+        bgw::{
+            notification::PgInstanceNotification, ring_queue::RingQueue,
+            subscriber::pg_api::PgInstanceStatus,
+        },
+        constants::EXTENSION_NAME,
         pg_tests::bgw_tests::tests_items::*,
     };
 
@@ -133,7 +181,8 @@ pub(super) mod tests {
         let table_name = function_name!().split("::").last().unwrap();
         let subject = table_name;
         let fn_name = "test_1_fn";
-        let content = "Съешь ещё этих мягких французских булок, да выпей чаю";
+        let content1 = "Съешь ещё этих мягких французских булок, да выпей чаю";
+        let content2 = "Hello, World";
 
         let worker = BackgroundWorkerBuilder::new("PGNats Background Worker Launcher 1")
             .set_function("background_worker_launcher_entry_point_test_1")
@@ -152,15 +201,13 @@ pub(super) mod tests {
             fn_name.to_string(),
             &LAUNCHER_MESSAGE_BUS1,
         );
-
         std::thread::sleep(std::time::Duration::from_secs(3));
 
-        api::nats_publish_text(subject, content.to_string(), None, None).unwrap();
-
+        api::nats_publish_text(subject, content1.to_string(), None, None).unwrap();
         std::thread::sleep(std::time::Duration::from_secs(3));
 
         let mut hasher = DefaultHasher::new();
-        hasher.write(content.as_bytes());
+        hasher.write(content1.as_bytes());
         assert_eq!(*TEST_RESULT1.share(), hasher.finish());
 
         pgnats_unsubscribe(
@@ -168,12 +215,14 @@ pub(super) mod tests {
             fn_name.to_string(),
             &LAUNCHER_MESSAGE_BUS1,
         );
-
         std::thread::sleep(std::time::Duration::from_secs(3));
 
-        api::nats_publish_text(subject, content.to_string(), None, None).unwrap();
-
+        api::nats_publish_text(subject, content2.to_string(), None, None).unwrap();
         std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content2.as_bytes());
+        assert_ne!(*TEST_RESULT1.share(), hasher.finish());
 
         let terminate = worker.terminate();
         terminate.wait_for_shutdown().unwrap();
@@ -236,7 +285,10 @@ pub(super) mod tests {
         );
         std::thread::sleep(std::time::Duration::from_secs(3));
 
-        Spi::run("ALTER SERVER test_background_worker_changed_fdw_config OPTIONS (SET port '4223');").unwrap();
+        Spi::run(
+            "ALTER SERVER test_background_worker_changed_fdw_config OPTIONS (SET port '4223');",
+        )
+        .unwrap();
         std::thread::sleep(std::time::Duration::from_secs(3));
 
         api::nats_publish_text(subject, content.to_string(), None, None).unwrap();
@@ -246,7 +298,10 @@ pub(super) mod tests {
         hasher.write(content.as_bytes());
         assert_eq!(*TEST_RESULT3.share(), hasher.finish());
 
-        Spi::run("ALTER SERVER test_background_worker_changed_fdw_config OPTIONS (SET port '4222');").unwrap();
+        Spi::run(
+            "ALTER SERVER test_background_worker_changed_fdw_config OPTIONS (SET port '4222');",
+        )
+        .unwrap();
 
         std::thread::sleep(std::time::Duration::from_secs(3));
 
@@ -295,7 +350,10 @@ pub(super) mod tests {
         hasher.write(content.as_bytes());
         assert_ne!(*TEST_RESULT3.share(), hasher.finish());
 
-        Spi::run("ALTER SERVER test_background_worker_changed_fdw_config OPTIONS (SET port '4222');").unwrap();
+        Spi::run(
+            "ALTER SERVER test_background_worker_changed_fdw_config OPTIONS (SET port '4222');",
+        )
+        .unwrap();
 
         std::thread::sleep(std::time::Duration::from_secs(3));
 
@@ -312,24 +370,12 @@ pub(super) mod tests {
 
     #[pg_test]
     fn test_background_worker_whoami() {
-        use std::sync::{mpsc::channel};
         use pgrx::function_name;
+        use std::sync::mpsc::channel;
 
         let table_name = function_name!().split("::").last().unwrap();
         let notify_subject = table_name;
         let patroni_addr = "127.0.0.1:28008";
-
-        Spi::run(&format!(
-            "CREATE TEMP TABLE {} (
-            subject TEXT NOT NULL,
-            callback TEXT NOT NULL,
-            UNIQUE(subject, callback)
-        );",
-            table_name
-        ))
-        .unwrap();
-
-        let table_name = function_name!().split("::").last().unwrap();
 
         let (sub_sdr, sub_recv) = channel();
         let (start_sub_sdr, start_sub_recv) = channel();
@@ -400,6 +446,114 @@ pub(super) mod tests {
         terminate.wait_for_shutdown().unwrap();
     }
 
+    #[pg_test]
+    fn test_background_worker_m2r() {
+        use pgrx::function_name;
+
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let fn_name = "test_6_fn";
+        let content1 = "Hello, World!";
+        let content2 = "Привет, Мир!";
+
+        let worker = BackgroundWorkerBuilder::new("PGNats Background Worker Launcher 6")
+            .set_function("background_worker_launcher_entry_point_test_6")
+            .set_library(EXTENSION_NAME)
+            .enable_spi_access()
+            .set_notify_pid(unsafe { pgrx::pg_sys::MyProcPid })
+            .load_dynamic()
+            .unwrap();
+
+        let _ = worker.wait_for_startup().unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        pgnats_subscribe(
+            subject.to_string(),
+            fn_name.to_string(),
+            &LAUNCHER_MESSAGE_BUS6,
+        );
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        api::nats_publish_text(subject, content1.to_string(), None, None).unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content1.as_bytes());
+        assert_eq!(*TEST_RESULT6.share(), hasher.finish());
+
+        __internal_change_state(false, &LAUNCHER_MESSAGE_BUS6);
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        api::nats_publish_text(subject, content2.to_string(), None, None).unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content2.as_bytes());
+        assert_ne!(*TEST_RESULT6.share(), hasher.finish());
+
+        let terminate = worker.terminate();
+        terminate.wait_for_shutdown().unwrap();
+    }
+
+    #[pg_test]
+    fn test_background_worker_r2m() {
+        use pgrx::function_name;
+
+        let table_name = function_name!().split("::").last().unwrap();
+        let subject = table_name;
+        let fn_name = "test_7_fn";
+        let content1 = "Hello, World!";
+        let content2 = "Привет, Мир!";
+
+        let worker = BackgroundWorkerBuilder::new("PGNats Background Worker Launcher 7")
+            .set_function("background_worker_launcher_entry_point_test_7")
+            .set_library(EXTENSION_NAME)
+            .enable_spi_access()
+            .set_notify_pid(unsafe { pgrx::pg_sys::MyProcPid })
+            .load_dynamic()
+            .unwrap();
+
+        let _ = worker.wait_for_startup().unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        pgnats_subscribe(
+            subject.to_string(),
+            fn_name.to_string(),
+            &LAUNCHER_MESSAGE_BUS7,
+        );
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        api::nats_publish_text(subject, content1.to_string(), None, None).unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content1.as_bytes());
+        assert_eq!(*TEST_RESULT7.share(), hasher.finish());
+
+        __internal_change_state(false, &LAUNCHER_MESSAGE_BUS7);
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        api::nats_publish_text(subject, content2.to_string(), None, None).unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content2.as_bytes());
+        assert_ne!(*TEST_RESULT7.share(), hasher.finish());
+
+        __internal_change_state(true, &LAUNCHER_MESSAGE_BUS7);
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        api::nats_publish_text(subject, content2.to_string(), None, None).unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+
+        let mut hasher = DefaultHasher::new();
+        hasher.write(content2.as_bytes());
+        assert_eq!(*TEST_RESULT7.share(), hasher.finish());
+
+        let terminate = worker.terminate();
+        terminate.wait_for_shutdown().unwrap();
+    }
+
     fn pgnats_subscribe<const N: usize>(
         subject: String,
         fn_name: String,
@@ -416,6 +570,21 @@ pub(super) mod tests {
             std::time::Duration::from_secs(1),
         )
         .unwrap();
+    }
+
+    fn __internal_change_state<const N: usize>(master: bool, queue: &PgLwLock<RingQueue<N>>) {
+        use crate::bgw::launcher::send_message_to_launcher_with_retry;
+
+        send_message_to_launcher_with_retry(
+            queue,
+            crate::bgw::launcher::message::LauncherMessage::ChangeStatus {
+                db_oid: unsafe { pgrx::pg_sys::MyDatabaseId.to_u32() },
+                master,
+            },
+            5,
+            std::time::Duration::from_secs(1),
+        )
+        .expect("Failed to send ChangeStatus message to launcher")
     }
 
     fn pgnats_unsubscribe<const N: usize>(

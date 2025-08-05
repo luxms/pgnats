@@ -263,6 +263,14 @@ fn handle_message_from_shared_queue(
                 fn_name: Arc::from(fn_name.as_str()),
             });
         }
+        #[cfg(any(test, feature = "pg_test"))]
+        SubscriberMessage::ChangeStatus { is_master } => {
+            if is_master {
+                ctx.fetch_status = crate::bgw::subscriber::pg_api::PgInstanceStatus::Master;
+            } else {
+                ctx.fetch_status = crate::bgw::subscriber::pg_api::PgInstanceStatus::Replica;
+            }
+        }
     }
 }
 

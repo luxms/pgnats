@@ -253,6 +253,10 @@ pub fn process_launcher_bus<const N: usize>(
                     }
                 }
             }
+            #[cfg(any(test, feature = "pg_test"))]
+            LauncherMessage::ChangeStatus { db_oid, master } => {
+                let _ = ctx.handle_change_status(db_oid, master);
+            }
         }
     }
 }

@@ -82,6 +82,18 @@ impl LauncherContext {
         self.shutdown_worker(db_oid)
     }
 
+    #[cfg(any(test, feature = "pg_test"))]
+    pub fn handle_change_status(&mut self, db_oid: u32, is_master: bool) -> anyhow::Result<()> {
+        if let Some(entry) = self.workers.get_mut(&db_oid) {
+            send_subscriber_message(
+                &mut entry.sender,
+                SubscriberMessage::ChangeStatus { is_master },
+            )?;
+        }
+
+        Ok(())
+    }
+
     pub fn start_subscribe_worker(
         &mut self,
         oid: u32,
