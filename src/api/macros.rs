@@ -5,57 +5,10 @@ macro_rules! impl_nats_publish {
         paste::paste! {
             #[pgrx::pg_extern]
             $(#[$attr])*
-            pub fn [<nats_publish_ $suffix>](subject: &str, payload: $ty) -> anyhow::Result<()> {
+            pub fn [<nats_publish_ $suffix>](subject: &str, payload: $ty, reply: ::pgrx::default!(Option<&str>, "NULL"), headers: ::pgrx::default!(Option<pgrx::JsonB>, "NULL")) -> anyhow::Result<()> {
                 CTX.with_borrow_mut(|ctx| {
                     ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.publish(subject, payload, None::<String>, None).await;
-                        tokio::task::yield_now().await;
-                        res
-                    })
-                })
-            }
-
-
-            #[pgrx::pg_extern]
-            #[doc = concat!("Equivalent to [`nats_publish_", stringify!($suffix), "`], but includes support for headers.")]
-            /// # Arguments
-            ///
-            /// * `headers` - A JSON object representing the message headers. This should be a dictionary where each key and value is a string.
-            pub fn [<nats_publish_ $suffix _with_headers>](subject: &str, payload: $ty, headers: pgrx::Json) -> anyhow::Result<()> {
-                CTX.with_borrow_mut(|ctx| {
-                    ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.publish(subject, payload, None::<String>, Some(headers.0)).await;
-                        tokio::task::yield_now().await;
-                        res
-                    })
-                })
-            }
-
-            #[pgrx::pg_extern]
-            #[doc = concat!("Equivalent to [`nats_publish_", stringify!($suffix), "`], but includes a reply subject.")]
-            /// # Arguments
-            ///
-            /// * `reply` - The NATS subject where the response should be sent. This sets the `reply-to` field in the message, enabling request-reply semantics.
-            pub fn [<nats_publish_ $suffix _reply>](subject: &str, payload: $ty, reply: &str) -> anyhow::Result<()> {
-                CTX.with_borrow_mut(|ctx| {
-                    ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.publish(subject, payload, Some(reply), None).await;
-                        tokio::task::yield_now().await;
-                        res
-                    })
-                })
-            }
-
-            #[pgrx::pg_extern]
-            #[doc = concat!("Equivalent to [`nats_publish_", stringify!($suffix), "`], but includes both a reply subject and headers.")]
-            /// # Arguments
-            ///
-            /// * `reply` - The NATS subject where the response should be sent. This sets the `reply-to` field in the message, enabling request-reply semantics.
-            /// * `headers` - A JSON object representing the message headers. This should be a dictionary where each key and value is a string.
-            pub fn [<nats_publish_ $suffix _reply_with_headers>](subject: &str, payload: $ty, reply: &str,  headers: pgrx::Json) -> anyhow::Result<()> {
-                CTX.with_borrow_mut(|ctx| {
-                    ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.publish(subject, payload, Some(reply), Some(headers.0)).await;
+                        let res = ctx.nats_connection.publish(subject, payload, reply, headers.map(|h| h.0)).await;
                         tokio::task::yield_now().await;
                         res
                     })
@@ -64,29 +17,10 @@ macro_rules! impl_nats_publish {
 
             #[pgrx::pg_extern]
             #[doc = concat!("JetStream version of [`nats_publish_", stringify!($suffix), "`].")]
-            ///
-            /// # Alternative
-            /// For additional functionality, consider the following variants:
-            #[doc = concat!("- [`nats_publish_", stringify!($suffix), "_stream_with_headers`] - Publishes a message to JetStream with headers.")]
-            pub fn [<nats_publish_ $suffix _stream>](subject: &str, payload: $ty) -> anyhow::Result<()> {
+            pub fn [<nats_publish_ $suffix _stream>](subject: &str, payload: $ty, headers: ::pgrx::default!(Option<pgrx::JsonB>, "NULL")) -> anyhow::Result<()> {
                 CTX.with_borrow_mut(|ctx| {
                     ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.publish_stream(subject, payload, None).await;
-                        tokio::task::yield_now().await;
-                        res
-                    })
-                })
-            }
-
-            #[pgrx::pg_extern]
-            #[doc = concat!("JetStream version of [`nats_publish_", stringify!($suffix), "`] but with headers.")]
-            /// # Arguments
-            ///
-            /// * `headers` - A JSON object representing the message headers. This should be a dictionary where each key and value is a string.
-            pub fn [<nats_publish_ $suffix _stream_with_headers>](subject: &str, payload: $ty) -> anyhow::Result<()> {
-                CTX.with_borrow_mut(|ctx| {
-                    ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.publish_stream(subject, payload, None).await;
+                        let res = ctx.nats_connection.publish_stream(subject, payload, headers.map(|h| h.0)).await;
                         tokio::task::yield_now().await;
                         res
                     })

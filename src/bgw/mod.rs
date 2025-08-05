@@ -1,51 +1,51 @@
-use std::ops::{Deref, DerefMut};
-
-use crate::{
-    config::Config,
-    notification::{PgInstanceNotification, PgInstanceTransition},
-    ring_queue::RingQueue,
+use pgrx::{
+    PgLwLock, PgSharedMemoryInitialization,
+    bgworkers::{BackgroundWorkerBuilder, BgWorkerStartTime},
+    pg_shmem_init,
+    prelude::*,
 };
 
-mod context;
+use crate::{bgw::ring_queue::RingQueue, constants::EXTENSION_NAME};
 
-pub mod export;
-pub mod native;
-pub mod posgres;
-pub mod run;
+pub mod fdw;
+pub mod launcher;
+pub mod notification;
+pub mod pgrx_wrappers;
+pub mod ring_queue;
+pub mod subscriber;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum WorkerState {
-    Master,
-    Replica,
-}
+pub const SUBSCRIPTIONS_TABLE_NAME: &str = "pgnats.subscriptions";
+pub const LAUNCHER_ENTRY_POINT: &str = "background_worker_launcher_entry_point";
+pub const SUBSCRIBER_ENTRY_POINT: &str = "background_worker_subscriber_entry_point";
 
-pub trait Worker {
-    fn wait(&self, duration: std::time::Duration) -> bool;
+pub const MESSAGE_BUS_SIZE: usize = 0x10000;
+pub const DSM_SIZE: usize = MESSAGE_BUS_SIZE >> 3;
 
-    fn fetch_state(&self) -> WorkerState;
-    fn fetch_config(&self) -> Config;
+extension_sql!(
+    r#"
+    CREATE SCHEMA IF NOT EXISTS pgnats;
 
-    fn fetch_subject_with_callbacks(&self) -> anyhow::Result<Vec<(String, String)>>;
-    fn insert_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()>;
-    fn delete_subject_callback(&self, subject: &str, callback: &str) -> anyhow::Result<()>;
-    fn call_function(&self, callback: &str, data: &[u8]) -> anyhow::Result<()>;
+    CREATE TABLE IF NOT EXISTS pgnats.subscriptions (
+        subject TEXT NOT NULL,
+        callback TEXT NOT NULL,
+        UNIQUE(subject, callback)
+    );
+    "#,
+    name = "create_subscriptions_table",
+);
 
-    fn make_notification(
-        &self,
-        transition: PgInstanceTransition,
-        patroni_url: Option<&str>,
-    ) -> Option<PgInstanceNotification>;
-}
+pub static LAUNCHER_MESSAGE_BUS: PgLwLock<RingQueue<MESSAGE_BUS_SIZE>> =
+    PgLwLock::new(c"pgnats_launcher_message_bus");
 
-pub trait SharedQueue<const N: usize> {
-    type Unqiue<'a>: Deref<Target = RingQueue<N>> + DerefMut
-    where
-        Self: 'a;
+pub fn init_background_worker_launcher() {
+    pg_shmem_init!(LAUNCHER_MESSAGE_BUS);
 
-    type Shared<'a>: Deref<Target = RingQueue<N>>
-    where
-        Self: 'a;
-
-    fn shared(&self) -> Self::Shared<'_>;
-    fn unique(&self) -> Self::Unqiue<'_>;
+    BackgroundWorkerBuilder::new("PGNats Background Worker Launcher")
+        .set_function(LAUNCHER_ENTRY_POINT)
+        .set_library(EXTENSION_NAME)
+        .enable_spi_access()
+        .set_start_time(BgWorkerStartTime::ConsistentState)
+        .set_restart_time(Some(std::time::Duration::from_secs(20)))
+        .set_type("pgnats_bgw_launcher")
+        .load();
 }

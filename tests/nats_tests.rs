@@ -2,8 +2,8 @@
 mod nats_tests {
     use futures::StreamExt;
     use pgnats::{
-        config::Config,
-        connection::{NatsConnection, NatsConnectionOptions, NatsTlsOptions},
+        config::{Config, NatsConnectionOptions, NatsTlsOptions},
+        nats_client::NatsClient,
     };
     use testcontainers::{
         ContainerAsync, GenericImage, ImageExt,
@@ -15,8 +15,8 @@ mod nats_tests {
     const TEST_FILE: &str = "file.txt";
     const TEST_CONTENT: &[u8] = b"Hello, PGNats!";
 
-    async fn setup_nats_with_file(port: u16) -> NatsConnection {
-        let mut nats = NatsConnection::new(Some(Config {
+    async fn setup_nats_with_file(port: u16) -> NatsClient {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -85,7 +85,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_get_server_info_success() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -122,7 +122,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -156,7 +156,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_request_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -203,7 +203,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_stream() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -237,7 +237,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_binary() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -273,7 +273,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -309,7 +309,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_json() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -340,7 +340,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_delete_value() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -377,7 +377,7 @@ mod nats_tests {
         let (_cont, port) = setup_with_tls().await;
 
         // Настройка async_nats клиента с TLS
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "localhost".to_string(),
                 port,
@@ -401,7 +401,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_with_reply() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -439,7 +439,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_with_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -487,7 +487,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_with_reply_and_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -545,7 +545,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_stream_with_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -592,7 +592,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_request_timeout() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,
@@ -618,7 +618,7 @@ mod nats_tests {
     #[tokio::test]
     async fn test_put_file() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsConnection::new(Some(Config {
+        let mut nats = NatsClient::new(Some(Config {
             nats_opt: NatsConnectionOptions {
                 host: "127.0.0.1".to_string(),
                 port,

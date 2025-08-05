@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Cursor, path::PathBuf, time::Duration};
+use std::{collections::HashMap, io::Cursor, time::Duration};
 
 use async_nats::{
     Client, Request,
@@ -14,13 +14,11 @@ use pgrx::warning;
 use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::{
-    config::{Config, fetch_config},
-    info,
-    utils::{FromBytes, ToBytes, extract_headers},
+    config::{fetch_config, Config, NatsTlsOptions}, constants::FDW_EXTENSION_NAME, info, utils::{extract_headers, FromBytes, ToBytes}
 };
 
 #[derive(Default)]
-pub struct NatsConnection {
+pub struct NatsClient {
     connection: Option<Client>,
     jetstream: Option<Context>,
     cached_buckets: HashMap<String, Store>,
@@ -28,29 +26,7 @@ pub struct NatsConnection {
     current_config: Option<Config>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
-pub enum NatsTlsOptions {
-    Tls {
-        ca: PathBuf,
-    },
-    MutualTls {
-        ca: PathBuf,
-        cert: PathBuf,
-        key: PathBuf,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
-pub struct NatsConnectionOptions {
-    pub host: String,
-    pub port: u16,
-    pub capacity: usize,
-    pub tls: Option<NatsTlsOptions>,
-}
-
-impl NatsConnection {
+impl NatsClient {
     pub fn new(config: Option<Config>) -> Self {
         Self {
             current_config: config,
@@ -159,7 +135,7 @@ impl NatsConnection {
     pub async fn check_and_invalidate_connection(&mut self) {
         let (changed, new_config) = {
             let config = &self.current_config;
-            let fetched_config = fetch_config();
+            let fetched_config = fetch_config(FDW_EXTENSION_NAME);
 
             let changed = config.as_ref().map(|c| &c.nats_opt) != Some(&fetched_config.nats_opt);
 
@@ -277,7 +253,7 @@ impl NatsConnection {
     }
 }
 
-impl NatsConnection {
+impl NatsClient {
     async fn get_connection(&mut self) -> anyhow::Result<&Client> {
         if self.connection.is_none() {
             self.initialize_connection().await?;
@@ -350,7 +326,7 @@ impl NatsConnection {
     }
 
     async fn initialize_connection(&mut self) -> anyhow::Result<()> {
-        let config = self.current_config.get_or_insert_with(fetch_config);
+        let config = self.current_config.get_or_insert_with(|| fetch_config(FDW_EXTENSION_NAME));
 
         let mut opts = async_nats::ConnectOptions::new().client_capacity(config.nats_opt.capacity);
 

@@ -1,23 +1,30 @@
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    ffi::{CStr, CString},
-    path::PathBuf,
-};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 
-use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting, PgTryBuilder, Spi};
+use pgrx::{PgTryBuilder, Spi};
 
-use crate::connection::{NatsConnectionOptions, NatsTlsOptions};
+use crate::constants::{DEFAULT_NATS_CAPACITY, DEFAULT_NATS_HOST, DEFAULT_NATS_PORT};
 
-pub const CONFIG_SUB_DB_NAME: &CStr = c"pgnats.sub_dbname";
-pub static GUC_SUB_DB_NAME: GucSetting<Option<CString>> =
-    GucSetting::<Option<CString>>::new(Some(c"pgnats"));
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
+pub enum NatsTlsOptions {
+    Tls {
+        ca: PathBuf,
+    },
+    MutualTls {
+        ca: PathBuf,
+        cert: PathBuf,
+        key: PathBuf,
+    },
+}
 
-pub const FDW_EXTENSION_NAME: &str = "pgnats_fdw";
-
-const DEFAULT_NATS_HOST: &str = "127.0.0.1";
-const DEFAULT_NATS_PORT: u16 = 4222;
-const DEFAULT_NATS_CAPACITY: usize = 128;
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
+pub struct NatsConnectionOptions {
+    pub host: String,
+    pub port: u16,
+    pub capacity: usize,
+    pub tls: Option<NatsTlsOptions>,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
@@ -27,29 +34,17 @@ pub struct Config {
     pub patroni_url: Option<String>,
 }
 
-pub fn init_guc() {
-    GucRegistry::define_string_guc(
-        CONFIG_SUB_DB_NAME,
-        c"A database to which all queries from subscriptions will be directed",
-        c"A database to which all queries from subscriptions will be directed",
-        &GUC_SUB_DB_NAME,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
-}
-
-#[cfg(not(feature = "pg_test"))]
-pub fn fetch_config() -> Config {
+pub fn fetch_config(fdw_extension_name: &str) -> Config {
     use std::str::FromStr;
 
     let mut options = HashMap::new();
 
-    let Some(fdw_server_name) = fetch_fdw_server_name(FDW_EXTENSION_NAME) else {
+    let Some(fdw_server_name) = fetch_fdw_server_name(fdw_extension_name) else {
         crate::warn!("Failed to get FDW server name");
         return parse_config(&options);
     };
 
-    let Ok(fdw_server_name) = CString::from_str(&fdw_server_name) else {
+    let Ok(fdw_server_name) = std::ffi::CString::from_str(&fdw_server_name) else {
         crate::warn!("Failed to parse FDW server name");
         return parse_config(&options);
     };
@@ -94,11 +89,6 @@ pub fn fetch_config() -> Config {
     };
 
     parse_config(&options)
-}
-
-#[cfg(feature = "pg_test")]
-pub fn fetch_config() -> Config {
-    parse_config(&HashMap::new())
 }
 
 pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {

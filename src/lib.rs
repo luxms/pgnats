@@ -25,15 +25,6 @@
 
 mod pg_tests;
 
-#[cfg(feature = "sub")]
-mod fdw;
-
-#[cfg(feature = "sub")]
-mod notification;
-
-#[cfg(feature = "sub")]
-mod ring_queue;
-
 mod init;
 mod log;
 mod utils;
@@ -48,26 +39,25 @@ pub mod bgw;
 pub mod config;
 
 #[doc(hidden)]
-pub mod connection;
+pub mod nats_client;
+
+#[doc(hidden)]
+pub mod constants;
 
 #[doc(hidden)]
 pub mod ctx;
-
-#[doc(hidden)]
-#[cfg(feature = "sub")]
-pub mod worker_queue;
 
 /// This module is required by `cargo pgrx test` invocations.
 /// It must be visible at the root of your extension crate.
 #[cfg(test)]
 pub mod pg_test {
-    pub fn setup(_options: Vec<&str>) {
-        // perform one-off initialization when the pg_test framework starts
-    }
+    pub fn setup(_options: Vec<&str>) {}
 
     #[must_use]
     pub fn postgresql_conf_options() -> Vec<&'static str> {
-        // return any postgresql.conf settings that are required for your tests
-        vec![]
+        vec![
+            "shared_preload_libraries='pgnats'",
+            "max_worker_processes = 32",
+        ]
     }
 }

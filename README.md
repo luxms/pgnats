@@ -80,18 +80,9 @@ cargo doc --open
 
 The exported PostgreSQL API is implemented in the `api` module.
 
-## 🧩 Extension Configuration
-
-- `pgnats.sub_dbname` - A database to which all queries from subscriptions will be directed (default: `pgnats`)
-
 ## 📘 Usage
 
 ### ⚙️ Configuration
-
-```sql
--- Configuration
-ALTER SYSTEM SET nats.sub_dbname = 'postgres';
-```
 
 To configure the NATS connection, you need to create a Foreign Server:
 
@@ -128,7 +119,7 @@ CREATE SERVER nats_fdw_server FOREIGN DATA WRAPPER pgnats_fdw OPTIONS (
 
 ```json
 {
-  "transition": "M2R", // M2R - master to replica, R2M - replica to master
+  "status": "Master",
   "listen_adresses": ["127.0.0.1", "127.0.0.2"],
   "port": 5432,
   "name": "pg-instance-01" // may be null
@@ -154,17 +145,18 @@ SELECT pgnats_reload_conf_force();
 SELECT nats_publish_binary('sub.ject', 'binary data'::bytea);
 
 -- Publish binary data with a reply subject
-SELECT nats_publish_binary_reply('sub.ject', 'binary data'::bytea, 'reply.subject');
+SELECT nats_publish_binary('sub.ject', 'binary data'::bytea, 'reply.subject');
 
 -- Publish binary data with headers
-SELECT nats_publish_binary_with_headers(
+SELECT nats_publish_binary(
   'sub.ject',
   'binary data'::bytea,
+  NULL,
   '{}'::json
 );
 
 -- Publish binary data with both a reply subject and headers
-SELECT nats_publish_binary_reply_with_headers(
+SELECT nats_publish_binary(
   'sub.ject',
   'binary data'::bytea,
   'reply.subject',
@@ -175,7 +167,7 @@ SELECT nats_publish_binary_reply_with_headers(
 SELECT nats_publish_binary_stream('sub.ject', 'binary data'::bytea);
 
 -- Publish text via JetStream (sync) with headers
-SELECT nats_publish_binary_stream_with_headers(
+SELECT nats_publish_binary_stream(
   'sub.ject',
   'binary data'::bytea,
   '{}'::json
@@ -189,17 +181,18 @@ SELECT nats_publish_binary_stream_with_headers(
 SELECT nats_publish_text('sub.ject', 'text data');
 
 -- Publish text data with a reply subject
-SELECT nats_publish_text_reply('sub.ject', 'text data', 'reply.subject');
+SELECT nats_publish_text('sub.ject', 'text data', 'reply.subject');
 
 -- Publish text data with headers
-SELECT nats_publish_text_with_headers(
+SELECT nats_publish_text(
   'sub.ject',
   'text data',
+  NULL,
   '{}'::json
 );
 
 -- Publish text data with both a reply subject and headers
-SELECT nats_publish_text_reply_with_headers(
+SELECT nats_publish_text(
   'sub.ject',
   'text data',
   'reply.subject',
@@ -207,10 +200,10 @@ SELECT nats_publish_text_reply_with_headers(
 );
 
 -- Publish text via JetStream (sync)
-SELECT nats_publish_text_stream('sub.ject', 'text data');
+SELECT nats_publish_text('sub.ject', 'text data');
 
 -- Publish text via JetStream (sync) with headers
-SELECT nats_publish_text_stream_with_headers(
+SELECT nats_publish_text_stream(
   'sub.ject',
   'text data',
   '{}'::json
@@ -224,17 +217,18 @@ SELECT nats_publish_text_stream_with_headers(
 SELECT nats_publish_json('sub.ject', '{}'::json);
 
 -- Publish JSON data with a reply subject
-SELECT nats_publish_json_reply('sub.ject', '{"key": "value"}'::json, 'reply.subject');
+SELECT nats_publish_json('sub.ject', '{"key": "value"}'::json, 'reply.subject');
 
 -- Publish JSON data with headers
-SELECT nats_publish_json_with_headers(
+SELECT nats_publish_json(
   'sub.ject',
   '{"key": "value"}'::json,
+  NULL,
   '{}'::json
 );
 
 -- Publish JSON data with both a reply subject and headers
-SELECT nats_publish_json_reply_with_headers(
+SELECT nats_publish_json_reply(
   'sub.ject',
   '{"key": "value"}'::json,
   'reply.subject',
@@ -245,7 +239,7 @@ SELECT nats_publish_json_reply_with_headers(
 SELECT nats_publish_json_stream('sub.ject', '{}'::json);
 
 -- Publish JSON via JetStream (sync) with headers
-SELECT nats_publish_json_stream_with_headers(
+SELECT nats_publish_json_stream(
   'sub.ject',
   '{}'::json,
   '{}'::json
@@ -259,17 +253,18 @@ SELECT nats_publish_json_stream_with_headers(
 SELECT nats_publish_jsonb('sub.ject', '{}'::json);
 
 -- Publish JSONB data with a reply subject
-SELECT nats_publish_jsonb_reply('sub.ject', '{"key": "value"}'::jsonb, 'reply.subject');
+SELECT nats_publish_jsonb('sub.ject', '{"key": "value"}'::jsonb, 'reply.subject');
 
 -- Publish JSONB data with headers
-SELECT nats_publish_jsonb_with_headers(
+SELECT nats_publish_jsonb(
   'sub.ject',
   '{"key": "value"}'::jsonb,
+  NULL,
   '{}'::json
 );
 
 -- Publish JSONB data with both a reply subject and headers
-SELECT nats_publish_jsonb_reply_with_headers(
+SELECT nats_publish_jsonb_reply(
   'sub.ject',
   '{"key": "value"}'::jsonb,
   'reply.subject',
@@ -280,7 +275,7 @@ SELECT nats_publish_jsonb_reply_with_headers(
 SELECT nats_publish_jsonb_stream('sub.ject', '{}'::jsonb);
 
 --  Publish binary JSON (JSONB) via JetStream (sync) with headers
-SELECT nats_publish_jsonb_stream_with_headers(
+SELECT nats_publish_jsonb_stream(
   'sub.ject',
   '{}'::jsonb,
   '{}'::json

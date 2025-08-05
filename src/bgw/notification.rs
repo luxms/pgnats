@@ -2,34 +2,33 @@ use std::ffi::CStr;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum PgInstanceTransition {
-    M2R,
-    R2M,
-}
+use crate::bgw::subscriber::pg_api::PgInstanceStatus;
+
+const LISTEN_ADRESSES_GUC_NAME: &CStr = c"listen_addresses";
+const PORT_GUC_NAME: &CStr = c"port";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PgInstanceNotification {
-    pub transition: PgInstanceTransition,
+    pub status: PgInstanceStatus,
     pub listen_addresses: Vec<String>,
     pub port: u16,
     pub name: Option<String>,
 }
 
 impl PgInstanceNotification {
-    pub fn new(transition: PgInstanceTransition, patroni_url: Option<&str>) -> Option<Self> {
-        let listen_addresses = fetch_config_option(c"listen_addresses")?
+    pub fn new(status: PgInstanceStatus, patroni_url: Option<&str>) -> Option<Self> {
+        let listen_addresses = fetch_config_option(LISTEN_ADRESSES_GUC_NAME)?
             .split(',')
             .map(|s| s.trim())
             .map(|s| s.to_string())
             .collect();
 
-        let port = fetch_config_option(c"port")?.parse::<u16>().ok()?;
+        let port = fetch_config_option(PORT_GUC_NAME)?.parse::<u16>().ok()?;
 
         let name = patroni_url.and_then(try_fetch_patroni_name);
 
         Some(Self {
-            transition,
+            status,
             listen_addresses,
             port,
             name,
@@ -58,13 +57,7 @@ fn try_fetch_patroni_name(url: &str) -> Option<String> {
             .map(|s| s.to_string())
             .ok_or(anyhow::anyhow!("Field name is missing"))
     };
-    //     let json: serde_json::Value = reqwest::blocking::get(url).ok()?.json().ok()?;
 
-    //     json.get("patroni")
-    //         .and_then(|p| p.get("name"))
-    //         .and_then(|n| n.as_str())
-    //         .map(|s| s.to_string())
-    //
     match result() {
         Ok(ok) => Some(ok),
         Err(err) => Some(err.to_string()),

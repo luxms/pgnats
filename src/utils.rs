@@ -1,3 +1,8 @@
+use std::ffi::CStr;
+
+use crate::bgw::pgrx_wrappers::dsm::DsmHandle;
+use pgrx::pg_sys as sys;
+
 pub trait FromBytes: Sized {
     fn from_bytes(bytes: Vec<u8>) -> anyhow::Result<Self>;
 }
@@ -86,4 +91,38 @@ pub(crate) fn extract_headers(v: serde_json::Value) -> async_nats::HeaderMap {
     }
 
     map
+}
+
+pub fn pack_oid_dsmh_to_i64(oid: sys::Oid, dsmh: DsmHandle) -> i64 {
+    ((oid.to_u32() as u64) << 32 | (*dsmh as u64)) as i64
+}
+
+pub fn unpack_i64_to_oid_dsmh(value: i64) -> (sys::Oid, DsmHandle) {
+    let val = value as u64;
+    let a = (val >> 32) as u32;
+    let b = (val & 0xFFFF_FFFF) as u32;
+    (sys::Oid::from_u32(a), DsmHandle::from(b))
+}
+
+pub fn get_database_name(oid: sys::Oid) -> Option<String> {
+    let db_name = unsafe {
+        let db_name = sys::get_database_name(oid);
+
+        if db_name.is_null() {
+            return None;
+        }
+
+        CStr::from_ptr(db_name)
+    };
+
+    Some(db_name.to_string_lossy().to_string())
+}
+
+pub fn is_extension_installed(name: &str) -> bool {
+    let query = "SELECT 1 FROM pg_extension WHERE extname = $1";
+
+    pgrx::Spi::connect(|client| {
+        let result = client.select(query, None, &[name.into()]);
+        result.is_ok_and(|tuple| !tuple.is_empty())
+    })
 }
