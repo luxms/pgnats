@@ -3,7 +3,7 @@ macro_rules! generate_test_background_worker {
     ($n:literal, $launcher_name:expr, $result_name:expr, $sql_ext_name:literal, $sql:literal) => {
         ::paste::paste! {
             #[allow(non_upper_case_globals)]
-            pub(super) static [<LAUNCHER_MESSAGE_BUS $n>]: pgrx::PgLwLock<crate::bgw::ring_queue::RingQueue<1024>> =
+            pub(super) static [<LAUNCHER_MESSAGE_BUS $n>]: pgrx::PgLwLock<$crate::bgw::ring_queue::RingQueue<1024>> =
                 pgrx::PgLwLock::new($launcher_name);
 
             #[allow(non_upper_case_globals)]

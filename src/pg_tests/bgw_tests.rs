@@ -375,22 +375,28 @@ pub(super) mod tests {
 
         let table_name = function_name!().split("::").last().unwrap();
         let notify_subject = table_name;
+
+        #[cfg(feature = "pg_test")]
         let patroni_addr = "127.0.0.1:28008";
 
         let (sub_sdr, sub_recv) = channel();
         let (start_sub_sdr, start_sub_recv) = channel();
-        let (start_server_sdr, start_server_recv) = channel();
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to initialize Tokio runtime");
 
+        #[cfg(feature = "pg_test")]
+        let (start_server_sdr, start_server_recv) = channel();
+
+        #[cfg(feature = "pg_test")]
         let server_handle = rt.spawn(start_mock_patroni(
             table_name.to_string(),
             start_server_sdr,
             patroni_addr,
         ));
 
+        #[cfg(feature = "pg_test")]
         let _ = start_server_recv
             .recv_timeout(std::time::Duration::from_secs(5))
             .expect("Failed to start server");
@@ -439,6 +445,7 @@ pub(super) mod tests {
             assert_eq!(message.name.unwrap().as_str(), table_name);
         }
 
+        #[cfg(feature = "pg_test")]
         server_handle.abort();
         sub_handle.abort();
 
@@ -633,6 +640,7 @@ pub(super) mod tests {
         let _ = sub_sdr.send(run(start_sub_sdr, notify_subject.to_string()).await);
     }
 
+    #[cfg(feature = "pg_test")]
     async fn start_mock_patroni(name: String, start_sdr: Sender<()>, patroni_addr: &str) {
         use tokio::net::TcpListener;
         use tokio_stream::wrappers::TcpListenerStream;
