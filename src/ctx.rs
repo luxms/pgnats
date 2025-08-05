@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::nats_client::NatsClient;
+use crate::{config::fetch_config, constants::FDW_EXTENSION_NAME, nats_client::NatsClient};
 
 thread_local! {
     pub static CTX: RefCell<Context> = RefCell::new(create_context());
@@ -13,7 +13,7 @@ pub struct Context {
 
 fn create_context() -> Context {
     Context {
-        nats_connection: Default::default(),
+        nats_connection: NatsClient::new(None, || fetch_config(FDW_EXTENSION_NAME)),
         rt: tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

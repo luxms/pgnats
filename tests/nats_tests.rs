@@ -16,16 +16,19 @@ mod nats_tests {
     const TEST_CONTENT: &[u8] = b"Hello, PGNats!";
 
     async fn setup_nats_with_file(port: u16) -> NatsClient {
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         nats.put_file(TEST_STORE, TEST_FILE, TEST_CONTENT.to_vec())
             .await
@@ -85,16 +88,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_get_server_info_success() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let info_result = nats.get_server_info().await;
 
@@ -122,16 +128,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_publish";
         let message = "Hello, World! 🦀";
@@ -156,16 +165,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_request_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_request_text";
         let request_msg = "Ping";
@@ -203,16 +215,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_stream() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_publish_stream";
         let message = "Hello, World! 🦀";
@@ -237,16 +252,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_binary() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let bucket = "test_default".to_string();
         let key = "binary_key";
@@ -273,16 +291,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_text() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let bucket = "test_default".to_string();
         let key = "text_key";
@@ -309,16 +330,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_put_and_get_json() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let bucket = "test_default".to_string();
         let key = "json_key";
@@ -340,16 +364,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_delete_value() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let bucket = "test_default".to_string();
         let key = "delete_key";
@@ -377,18 +404,21 @@ mod nats_tests {
         let (_cont, port) = setup_with_tls().await;
 
         // Настройка async_nats клиента с TLS
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "localhost".to_string(),
-                port,
-                capacity: 128,
-                tls: Some(NatsTlsOptions::Tls {
-                    ca: "./tests/certs/ca.crt".into(),
-                }),
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "localhost".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: Some(NatsTlsOptions::Tls {
+                        ca: "./tests/certs/ca.crt".into(),
+                    }),
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_publish_text_tls";
         let message = "Hello, World! 🦀";
@@ -401,16 +431,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_with_reply() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_publish_with_reply";
         let reply_to = "test.reply_to";
@@ -439,16 +472,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_with_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_publish_with_headers";
         let message = "Hello with headers 🦀";
@@ -487,16 +523,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_with_reply_and_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_publish_with_reply_and_headers";
         let reply_to = "test.reply_combined";
@@ -545,16 +584,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_publish_stream_with_headers() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_publish_stream_with_headers";
         let message = "Streamed message 🦀";
@@ -592,16 +634,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_nats_request_timeout() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let subject = "test.test_nats_request_timeout";
         let request_payload = "Will timeout ⏳";
@@ -618,16 +663,19 @@ mod nats_tests {
     #[tokio::test]
     async fn test_put_file() {
         let (_cont, port) = setup().await;
-        let mut nats = NatsClient::new(Some(Config {
-            nats_opt: NatsConnectionOptions {
-                host: "127.0.0.1".to_string(),
-                port,
-                capacity: 128,
-                tls: None,
-            },
-            notify_subject: None,
-            patroni_url: None,
-        }));
+        let mut nats = NatsClient::new(
+            Some(Config {
+                nats_opt: NatsConnectionOptions {
+                    host: "127.0.0.1".to_string(),
+                    port,
+                    capacity: 128,
+                    tls: None,
+                },
+                notify_subject: None,
+                patroni_url: None,
+            }),
+            || todo!(),
+        );
 
         let res = nats
             .put_file(TEST_STORE, TEST_FILE, TEST_CONTENT.to_vec())

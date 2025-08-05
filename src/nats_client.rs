@@ -10,30 +10,31 @@ use async_nats::{
 };
 
 use futures::StreamExt;
-use pgrx::warning;
 use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::{
-    config::{Config, NatsTlsOptions, fetch_config},
-    constants::FDW_EXTENSION_NAME,
-    info,
+    config::{Config, NatsTlsOptions},
     utils::{FromBytes, ToBytes, extract_headers},
 };
 
-#[derive(Default)]
 pub struct NatsClient {
     connection: Option<Client>,
     jetstream: Option<Context>,
     cached_buckets: HashMap<String, Store>,
     cached_object_stores: HashMap<String, ObjectStore>,
     current_config: Option<Config>,
+    config_fetcher: fn() -> Config,
 }
 
 impl NatsClient {
-    pub fn new(config: Option<Config>) -> Self {
+    pub fn new(config: Option<Config>, config_fetcher: fn() -> Config) -> Self {
         Self {
             current_config: config,
-            ..Default::default()
+            config_fetcher,
+            connection: None,
+            jetstream: None,
+            cached_buckets: HashMap::new(),
+            cached_object_stores: HashMap::new(),
         }
     }
 
@@ -127,22 +128,17 @@ impl NatsClient {
         }
 
         if let Some(conn) = connection {
-            info!("Disconnect from NATS service");
-
-            if let Err(e) = conn.drain().await {
-                warning!("Failed to drain connection {e}");
-            }
+            let _ = conn.drain().await;
         }
     }
 
-    pub async fn check_and_invalidate_connection(&mut self) {
+    pub async fn check_and_invalidate_connection(&mut self, new_config: Config) {
         let (changed, new_config) = {
             let config = &self.current_config;
-            let fetched_config = fetch_config(FDW_EXTENSION_NAME);
 
-            let changed = config.as_ref().map(|c| &c.nats_opt) != Some(&fetched_config.nats_opt);
+            let changed = config.as_ref().map(|c| &c.nats_opt) != Some(&new_config.nats_opt);
 
-            (changed, fetched_config)
+            (changed, new_config)
         };
 
         if changed {
@@ -329,9 +325,7 @@ impl NatsClient {
     }
 
     async fn initialize_connection(&mut self) -> anyhow::Result<()> {
-        let config = self
-            .current_config
-            .get_or_insert_with(|| fetch_config(FDW_EXTENSION_NAME));
+        let config = self.current_config.get_or_insert_with(self.config_fetcher);
 
         let mut opts = async_nats::ConnectOptions::new().client_capacity(config.nats_opt.capacity);
 
@@ -339,16 +333,9 @@ impl NatsClient {
             if let Ok(root) = std::env::current_dir() {
                 match tls {
                     NatsTlsOptions::Tls { ca } => {
-                        info!("Trying to find CA cert in '{:?}'", root.join(ca));
                         opts = opts.require_tls(true).add_root_certificates(root.join(ca))
                     }
                     NatsTlsOptions::MutualTls { ca, cert, key } => {
-                        info!(
-                            "Trying to find CA cert in '{:?}', cert in '{:?}' and key in '{:?}'",
-                            root.join(ca),
-                            root.join(cert),
-                            root.join(key)
-                        );
                         opts = opts
                             .require_tls(true)
                             .add_root_certificates(root.join(ca))

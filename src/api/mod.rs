@@ -8,7 +8,7 @@ mod macros;
 pub use nats::*;
 use pgrx::pg_extern;
 
-use crate::ctx::CTX;
+use crate::{config::fetch_config, constants::FDW_EXTENSION_NAME, ctx::CTX};
 
 /// Reloads NATS connection if configuration has changed
 ///
@@ -23,9 +23,13 @@ use crate::ctx::CTX;
 /// ```
 #[pg_extern]
 pub fn pgnats_reload_conf() {
+    let config = fetch_config(FDW_EXTENSION_NAME);
     CTX.with_borrow_mut(|ctx| {
         ctx.rt.block_on(async {
-            let res = ctx.nats_connection.check_and_invalidate_connection().await;
+            let res = ctx
+                .nats_connection
+                .check_and_invalidate_connection(config)
+                .await;
             tokio::task::yield_now().await;
             res
         })
