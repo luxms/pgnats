@@ -135,8 +135,6 @@ impl SubscriberContext {
         })
         .ok_or_else(|| anyhow::anyhow!("Failed to construct PgInstanceNotification: missing or invalid listen_addresses or port GUC"))?;
 
-        crate::log!("NOT: {:?}", notification);
-
         let notification = serde_json::to_vec(&notification).map_err(|err| {
             anyhow::anyhow!("Failed to serialize PgInstanceNotification: {}", err)
         })?;

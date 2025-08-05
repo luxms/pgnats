@@ -120,8 +120,6 @@ impl NatsConnectionState {
         self.client.publish(subject, body.into()).await?;
         self.client.flush().await?;
 
-        crate::log!("PUBLISHED");
-
         Ok(())
     }
     pub(super) async fn drain(&self) -> anyhow::Result<()> {
