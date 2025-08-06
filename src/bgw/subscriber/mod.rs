@@ -72,9 +72,7 @@ pub fn background_worker_subscriber_main<const N: usize>(
     db_oid: sys::Oid,
     dsmh: DsmHandle,
 ) -> anyhow::Result<()> {
-    BackgroundWorker::attach_signal_handlers(
-        SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM | SignalWakeFlags::SIGCHLD,
-    );
+    BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
 
     unsafe {
         sys::BackgroundWorkerInitializeConnectionByOid(db_oid, sys::InvalidOid, 0);
@@ -198,6 +196,8 @@ fn background_worker_subscriber_main_internal<const N: usize>(
             handle_internal_message(&mut ctx, message, sub_table_name, db_name);
         }
     }
+
+    log!(context = db_name, "END");
 
     Ok(())
 }

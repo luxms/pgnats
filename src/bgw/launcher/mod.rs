@@ -42,7 +42,9 @@ pub fn background_worker_launcher_main<const N: usize>(
     launcher_bus: &PgLwLock<RingQueue<N>>,
     subscriber_entry_point: &str,
 ) -> anyhow::Result<()> {
-    BackgroundWorker::attach_signal_handlers(SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM);
+    BackgroundWorker::attach_signal_handlers(
+        SignalWakeFlags::SIGHUP | SignalWakeFlags::SIGTERM | SignalWakeFlags::SIGCHLD,
+    );
     BackgroundWorker::connect_worker_to_spi(None, None);
 
     let mut ctx = LauncherContext::default();
@@ -58,10 +60,12 @@ pub fn background_worker_launcher_main<const N: usize>(
     add_subscribe_workers(&mut ctx, database_oids, subscriber_entry_point);
 
     while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
+        ctx.process_terminated_workers();
         process_launcher_bus(launcher_bus, subscriber_entry_point, &mut ctx);
     }
 
-    shutdown_workers(&mut ctx);
+    ctx.shutdown_all_workers();
+    ctx.process_terminated_workers();
 
     log!(context = LAUNCHER_CTX, "Launcher worker stopped gracefully");
 
@@ -95,48 +99,33 @@ pub fn process_launcher_bus<const N: usize>(
         match msg {
             LauncherMessage::DbExtensionStatus { db_oid, status } => match status {
                 ExtensionStatus::Exist => {
-                    if let Some(worker) = ctx.get_worker(db_oid) {
-                        log!(
-                            context = LAUNCHER_CTX,
-                            "Extension '{}' is present in database '{}' (OID: {})",
-                            EXTENSION_NAME,
-                            worker.db_name,
-                            db_oid
-                        );
-                    }
+                    log!(
+                        context = LAUNCHER_CTX,
+                        "Extension '{}' is present in database '{}'",
+                        EXTENSION_NAME,
+                        db_oid
+                    );
+
+                    ctx.register_worker(db_oid);
                 }
-                ExtensionStatus::NoExtension => match ctx.shutdown_worker(db_oid) {
-                    Ok(Some(entry)) => {
-                        log!(
-                            context = LAUNCHER_CTX,
-                            "Extension '{}' not found in database '{}'; worker shut down",
-                            EXTENSION_NAME,
-                            entry.db_name
-                        );
-                    }
-                    Ok(None) => { /* ignore */ }
-                    Err(err) => warn!(
+                ExtensionStatus::NoExtension => {
+                    log!(
                         context = LAUNCHER_CTX,
-                        "Failed to shutdown worker for db_oid {} (no extension): {}", db_oid, err
-                    ),
-                },
-                ExtensionStatus::NoForeignServer => match ctx.shutdown_worker(db_oid) {
-                    Ok(Some(entry)) => {
-                        log!(
-                            context = LAUNCHER_CTX,
-                            "Foreign server '{}' not found in database '{}'; worker shut down",
-                            FDW_EXTENSION_NAME,
-                            entry.db_name
-                        );
-                    }
-                    Ok(None) => { /* ignore */ }
-                    Err(err) => warn!(
+                        "Extension '{}' not found in database '{}'; worker shut down",
+                        EXTENSION_NAME,
+                        db_oid
+                    );
+                    ctx.shutdown_worker(db_oid);
+                }
+                ExtensionStatus::NoForeignServer => {
+                    log!(
                         context = LAUNCHER_CTX,
-                        "Failed to shutdown worker for db_oid {} (no foreign server): {}",
-                        db_oid,
-                        err
-                    ),
-                },
+                        "Foreign server '{}' not found in database '{}'; worker shut down",
+                        FDW_EXTENSION_NAME,
+                        db_oid
+                    );
+                    ctx.shutdown_worker(db_oid);
+                }
             },
             LauncherMessage::NewConfig { db_oid, config } => {
                 match ctx.handle_new_config_message(db_oid, config, entry_point) {
@@ -211,44 +200,15 @@ pub fn process_launcher_bus<const N: usize>(
                     }
                 }
 
-                match ctx.handle_subscriber_exit_message(db_oid) {
-                    Ok(Some(we)) => {
-                        debug!(
-                            context = LAUNCHER_CTX,
-                            "Subscriber for database '{}' (OID {}) exited and cleaned up",
-                            we.db_name,
-                            db_oid
-                        );
-                    }
-                    Ok(None) => { /* ignore */ }
-                    Err(err) => {
-                        warn!(
-                            context = LAUNCHER_CTX,
-                            "Subscriber exit handling failed for db_oid {}: {}", db_oid, err
-                        );
-                    }
-                }
+                ctx.handle_subscriber_exit_message(db_oid);
             }
             LauncherMessage::ForeignServerDropped { db_oid } => {
-                match ctx.handle_foreign_server_dropped(db_oid) {
-                    Ok(Some(we)) => {
-                        debug!(
-                            context = LAUNCHER_CTX,
-                            "Foreign server for database '{}' (OID: {}) was dropped — subscriber worker terminated and cleaned up successfully",
-                            we.db_name,
-                            db_oid
-                        );
-                    }
-                    Ok(None) => { /* ignore */ }
-                    Err(err) => {
-                        warn!(
-                            context = LAUNCHER_CTX,
-                            "Failed to clean up subscriber after foreign server drop for db_oid {}: {}",
-                            db_oid,
-                            err
-                        );
-                    }
-                }
+                debug!(
+                    context = LAUNCHER_CTX,
+                    "Foreign server for database '{}' was dropped", db_oid
+                );
+
+                ctx.handle_foreign_server_dropped(db_oid);
             }
             #[cfg(any(test, feature = "pg_test"))]
             LauncherMessage::ChangeStatus { db_oid, master } => {
@@ -302,18 +262,12 @@ fn add_subscribe_workers(
 ) {
     for oid in oids {
         match ctx.start_subscribe_worker(oid.to_u32(), entry_point) {
-            Ok(entry) => {
+            Ok(db_name) => {
                 log!(
                     context = LAUNCHER_CTX,
                     "Trying to start background worker subscriber for '{}'",
-                    entry.db_name
+                    db_name
                 );
-                if let Err(err) = ctx.add_subscribe_worker(oid.to_u32(), entry) {
-                    warn!(
-                        context = LAUNCHER_CTX,
-                        "Got error for {:?} oid: {}", oid, err
-                    );
-                }
             }
             Err(err) => {
                 warn!(
@@ -321,14 +275,6 @@ fn add_subscribe_workers(
                     "Got error for {:?} oid: {}", oid, err
                 );
             }
-        }
-    }
-}
-
-fn shutdown_workers(ctx: &mut LauncherContext) {
-    for entry in ctx.drain_workers() {
-        if let Err(err) = LauncherContext::shutdown_worker_entry(entry) {
-            warn!(context = LAUNCHER_CTX, "{}", err);
         }
     }
 }

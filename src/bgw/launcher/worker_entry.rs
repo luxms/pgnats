@@ -1,6 +1,9 @@
 use pgrx::{
     IntoDatum,
-    bgworkers::{BackgroundWorker, BackgroundWorkerBuilder, DynamicBackgroundWorker},
+    bgworkers::{
+        BackgroundWorker, BackgroundWorkerBuilder, DynamicBackgroundWorker,
+        TerminatingDynamicBackgroundWorker,
+    },
     pg_sys as sys,
 };
 
@@ -12,15 +15,18 @@ use crate::{
 
 const APPROX_SHM_HEADER_SIZE: usize = 64;
 
-pub struct WorkerEntry {
+pub struct RunningState(DynamicBackgroundWorker);
+pub struct TerminatedState(TerminatingDynamicBackgroundWorker);
+
+pub struct WorkerEntry<S> {
     pub db_name: String,
-    pub worker: Option<DynamicBackgroundWorker>,
     pub sender: ShmMqSender,
-    _oid: sys::Oid,
+    pub oid: sys::Oid,
+    state: S,
     _dsm: DynamicSharedMemory,
 }
 
-impl WorkerEntry {
+impl WorkerEntry<RunningState> {
     pub fn start(
         oid: sys::Oid,
         name: &str,
@@ -68,10 +74,34 @@ impl WorkerEntry {
 
         Ok(Self {
             db_name,
-            worker: Some(worker),
+            oid,
+            state: RunningState(worker),
             sender,
-            _oid: oid,
             _dsm: dsm,
+        })
+    }
+
+    pub fn terminate(self) -> WorkerEntry<TerminatedState> {
+        let terminate = self.state.0.terminate();
+
+        WorkerEntry::<TerminatedState> {
+            db_name: self.db_name,
+            sender: self.sender,
+            oid: self.oid,
+            state: TerminatedState(terminate),
+
+            _dsm: self._dsm,
+        }
+    }
+}
+
+impl WorkerEntry<TerminatedState> {
+    pub fn wait_for_shutdown(self) -> anyhow::Result<()> {
+        self.state.0.wait_for_shutdown().map_err(|err| {
+            anyhow::anyhow!(
+                "Failed to gracefully shutdown background worker for database '{}': {err:?}",
+                self.db_name
+            )
         })
     }
 }
