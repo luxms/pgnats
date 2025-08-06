@@ -62,9 +62,7 @@ macro_rules! generate_test_background_worker {
 
             #[pgrx::pg_extern]
             fn [<pgnats_fdw_validator_test_ $n>](options: Vec<String>, oid: pgrx::pg_sys::Oid) {
-                if $crate::config::fetch_fdw_server_name(concat!("pgnats_fdw_test_", stringify!($n))).is_some() {
-                    $crate::bgw::fdw::fdw_validator(&[<LAUNCHER_MESSAGE_BUS $n>], options, oid);
-                }
+                $crate::bgw::fdw::fdw_validator(&[<LAUNCHER_MESSAGE_BUS $n>], options, oid);
             }
 
             pgrx::extension_sql!(

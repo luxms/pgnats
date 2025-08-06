@@ -44,9 +44,13 @@ impl LauncherContext {
 
             Ok(None)
         } else {
-            let db_name = self.start_subscribe_worker(db_oid, entry_point)?;
+            if !self.pending_workers.contains_key(&db_oid) {
+                let db_name = self.start_subscribe_worker(db_oid, entry_point)?;
 
-            Ok(Some(db_name))
+                Ok(Some(db_name))
+            } else {
+                Ok(None)
+            }
         }
     }
 
