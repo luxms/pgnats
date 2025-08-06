@@ -48,44 +48,6 @@ extension_sql!(
     requires = ["create_subscriptions_table"]
 );
 
-extension_sql!(
-    r#"
-    CREATE OR REPLACE FUNCTION pgnats.on_pgnats_server_drop()
-    RETURNS event_trigger
-    LANGUAGE plpgsql
-    AS $$
-    DECLARE
-        obj RECORD;
-        fdw_count INTEGER;
-        db_oid OID := (SELECT oid FROM pg_database WHERE datname = current_database());
-    BEGIN
-        FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects()
-        LOOP
-            IF obj.object_type = 'server' THEN
-                SELECT COUNT(*) INTO fdw_count
-                FROM pg_foreign_server s
-                JOIN pg_foreign_data_wrapper f ON f.oid = s.srvfdw
-                WHERE f.fdwname = 'pgnats_fdw';
-
-                IF fdw_count = 0 THEN
-                    PERFORM __internal_pgnats_notify_foreign_server_drop(db_oid);
-                END IF;
-
-                EXIT;
-            END IF;
-        END LOOP;
-    END;
-    $$;
-
-    CREATE EVENT TRIGGER pgnats_fdw_server_drop_trigger
-    ON sql_drop
-    WHEN TAG IN ('DROP SERVER')
-    EXECUTE FUNCTION pgnats.on_pgnats_server_drop();
-    "#,
-    name = "create_event_trigger_for_handling_dropped_foreign_server",
-    requires = ["create_subscriptions_table"]
-);
-
 #[pg_extern]
 fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
     fdw_validator(&LAUNCHER_MESSAGE_BUS, options, oid);
