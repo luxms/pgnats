@@ -4,7 +4,9 @@ use pgrx::pg_sys as sys;
 
 use crate::{
     bgw::{
-        DSM_SIZE, launcher::worker_entry::WorkerEntry, pgrx_wrappers::shm_mq::ShmMqSender,
+        DSM_SIZE,
+        launcher::worker_entry::{RunningState, TerminatedState, WorkerEntry},
+        pgrx_wrappers::shm_mq::ShmMqSender,
         subscriber::message::SubscriberMessage,
     },
     config::Config,
@@ -12,11 +14,25 @@ use crate::{
 
 #[derive(Default)]
 pub struct LauncherContext {
-    workers: HashMap<u32, WorkerEntry>,
+    pending_workers: HashMap<u32, WorkerEntry<RunningState>>,
+    workers: HashMap<u32, WorkerEntry<RunningState>>,
+    terminated_workers: HashMap<u32, WorkerEntry<TerminatedState>>,
     counter: usize,
 }
 
 impl LauncherContext {
+    pub fn process_terminated_workers(&mut self) {
+        for (_, v) in self.terminated_workers.drain() {
+            let _ = v.wait_for_shutdown(); // ignore error
+        }
+    }
+
+    pub fn register_worker(&mut self, db_oid: u32) {
+        if let Some(worker) = self.pending_workers.remove(&db_oid) {
+            let _ = self.workers.insert(db_oid, worker);
+        }
+    }
+
     pub fn handle_new_config_message(
         &mut self,
         db_oid: u32,
@@ -28,9 +44,7 @@ impl LauncherContext {
 
             Ok(None)
         } else {
-            let we = self.start_subscribe_worker(db_oid, entry_point)?;
-            let db_name = we.db_name.clone();
-            let _ = self.add_subscribe_worker(db_oid, we)?;
+            let db_name = self.start_subscribe_worker(db_oid, entry_point)?;
 
             Ok(Some(db_name))
         }
@@ -68,18 +82,12 @@ impl LauncherContext {
         Ok(())
     }
 
-    pub fn handle_subscriber_exit_message(
-        &mut self,
-        db_oid: u32,
-    ) -> anyhow::Result<Option<WorkerEntry>> {
-        self.shutdown_worker(db_oid)
+    pub fn handle_subscriber_exit_message(&mut self, db_oid: u32) {
+        self.shutdown_worker(db_oid);
     }
 
-    pub fn handle_foreign_server_dropped(
-        &mut self,
-        db_oid: u32,
-    ) -> anyhow::Result<Option<WorkerEntry>> {
-        self.shutdown_worker(db_oid)
+    pub fn handle_foreign_server_dropped(&mut self, db_oid: u32) {
+        self.shutdown_worker(db_oid);
     }
 
     #[cfg(any(test, feature = "pg_test"))]
@@ -98,7 +106,7 @@ impl LauncherContext {
         &mut self,
         oid: u32,
         entry_point: &str,
-    ) -> anyhow::Result<WorkerEntry> {
+    ) -> anyhow::Result<String> {
         let entry = WorkerEntry::start(
             sys::Oid::from_u32(oid),
             &format!("PGNats Background Worker Subscriber {}", self.counter),
@@ -107,52 +115,37 @@ impl LauncherContext {
             DSM_SIZE,
         )?;
         self.counter += 1;
+        let db_name = entry.db_name.clone();
+        let _ = self.pending_workers.insert(oid, entry);
 
-        Ok(entry)
+        Ok(db_name)
     }
 
-    pub fn add_subscribe_worker(
-        &mut self,
-        oid: u32,
-        entry: WorkerEntry,
-    ) -> anyhow::Result<Option<WorkerEntry>> {
-        if let Some(prev_entry) = self.workers.insert(oid, entry) {
-            let we = Self::shutdown_worker_entry(prev_entry)?;
-            return Ok(Some(we));
-        }
-
-        Ok(None)
-    }
-
-    pub fn shutdown_worker(&mut self, db_oid: u32) -> anyhow::Result<Option<WorkerEntry>> {
+    pub fn shutdown_worker(&mut self, db_oid: u32) {
         let Some(entry) = self.workers.remove(&db_oid) else {
-            return Ok(None);
+            return;
         };
 
-        Self::shutdown_worker_entry(entry).map(Some)
+        self.shutdown_worker_entry(entry);
     }
 
-    pub fn shutdown_worker_entry(mut entry: WorkerEntry) -> anyhow::Result<WorkerEntry> {
-        if let Some(worker) = entry.worker.take() {
-            let terminate = worker.terminate();
-
-            terminate.wait_for_shutdown().map_err(|err| {
-                anyhow::anyhow!(
-                    "Failed to gracefully shutdown background worker for database '{}': {err:?}",
-                    entry.db_name
-                )
-            })?;
+    pub fn shutdown_all_workers(&mut self) {
+        for (_, v) in std::mem::take(&mut self.workers) {
+            self.shutdown_worker_entry(v);
         }
 
-        Ok(entry)
+        for (_, v) in std::mem::take(&mut self.pending_workers) {
+            self.shutdown_worker_entry(v);
+        }
     }
 
-    pub fn get_worker(&self, db_oid: u32) -> Option<&WorkerEntry> {
+    pub fn shutdown_worker_entry(&mut self, entry: WorkerEntry<RunningState>) {
+        let entry = entry.terminate();
+        let _ = self.terminated_workers.insert(entry.oid.to_u32(), entry);
+    }
+
+    pub fn get_worker(&self, db_oid: u32) -> Option<&WorkerEntry<RunningState>> {
         self.workers.get(&db_oid)
-    }
-
-    pub fn drain_workers(&mut self) -> impl Iterator<Item = WorkerEntry> {
-        self.workers.drain().map(|(_, v)| v)
     }
 }
 
