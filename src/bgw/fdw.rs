@@ -6,6 +6,7 @@ use crate::{
         launcher::{message::LauncherMessage, send_message_to_launcher_with_retry},
         ring_queue::RingQueue,
     },
+    config::parse_config,
     error,
 };
 
@@ -92,14 +93,23 @@ fn pgnats_fdw_validator(options: Vec<String>, oid: sys::Oid) {
 
 pub fn fdw_validator<const N: usize>(
     launcher_bus: &PgLwLock<RingQueue<N>>,
-    _options: Vec<String>,
+    options: Vec<String>,
     oid: sys::Oid,
 ) {
     if oid == sys::ForeignServerRelationId {
+        let options = options
+            .iter()
+            .filter_map(|opt| opt.split_once('='))
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
+
+        let config = parse_config(&options);
+
         if let Err(err) = send_message_to_launcher_with_retry(
             launcher_bus,
             LauncherMessage::NewConfig {
                 db_oid: unsafe { sys::MyDatabaseId }.to_u32(),
+                config,
             },
             5,
             std::time::Duration::from_secs(1),

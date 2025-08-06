@@ -1,5 +1,7 @@
 use bincode::{Decode, Encode};
 
+use crate::config::Config;
+
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum ExtensionStatus {
     Exist,
@@ -15,6 +17,7 @@ pub enum LauncherMessage {
     },
     NewConfig {
         db_oid: u32,
+        config: Config,
     },
     Subscribe {
         db_oid: u32,

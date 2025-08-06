@@ -76,12 +76,6 @@ pub fn process_launcher_bus<const N: usize>(
     let mut guard = queue.exclusive();
 
     while let Some(buf) = guard.try_recv() {
-        debug!(
-            context = LAUNCHER_CTX,
-            "Received raw message from shared queue: {:?}",
-            String::from_utf8_lossy(&buf)
-        );
-
         let parse_result: Result<(LauncherMessage, _), _> =
             bincode::decode_from_slice(&buf[..], bincode::config::standard());
 
@@ -92,6 +86,11 @@ pub fn process_launcher_bus<const N: usize>(
                 continue;
             }
         };
+
+        debug!(
+            context = LAUNCHER_CTX,
+            "Received message from shared queue: {:?}", msg
+        );
 
         match msg {
             LauncherMessage::DbExtensionStatus { db_oid, status } => match status {
@@ -139,8 +138,8 @@ pub fn process_launcher_bus<const N: usize>(
                     ),
                 },
             },
-            LauncherMessage::NewConfig { db_oid } => {
-                match ctx.handle_new_config_message(db_oid, entry_point) {
+            LauncherMessage::NewConfig { db_oid, config } => {
+                match ctx.handle_new_config_message(db_oid, config, entry_point) {
                     Ok(Some(db_name)) => {
                         log!(
                             context = LAUNCHER_CTX,
