@@ -1,7 +1,7 @@
 use pgrx::{
     IntoDatum,
     bgworkers::{
-        BackgroundWorker, BackgroundWorkerBuilder, DynamicBackgroundWorker,
+        BackgroundWorker, BackgroundWorkerBuilder, BgWorkerStartTime, DynamicBackgroundWorker,
         TerminatingDynamicBackgroundWorker,
     },
     pg_sys as sys,
@@ -61,6 +61,7 @@ impl WorkerEntry<RunningState> {
             .set_library(EXTENSION_NAME)
             .set_function(entrypoint)
             .set_argument(packed_arg.into_datum())
+            .set_start_time(BgWorkerStartTime::ConsistentState)
             .set_notify_pid(unsafe { sys::MyProcPid })
             .load_dynamic()
             .map_err(|err| {
