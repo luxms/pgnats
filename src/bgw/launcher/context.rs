@@ -126,7 +126,11 @@ impl LauncherContext {
     }
 
     pub fn shutdown_worker(&mut self, db_oid: u32) {
-        let Some(entry) = self.workers.remove(&db_oid) else {
+        let Some(entry) = self
+            .workers
+            .remove(&db_oid)
+            .or_else(|| self.pending_workers.remove(&db_oid))
+        else {
             return;
         };
 

@@ -114,7 +114,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
     db_name: &str,
     dsmh: DsmHandle,
 ) -> anyhow::Result<()> {
-    let status = check_extension_status(fdw_extension_name)?;
+    let status = check_extension_status(fdw_extension_name);
 
     send_message_to_launcher(
         launcher_bus,
@@ -166,6 +166,20 @@ fn background_worker_subscriber_main_internal<const N: usize>(
     }
 
     'bg_loop: while BackgroundWorker::wait_latch(Some(std::time::Duration::from_secs(1))) {
+        let status = check_extension_status(fdw_extension_name);
+
+        match status {
+            ExtensionStatus::NoExtension => {
+                return Err(anyhow::anyhow!("Extension '{EXTENSION_NAME}' was dropped"));
+            }
+            ExtensionStatus::NoForeignServer => {
+                return Err(anyhow::anyhow!(
+                    "Foreign server for '{FDW_EXTENSION_NAME}' was dropped"
+                ));
+            }
+            _ => {}
+        }
+
         if let Err(err) = ctx.check_migration(sub_table_name) {
             warn!(context = db_name, "Migration check failed: {}", err);
         }
@@ -363,10 +377,10 @@ fn handle_internal_message(
     }
 }
 
-fn check_extension_status(fdw_extension_name: &str) -> anyhow::Result<ExtensionStatus> {
+fn check_extension_status(fdw_extension_name: &str) -> ExtensionStatus {
     let is_installed = BackgroundWorker::transaction(|| is_extension_installed(EXTENSION_NAME));
 
-    let status = if is_installed {
+    if is_installed {
         if BackgroundWorker::transaction(|| fetch_fdw_server_name(fdw_extension_name)).is_some() {
             ExtensionStatus::Exist
         } else {
@@ -374,7 +388,5 @@ fn check_extension_status(fdw_extension_name: &str) -> anyhow::Result<ExtensionS
         }
     } else {
         ExtensionStatus::NoExtension
-    };
-
-    Ok(status)
+    }
 }

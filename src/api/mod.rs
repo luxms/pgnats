@@ -1,5 +1,4 @@
 mod conv;
-mod internal;
 mod nats;
 
 #[macro_use]
