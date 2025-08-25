@@ -18,7 +18,7 @@ License:        CorpGPL
 Group:		    Databases
 Requires:       postgrespro-std-%{pg_ver}-server
 BuildRequires:  postgrespro-std-%{pg_ver}-devel
-BuildRequires:  cargo-pgrx openssl
+BuildRequires:  cargo-pgrx openssl clang
 
 Disttag:        alt10
 Distribution:   alt/p10/x86_64/RPMS.thirdparty/

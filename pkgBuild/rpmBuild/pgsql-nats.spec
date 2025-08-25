@@ -28,8 +28,15 @@ Distribution:   redos/%{redos_ver}/x86_64
 %endif
 
 %if 0%{?el8} || 0%{?el9}
+
+%if 0%{?pg_ver} < 17
 Requires:       postgresql-server >= %{pg_ver} postgresql-server < %(echo $((%{pg_ver} + 1)))
 BuildRequires:  postgresql-server-devel >= %{pg_ver} postgresql-server-devel < %(echo $((%{pg_ver} + 1)))
+%else
+Requires:       postgresql%{pg_ver}-server
+BuildRequires:  postgresql%{pg_ver}-devel
+%endif
+
 BuildRequires:  clang
 Disttag:        el%{rhel}
 Distribution:   el/%{rhel}/x86_64

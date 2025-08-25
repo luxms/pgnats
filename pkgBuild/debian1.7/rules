@@ -3,11 +3,16 @@ export DH_VERBOSE = 1
 
 GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key=08C82543B30BE336
 
-PGCONFIG_pgsql15-nats := /usr/lib/postgresql/15/bin/pg_config; PGVER_pgsql15-nats := 15
-PGCONFIG_pgpro15-nats := /opt/pgpro/std-15/bin/pg_config; PGVER_pgpro15-nats := 15
-PGCONFIG_pgpro15ent-nats := /opt/pgpro/ent-15/bin/pg_config; PGVER_pgpro15ent-nats := 15
-PGCONFIG_pgpro17-nats := /opt/pgpro/std-17/bin/pg_config; PGVER_pgpro17-nats := 17
-PGCONFIG_pgpro17ent-nats := /opt/pgpro/ent-17/bin/pg_config; PGVER_pgpro17ent-nats := 17
+PGCONFIG_pgsql15-nats := /usr/lib/postgresql/15/bin/pg_config
+PGVER_pgsql15-nats := 15
+PGCONFIG_pgpro15-nats := /opt/pgpro/std-15/bin/pg_config
+PGVER_pgpro15-nats := 15
+PGCONFIG_pgpro15ent-nats := /opt/pgpro/ent-15/bin/pg_config
+PGVER_pgpro15ent-nats := 15
+PGCONFIG_pgpro17-nats := /opt/pgpro/std-17/bin/pg_config
+PGVER_pgpro17-nats := 17
+PGCONFIG_pgpro17ent-nats := /opt/pgpro/ent-17/bin/pg_config
+PGVER_pgpro17ent-nats := 17
 
 PKG_LIST := $(foreach pkg,$(shell dh_listpackages), $(shell if [ -f $(PGCONFIG_$(pkg)) ] ; then echo $(pkg); fi))
 
