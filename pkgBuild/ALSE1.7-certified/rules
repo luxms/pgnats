@@ -3,8 +3,8 @@ export DH_VERBOSE = 1
 
 GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key=08C82543B30BE336
 
-PGCONFIG_tantor15certified-keydb-fdw := /opt/tantor/db/15/bin/pg_config
-PGVER_tantor15certified-keydb-fdw := 15
+PGCONFIG_tantor15certified-nats := /opt/tantor/db/15/bin/pg_config
+PGVER_tantor15certified-nats := 15
 
 PKG_LIST := $(foreach pkg,$(shell dh_listpackages), $(shell if [ -f $(PGCONFIG_$(pkg)) ] ; then echo $(pkg); fi))
 
