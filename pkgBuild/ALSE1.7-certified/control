@@ -2,7 +2,7 @@ Source: pgsql-nats
 Section: database
 Priority: optional
 Maintainer: Luxms Package Manager <repo@luxms.com>
-Build-Depends: debhelper (>= 12), curl, unzip, cargo-pgrx tantor-certified-server-15
+Build-Depends: debhelper (>= 12), curl, unzip, cargo-pgrx, clang-11, llvm-11, tantor-certified-server-15
 Standards-Version: 10.0.0
 Homepage: https://github.com/luxms/pgnats/
 
