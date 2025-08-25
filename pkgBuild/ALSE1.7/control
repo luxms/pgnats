@@ -2,7 +2,7 @@ Source: pgsql-nats
 Section: database
 Priority: optional
 Maintainer: Luxms Package Manager <repo@luxms.com>
-Build-Depends: debhelper (>= 12), curl, unzip, cargo-pgrx, postgresql-server-dev-15, postgrespro-std-15-dev, postgrespro-ent-15-dev, postgrespro-std-17-dev, postgrespro-ent-17-dev
+Build-Depends: debhelper (>= 12), curl, unzip, cargo-pgrx, postgresql-server-dev-15, postgrespro-std-15-dev, postgrespro-ent-15-dev, postgrespro-std-17-dev, postgrespro-ent-17-dev, tantor-se-server-15
 Standards-Version: 10.0.0
 Homepage: https://github.com/luxms/pgnats/
 
@@ -20,6 +20,12 @@ Package: pgpro15ent-nats
 Architecture: amd64
 Depends: ${shlibs:Depends}, postgrespro-ent-15-server
 Provides: pgpro15-nats (= ${binary:Version})
+Description: NATS connect for PostgreSQL.
+
+Package: tantor15se-keydb-fdw
+Architecture: amd64
+Depends: ${shlibs:Depends}, tantor-se-server-15
+PROVIDES: tantor15-keydb-fdw (= ${binary:Version})
 Description: NATS connect for PostgreSQL.
 
 Package: pgpro17-nats

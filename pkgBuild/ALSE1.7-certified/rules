@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+
+GPG_OPTIONS := --batch --pinentry-mode loopback --passphrase-file GPG_PASS --default-key=08C82543B30BE336
+
+PGCONFIG_tantor15certified-keydb-fdw := /opt/tantor/db/15/bin/pg_config
+PGVER_tantor15certified-keydb-fdw := 15
+
+PKG_LIST := $(foreach pkg,$(shell dh_listpackages), $(shell if [ -f $(PGCONFIG_$(pkg)) ] ; then echo $(pkg); fi))
+
+define \n
+
+
+endef
+
+override_dh_strip:
+	dh_strip
+	$(if $(filter true,$(CI)),\
+		find debian/ -type f -name pgnats.so > elf_files.list;\
+	  if [ -f elf_files.list ]; then bsign -s -E --pgoptions="$(GPG_OPTIONS)" -f elf_files.list ; bsign -c -E -f elf_files.list; fi \
+	,)
+
+override_dh_auto_install:
+	$(foreach pkg,$(PKG_LIST), \
+		/root/.cargo/bin/cargo pgrx init --pg$(PGVER_$(pkg)) $(PGCONFIG_$(pkg)) \
+		&& /root/.cargo/bin/cargo pgrx package --features xid8 --pg-config $(PGCONFIG_$(pkg)) \
+		&& $(if $(filter true,$(CI)),./trivy-scan.sh src $(pkg),:) \
+		&& mv target/release/pgnats-pg$(PGVER_$(pkg)) debian/$(pkg) \
+		${\n} \
+	)
+
+
+%:
+	dh $@ --srcdirectory=src $(foreach pkg,$(PKG_LIST), -p$(pkg) )
