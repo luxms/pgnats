@@ -22,10 +22,10 @@ Depends: ${shlibs:Depends}, postgrespro-ent-15-server
 Provides: pgpro15-nats (= ${binary:Version})
 Description: NATS connect for PostgreSQL.
 
-Package: tantor15se-keydb-fdw
+Package: tantor15se-nats
 Architecture: amd64
 Depends: ${shlibs:Depends}, tantor-se-server-15
-PROVIDES: tantor15-keydb-fdw (= ${binary:Version})
+PROVIDES: tantor15-nats (= ${binary:Version})
 Description: NATS connect for PostgreSQL.
 
 Package: pgpro17-nats
