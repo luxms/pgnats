@@ -28,6 +28,11 @@ Depends: ${shlibs:Depends}, tantor-se-server-15
 PROVIDES: tantor15-nats (= ${binary:Version})
 Description: NATS connect for PostgreSQL.
 
+Package: jatoba5-nats
+Architecture: amd64
+Depends: ${shlibs:Depends}, jatoba5-server
+Description: NATS connect for PostgreSQL.
+
 Package: pgpro17-nats
 Architecture: amd64
 Depends: ${shlibs:Depends}, postgrespro-std-17-server
