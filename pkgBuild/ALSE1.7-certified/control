@@ -1,0 +1,13 @@
+Source: pgsql-nats
+Section: database
+Priority: optional
+Maintainer: Luxms Package Manager <repo@luxms.com>
+Build-Depends: debhelper (>= 12), curl, unzip, cargo-pgrx, clang-11, llvm-11, tantor-certified-server-15
+Standards-Version: 10.0.0
+Homepage: https://github.com/luxms/pgnats/
+
+Package: tantor15certified-nats
+Architecture: amd64
+Depends: ${shlibs:Depends}, tantor-certified-server-15
+PROVIDES: tantor15-nats (= ${binary:Version})
+Description: NATS connect for PostgreSQL.

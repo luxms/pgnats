@@ -28,8 +28,15 @@ Distribution:   redos/%{redos_ver}/x86_64
 %endif
 
 %if 0%{?el8} || 0%{?el9}
+
+%if 0%{?pg_ver} < 17
 Requires:       postgresql-server >= %{pg_ver} postgresql-server < %(echo $((%{pg_ver} + 1)))
 BuildRequires:  postgresql-server-devel >= %{pg_ver} postgresql-server-devel < %(echo $((%{pg_ver} + 1)))
+%else
+Requires:       postgresql%{pg_ver}-server
+BuildRequires:  postgresql%{pg_ver}-devel
+%endif
+
 BuildRequires:  clang
 Disttag:        el%{rhel}
 Distribution:   el/%{rhel}/x86_64
@@ -63,11 +70,19 @@ NATS connect for PostgresPRO-ent
 cd %{_topdir}
 
 %if 0%{?el8} || 0%{?el9}
+
+%if 0%{?pg_ver} < 17
 cargo pgrx init --pg%{pg_ver} /usr/bin/pg_server_config
 cargo pgrx package --pg-config /usr/bin/pg_server_config
+%else
+cargo pgrx init --pg%{pg_ver} /usr/pgsql-%{pg_ver}/bin/pg_config
+cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
+%endif
+
 %{_topdir}/trivy-scan.sh target/release/pgnats-pg%{pg_ver}/ pgsql-%{pg_ver}-nats%{dist}
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
 %endif
+
 
 %if 0%{?redos}
 cargo pgrx init --pg%{pg_ver} /usr/pgsql-%{pg_ver}/bin/pg_config
@@ -98,8 +113,15 @@ rm -rf target
 
 %files
 %if 0%{?el8} || 0%{?el9}
+
+%if 0%{?pg_ver} < 17
 /usr/lib64/pgsql
 /usr/share/pgsql/extension
+%else
+/usr/pgsql-%{pg_ver}/lib
+/usr/pgsql-%{pg_ver}/share/extension
+%endif
+
 %endif
 
 %if 0%{?redos}
