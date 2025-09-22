@@ -2,7 +2,9 @@ use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 
 use pgrx::{PgTryBuilder, Spi};
 
-use crate::constants::{DEFAULT_NATS_CAPACITY, DEFAULT_NATS_HOST, DEFAULT_NATS_PORT};
+use crate::constants::{
+    DEFAULT_NATS_CAPACITY, DEFAULT_NATS_HOST, DEFAULT_NATS_PORT, DEFAULT_NOTIFY_SUBJECT,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
@@ -30,7 +32,7 @@ pub struct NatsConnectionOptions {
 #[cfg_attr(feature = "sub", derive(bincode::Encode, bincode::Decode))]
 pub struct Config {
     pub nats_opt: NatsConnectionOptions,
-    pub notify_subject: Option<String>,
+    pub notify_subject: String,
     pub patroni_url: Option<String>,
 }
 
@@ -125,7 +127,10 @@ pub fn parse_config(options: &HashMap<Cow<'_, str>, Cow<'_, str>>) -> Config {
         None
     };
 
-    let notify_subject = options.get("notify_subject").map(|v| v.to_string());
+    let notify_subject = options
+        .get("notify_subject")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| DEFAULT_NOTIFY_SUBJECT.to_string());
 
     let patroni_url = options.get("patroni_url").map(|v| v.to_string());
 
