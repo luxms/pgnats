@@ -3,7 +3,6 @@
 Provides seamless integration between PostgreSQL and NATS messaging system,
 enabling:
 
-Provides bi-directional integration from PostgreSQL to NATS, supporting:
 - Message publishing to core NATS subjects from SQL
 - Subscriptions to NATS subjects that invoke PostgreSQL functions on incoming messages
 - JetStream persistent message streams
