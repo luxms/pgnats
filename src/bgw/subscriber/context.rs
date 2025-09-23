@@ -125,11 +125,6 @@ impl SubscriberContext {
         let config = &self.config;
         let status = self.status;
 
-        let notify_subject = config
-            .notify_subject
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("notify_subject is not set in config"))?;
-
         let notification = BackgroundWorker::transaction(|| {
             PgInstanceNotification::new(status, config.patroni_url.as_deref())
         })
@@ -140,7 +135,10 @@ impl SubscriberContext {
         })?;
 
         self.rt
-            .block_on(self.nats.publish(notify_subject.clone(), notification))
+            .block_on(
+                self.nats
+                    .publish(config.notify_subject.clone(), notification),
+            )
             .map_err(|err| anyhow::anyhow!("Failed to publish notification to NATS: {}", err))
     }
 }
