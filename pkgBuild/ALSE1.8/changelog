@@ -1,4 +1,4 @@
-pgsql-nats (10.0.0-1) stable; urgency=medium
+pgsql-nats (1.0.0) stable; urgency=medium
 
   * Initial release
 
