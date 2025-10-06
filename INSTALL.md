@@ -8,7 +8,7 @@
 
 ## Prerequisite
 
-1. Install [rust](https://www.rust-lang.org/tools/install) >= 1.81.0
+1. Install [rust](https://www.rust-lang.org/tools/install) >= 1.88.0
 2. Install prerequisites for [pgrx](https://github.com/pgcentralfoundation/pgrx?tab=readme-ov-file#system-requirements)
 
 ## Linux
@@ -22,8 +22,7 @@ cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
 # 2. Initialize pgrx
 cargo pgrx init
 
-# 3. Clone repo
-git clone https://github.com/luxms/pgnats -b pgpro
+# 3. Clone this repo
 ```
 
 > [!WARNING]
@@ -43,8 +42,7 @@ cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
 # 2. Initialize pgrx
 cargo pgrx init [-pg<POSTGRES_VERSION> <path to pg_config>]
 
-# 3. Clone repo
-git clone https://github.com/luxms/pgnats
+# 3. Clone this repo
 ```
 
 #### PostgresPro Std. / Ent.
@@ -61,8 +59,7 @@ cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
 # 2. Initialize pgrx
 cargo pgrx init -pg<POSTGRES_VERSION> <path to pg_config>
 
-# 3. Clone repo
-git clone https://github.com/luxms/pgnats -b pgpro
+# 3. Clone this repo
 ```
 
 ## Windows
@@ -74,6 +71,5 @@ cargo install cargo-pgrx --git https://github.com/luxms/pgrx --locked
 # 2. Initialize pgrx
 cargo pgrx init [-pg<POSTGRES_VERSION> <path to pg_config>]
 
-# 3. Clone repo
-git clone https://github.com/luxms/pgnats
+# 3. Clone this repo
 ```
