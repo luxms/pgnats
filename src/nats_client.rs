@@ -281,12 +281,17 @@ impl NatsClient {
         if !self.cached_buckets.contains_key(&bucket) {
             let new_store = {
                 let jetstream = self.get_jetstream().await?;
-                jetstream
-                    .create_key_value(async_nats::jetstream::kv::Config {
-                        bucket: bucket.clone(),
-                        ..Default::default()
-                    })
-                    .await?
+
+                if let Ok(store) = jetstream.get_key_value(&bucket).await {
+                    store
+                } else {
+                    jetstream
+                        .create_key_value(async_nats::jetstream::kv::Config {
+                            bucket: bucket.clone(),
+                            ..Default::default()
+                        })
+                        .await?
+                }
             };
 
             let _ = self.cached_buckets.insert(bucket.clone(), new_store);
@@ -307,12 +312,17 @@ impl NatsClient {
         if !self.cached_object_stores.contains_key(&bucket) {
             let new_store = {
                 let jetstream = self.get_jetstream().await?;
-                jetstream
-                    .create_object_store(async_nats::jetstream::object_store::Config {
-                        bucket: bucket.clone(),
-                        ..Default::default()
-                    })
-                    .await?
+
+                if let Ok(store) = jetstream.get_object_store(&bucket).await {
+                    store
+                } else {
+                    jetstream
+                        .create_object_store(async_nats::jetstream::object_store::Config {
+                            bucket: bucket.clone(),
+                            ..Default::default()
+                        })
+                        .await?
+                }
             };
 
             let _ = self.cached_object_stores.insert(bucket.clone(), new_store);
