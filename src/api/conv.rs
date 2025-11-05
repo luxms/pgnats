@@ -1,9 +1,8 @@
-use async_nats::ServerInfo;
 use pgrx::name;
 
 #[allow(clippy::type_complexity)]
 pub fn map_server_info(
-    v: impl IntoIterator<Item = ServerInfo> + 'static,
+    v: impl IntoIterator<Item = async_nats::ServerInfo> + 'static,
 ) -> pgrx::iter::TableIterator<
     'static,
     (
@@ -19,7 +18,7 @@ pub fn map_server_info(
         name!(client_id, i64),
         name!(go, String),
         name!(nonce, String),
-        name!(connect_urls, pgrx::Json),
+        name!(connect_urls, pgrx::JsonB),
         name!(client_ip, String),
         name!(headers, bool),
         name!(lame_duck_mode, bool),
@@ -39,7 +38,7 @@ pub fn map_server_info(
             v.client_id as _,
             v.go,
             v.nonce,
-            pgrx::Json(serde_json::to_value(v.connect_urls).expect("Must generate value")),
+            pgrx::JsonB(serde_json::to_value(v.connect_urls).expect("Must generate value")),
             v.client_ip,
             v.headers,
             v.lame_duck_mode,
@@ -56,7 +55,9 @@ pub fn map_object_info(
     (
         name!(name, String),
         name!(description, Option<String>),
-        name!(metadata, pgrx::Json),
+        name!(metadata, pgrx::JsonB),
+        name!(headers, Option<pgrx::JsonB>),
+        name!(options, Option<pgrx::JsonB>),
         name!(bucket, String),
         name!(nuid, String),
         name!(size, i64),
@@ -70,7 +71,15 @@ pub fn map_object_info(
         (
             v.name,
             v.description,
-            pgrx::Json(serde_json::to_value(v.metadata).expect("Must generate value")),
+            pgrx::JsonB(serde_json::to_value(v.metadata).expect("Must generate value from meta")),
+            v.headers.map(|headers| {
+                pgrx::JsonB(
+                    serde_json::to_value(headers).expect("Must generate value from headers"),
+                )
+            }),
+            v.options.map(|opt| {
+                pgrx::JsonB(serde_json::to_value(opt).expect("Must generate value from options"))
+            }),
             v.bucket,
             v.nuid,
             v.size as i64,

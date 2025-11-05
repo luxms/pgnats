@@ -343,11 +343,8 @@ impl_nats_get! {
 #[pg_extern]
 pub fn nats_delete_value(bucket: String, key: &str) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt.block_on(async {
-            let res = ctx.nats_connection.delete_value(bucket, key).await;
-            tokio::task::yield_now().await;
-            res
-        })
+        ctx.rt
+            .block_on(ctx.nats_connection.delete_value(bucket, key))
     })
 }
 
@@ -378,7 +375,7 @@ pub fn nats_get_server_info() -> anyhow::Result<
             name!(client_id, i64),
             name!(go, String),
             name!(nonce, String),
-            name!(connect_urls, pgrx::Json),
+            name!(connect_urls, pgrx::JsonB),
             name!(client_ip, String),
             name!(headers, bool),
             name!(lame_duck_mode, bool),
@@ -387,11 +384,7 @@ pub fn nats_get_server_info() -> anyhow::Result<
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
-            .block_on(async {
-                let res = ctx.nats_connection.get_server_info().await;
-                tokio::task::yield_now().await;
-                res
-            })
+            .block_on(ctx.nats_connection.get_server_info())
             .map(|v| map_server_info(std::iter::once(v)))
     })
 }
@@ -412,13 +405,7 @@ pub fn nats_get_server_info() -> anyhow::Result<
 #[pg_extern]
 #[cfg(feature = "object_store")]
 pub fn nats_get_file(store: String, name: &str) -> anyhow::Result<Vec<u8>> {
-    CTX.with_borrow_mut(|ctx| {
-        ctx.rt.block_on(async {
-            let res = ctx.nats_connection.get_file(store, name).await;
-            tokio::task::yield_now().await;
-            res
-        })
-    })
+    CTX.with_borrow_mut(|ctx| ctx.rt.block_on(ctx.nats_connection.get_file(store, name)))
 }
 
 /// Uploads a file to the NATS object store.
@@ -439,11 +426,8 @@ pub fn nats_get_file(store: String, name: &str) -> anyhow::Result<Vec<u8>> {
 #[cfg(feature = "object_store")]
 pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt.block_on(async {
-            let res = ctx.nats_connection.put_file(store, name, content).await;
-            tokio::task::yield_now().await;
-            res
-        })
+        ctx.rt
+            .block_on(ctx.nats_connection.put_file(store, name, content))
     })
 }
 
@@ -464,11 +448,8 @@ pub fn nats_put_file(store: String, name: &str, content: Vec<u8>) -> anyhow::Res
 #[cfg(feature = "object_store")]
 pub fn nats_delete_file(store: String, name: &str) -> anyhow::Result<()> {
     CTX.with_borrow_mut(|ctx| {
-        ctx.rt.block_on(async {
-            let res = ctx.nats_connection.delete_file(store, name).await;
-            tokio::task::yield_now().await;
-            res
-        })
+        ctx.rt
+            .block_on(ctx.nats_connection.delete_file(store, name))
     })
 }
 
@@ -497,7 +478,9 @@ pub fn nats_get_file_info(
         (
             name!(name, String),
             name!(description, Option<String>),
-            name!(metadata, pgrx::Json),
+            name!(metadata, pgrx::JsonB),
+            name!(headers, Option<pgrx::JsonB>),
+            name!(options, Option<pgrx::JsonB>),
             name!(bucket, String),
             name!(nuid, String),
             name!(size, i64),
@@ -510,11 +493,7 @@ pub fn nats_get_file_info(
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
-            .block_on(async {
-                let res = ctx.nats_connection.get_file_info(store, name).await;
-                tokio::task::yield_now().await;
-                res
-            })
+            .block_on(ctx.nats_connection.get_file_info(store, name))
             .map(|v| super::conv::map_object_info(std::iter::once(v)))
     })
 }
@@ -541,7 +520,9 @@ pub fn nats_get_file_list(
         (
             name!(name, String),
             name!(description, Option<String>),
-            name!(metadata, pgrx::Json),
+            name!(metadata, pgrx::JsonB),
+            name!(headers, Option<pgrx::JsonB>),
+            name!(options, Option<pgrx::JsonB>),
             name!(bucket, String),
             name!(nuid, String),
             name!(size, i64),
@@ -554,11 +535,7 @@ pub fn nats_get_file_list(
 > {
     CTX.with_borrow_mut(|ctx| {
         ctx.rt
-            .block_on(async {
-                let res = ctx.nats_connection.get_file_list(store).await;
-                tokio::task::yield_now().await;
-                res
-            })
+            .block_on(ctx.nats_connection.get_file_list(store))
             .map(|v| super::conv::map_object_info(v))
     })
 }
