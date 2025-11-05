@@ -243,9 +243,7 @@ impl NatsClient {
         let mut list = store.list().await?;
 
         while let Some(object) = list.next().await {
-            if let Ok(object) = object {
-                vec.push(object);
-            }
+            vec.push(object?);
         }
 
         Ok(vec)
