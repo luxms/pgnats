@@ -131,18 +131,18 @@ impl NatsConnectionState {
     async fn connect_nats(config: &NatsConnectionOptions) -> anyhow::Result<async_nats::Client> {
         let mut opts = async_nats::ConnectOptions::new().client_capacity(config.capacity);
 
-        if let Some(tls) = &config.tls {
-            if let Ok(root) = std::env::current_dir() {
-                match tls {
-                    NatsTlsOptions::Tls { ca } => {
-                        opts = opts.require_tls(true).add_root_certificates(root.join(ca));
-                    }
-                    NatsTlsOptions::MutualTls { ca, cert, key } => {
-                        opts = opts
-                            .require_tls(true)
-                            .add_root_certificates(root.join(ca))
-                            .add_client_certificate(root.join(cert), root.join(key));
-                    }
+        if let Some(tls) = &config.tls
+            && let Ok(root) = std::env::current_dir()
+        {
+            match tls {
+                NatsTlsOptions::Tls { ca } => {
+                    opts = opts.require_tls(true).add_root_certificates(root.join(ca));
+                }
+                NatsTlsOptions::MutualTls { ca, cert, key } => {
+                    opts = opts
+                        .require_tls(true)
+                        .add_root_certificates(root.join(ca))
+                        .add_client_certificate(root.join(cert), root.join(key));
                 }
             }
         }

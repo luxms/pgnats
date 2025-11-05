@@ -43,14 +43,12 @@ impl LauncherContext {
             send_subscriber_message(&mut entry.sender, SubscriberMessage::NewConfig { config })?;
 
             Ok(None)
-        } else {
-            if !self.pending_workers.contains_key(&db_oid) {
-                let db_name = self.start_subscribe_worker(db_oid, entry_point)?;
+        } else if !self.pending_workers.contains_key(&db_oid) {
+            let db_name = self.start_subscribe_worker(db_oid, entry_point)?;
 
-                Ok(Some(db_name))
-            } else {
-                Ok(None)
-            }
+            Ok(Some(db_name))
+        } else {
+            Ok(None)
         }
     }
 
