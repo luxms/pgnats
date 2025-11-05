@@ -14,7 +14,7 @@ pub struct Context {
 fn create_context() -> Context {
     Context {
         nats_connection: NatsClient::new(None, || fetch_config(FDW_EXTENSION_NAME)),
-        rt: tokio::runtime::Builder::new_current_thread()
+        rt: tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .expect("Failed to initialize Tokio runtime"),
