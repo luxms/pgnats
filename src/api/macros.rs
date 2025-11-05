@@ -39,11 +39,7 @@ macro_rules! impl_nats_request {
             $(#[$attr])*
                 pub fn [<nats_request_ $suffix>](subject: &str, payload: $ty, timeout: Option<i32>) -> anyhow::Result<Vec<u8>> {
                 CTX.with_borrow_mut(|ctx| {
-                    ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.request(subject, payload, timeout.and_then(|x| x.try_into().ok())).await;
-                        tokio::task::yield_now().await;
-                        res
-                    })
+                    ctx.rt.block_on(ctx.nats_connection.request(subject, payload, timeout.and_then(|x| x.try_into().ok())))
                 })
             }
         }
@@ -60,11 +56,7 @@ macro_rules! impl_nats_put {
             $(#[$attr])*
                 pub fn [<nats_put_ $suffix>](bucket: String, key: &str, data: $ty) -> anyhow::Result<i64> {
                 CTX.with_borrow_mut(|ctx| {
-                    ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.put_value(bucket, key, data).await;
-                        tokio::task::yield_now().await;
-                        res
-                    })
+                    ctx.rt.block_on(ctx.nats_connection.put_value(bucket, key, data))
                     .map(|v| v.try_into().unwrap_or(i64::MAX))
                 })
             }
@@ -82,11 +74,7 @@ macro_rules! impl_nats_get {
             $(#[$attr])*
             pub fn [<nats_get_ $suffix>](bucket: String, key: &str) -> anyhow::Result<Option<$ret>> {
                 CTX.with_borrow_mut(|ctx| {
-                    ctx.rt.block_on(async {
-                        let res = ctx.nats_connection.get_value(bucket, key).await;
-                        tokio::task::yield_now().await;
-                        res
-                    })
+                    ctx.rt.block_on(ctx.nats_connection.get_value(bucket, key))
                 })
             }
         }
