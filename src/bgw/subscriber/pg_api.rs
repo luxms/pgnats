@@ -101,7 +101,7 @@ pub fn delete_subject_callback(
 pub fn call_function(callback: &str, data: &[u8]) -> anyhow::Result<()> {
     if !callback
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
     {
         return Err(anyhow::anyhow!("Invalid callback function name"));
     }
