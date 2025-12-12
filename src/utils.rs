@@ -1,7 +1,31 @@
 use std::ffi::CStr;
 
 use crate::bgw::pgrx_wrappers::dsm::DsmHandle;
+
+use anyhow::Ok;
 use pgrx::pg_sys as sys;
+
+struct SysHeapTuple {
+    inner: *mut sys::HeapTupleData,
+}
+
+impl SysHeapTuple {
+    pub fn from_raw(tuple: *mut sys::HeapTupleData) -> Option<Self> {
+        if tuple.is_null() {
+            None
+        } else {
+            Some(Self { inner: tuple })
+        }
+    }
+}
+
+impl Drop for SysHeapTuple {
+    fn drop(&mut self) {
+        unsafe {
+            sys::ReleaseSysCache(self.inner);
+        }
+    }
+}
 
 pub trait FromBytes: Sized {
     fn from_bytes(bytes: Vec<u8>) -> anyhow::Result<Self>;
@@ -125,4 +149,57 @@ pub fn is_extension_installed(name: &str) -> bool {
         let result = client.select(query, None, &[name.into()]);
         result.is_ok_and(|tuple| !tuple.is_empty())
     })
+}
+
+pub fn resolve_bytea_name(func_oid: sys::Oid) -> anyhow::Result<Option<String>> {
+    unsafe {
+        let schema_oid = sys::get_func_namespace(func_oid);
+        let schema_name = sys::get_namespace_name(schema_oid);
+        let fn_name = sys::get_func_name(func_oid);
+
+        if fn_name.is_null() {
+            return Ok(None);
+        }
+
+        let tuple = sys::SearchSysCache(
+            sys::SysCacheIdentifier::PROCOID as i32,
+            func_oid.into(),
+            0.into(),
+            0.into(),
+            0.into(),
+        );
+
+        let Some(tuple) = SysHeapTuple::from_raw(tuple) else {
+            return Ok(None);
+        };
+
+        let mut p_argtypes: *mut sys::Oid = std::ptr::null_mut();
+        let mut p_argnames: *mut *mut std::os::raw::c_char = std::ptr::null_mut();
+        let mut p_argmodes: *mut std::os::raw::c_char = std::ptr::null_mut();
+
+        let num_args = sys::get_func_arg_info(
+            tuple.inner,
+            &mut p_argtypes,
+            &mut p_argnames,
+            &mut p_argmodes,
+        );
+
+        anyhow::ensure!(num_args == 1, "Argument count must be 1");
+        anyhow::ensure!(!p_argtypes.is_null(), "Postgres internal error");
+        anyhow::ensure!(*p_argtypes == sys::BYTEAOID, "Argument type must be bytea");
+
+        let fn_name = CStr::from_ptr(fn_name).to_string_lossy().to_string();
+
+        let schema_name = if !schema_name.is_null() {
+            Some(CStr::from_ptr(schema_name).to_string_lossy().to_string())
+        } else {
+            None
+        };
+
+        if let Some(schema_name) = schema_name {
+            Ok(Some(format!("{schema_name}.{fn_name}")))
+        } else {
+            Ok(Some(fn_name))
+        }
+    }
 }

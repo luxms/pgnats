@@ -1,7 +1,9 @@
+#[cfg(feature = "sub")]
+use pgrx::pg_sys;
 use pgrx::{name, pg_extern};
 
 use super::conv::map_server_info;
-use crate::{ctx::CTX, impl_nats_publish, impl_nats_request};
+use crate::{ctx::CTX, impl_nats_publish, impl_nats_request, utils::resolve_bytea_name};
 
 #[cfg(feature = "kv")]
 use crate::{impl_nats_get, impl_nats_put};
@@ -563,10 +565,13 @@ pub fn nats_get_file_list(
 /// which will contain the message payload received from NATS.
 #[pg_extern]
 #[cfg(feature = "sub")]
-pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
+pub fn nats_subscribe(subject: String, fn_oid: pg_sys::Oid) -> anyhow::Result<()> {
     if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
         anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
+
+    let fn_name = resolve_bytea_name(fn_oid)?
+        .ok_or_else(|| anyhow::anyhow!("Failed to get function name"))?;
 
     crate::bgw::launcher::send_message_to_launcher_with_retry(
         &crate::bgw::LAUNCHER_MESSAGE_BUS,
@@ -598,10 +603,13 @@ pub fn nats_subscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
 /// ```
 #[pg_extern]
 #[cfg(feature = "sub")]
-pub fn nats_unsubscribe(subject: String, fn_name: String) -> anyhow::Result<()> {
+pub fn nats_unsubscribe(subject: String, fn_oid: pg_sys::Oid) -> anyhow::Result<()> {
     if unsafe { pgrx::pg_sys::RecoveryInProgress() } {
         anyhow::bail!("Subscriptions are not allowed in replica mode");
     }
+
+    let fn_name = resolve_bytea_name(fn_oid)?
+        .ok_or_else(|| anyhow::anyhow!("Failed to get function name"))?;
 
     crate::bgw::launcher::send_message_to_launcher_with_retry(
         &crate::bgw::LAUNCHER_MESSAGE_BUS,
