@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::BTreeSet, path::PathBuf};
 
 fn main() {
     #[cfg(all(target_family = "unix", feature = "pg_test"))]
@@ -34,4 +34,23 @@ fn main() {
     std::fs::write(&version_file, pgrx_version).expect("Failed to write .cargo-pgrx-version file");
 
     println!("cargo:rerun-if-changed={}", cargo_toml_path.display());
+
+    shadow_rs::ShadowBuilder::builder()
+        .deny_const(BTreeSet::from_iter([
+            shadow_rs::BUILD_OS,
+            shadow_rs::CARGO_METADATA,
+            shadow_rs::CARGO_TREE,
+            shadow_rs::CARGO_CLIPPY_ALLOW_ALL,
+            shadow_rs::CARGO_MANIFEST_DIR,
+            shadow_rs::CARGO_VERSION,
+            shadow_rs::BUILD_TARGET,
+            shadow_rs::BUILD_TARGET_ARCH,
+            shadow_rs::PKG_DESCRIPTION,
+            shadow_rs::PKG_VERSION_MAJOR,
+            shadow_rs::PKG_VERSION_MINOR,
+            shadow_rs::PKG_VERSION_PATCH,
+            shadow_rs::PKG_VERSION_PRE,
+        ]))
+        .build()
+        .expect("Failed to fetch crate info");
 }

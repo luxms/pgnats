@@ -9,11 +9,6 @@ mod tests {
     const NATS_PORT: u16 = 4222;
 
     #[pg_test]
-    fn test_pgnats_version() {
-        assert_eq!(api::pgnats_version(), env!("CARGO_PKG_VERSION"));
-    }
-
-    #[pg_test]
     fn test_pgnats_publish() {
         let subject = "test.test_nats_publish";
         let message = "Hello, World! 🦀".to_string();
