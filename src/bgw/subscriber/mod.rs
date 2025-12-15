@@ -319,7 +319,7 @@ fn handle_internal_message(
 
             if register {
                 if let Err(error) = BackgroundWorker::transaction(|| {
-                    insert_subject_callback(subscriptions_table_name, &subject, fn_oid, &fn_name)
+                    insert_subject_callback(subscriptions_table_name, &subject, fn_oid)
                 }) {
                     warn!(
                         context = db_name,
@@ -349,7 +349,7 @@ fn handle_internal_message(
             );
 
             if let Err(error) = BackgroundWorker::transaction(|| {
-                delete_subject_callback(subscriptions_table_name, &subject, fn_oid, &fn_name)
+                delete_subject_callback(subscriptions_table_name, &subject, fn_oid)
             }) {
                 warn!(
                     context = db_name,

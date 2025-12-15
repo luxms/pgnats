@@ -28,8 +28,7 @@ extension_sql!(
     CREATE TABLE IF NOT EXISTS pgnats.subscriptions (
         subject TEXT NOT NULL,
         fn_oid OID NOT NULL,
-        callback TEXT NOT NULL,
-        UNIQUE(subject, callback)
+        UNIQUE(subject, fn_oid)
     );
     "#,
     name = "create_subscriptions_table",

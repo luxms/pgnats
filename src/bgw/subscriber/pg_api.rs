@@ -23,22 +23,19 @@ pub fn fetch_status() -> PgInstanceStatus {
 
 pub fn fetch_subject_with_callbacks(
     table_name: &str,
-) -> anyhow::Result<Vec<(String, pg_sys::Oid, String)>> {
+) -> anyhow::Result<Vec<(String, pg_sys::Oid)>> {
     PgTryBuilder::new(|| {
         Spi::connect_mut(|client| {
-            let sql = format!("SELECT subject, fn_oid, callback FROM {table_name}");
+            let sql = format!("SELECT subject, fn_oid FROM {table_name}");
             let tuples = client.select(&sql, None, &[])?;
-            let subject_callbacks: Vec<(String, pg_sys::Oid, String)> = tuples
+            let subject_callbacks: Vec<(String, pg_sys::Oid)> = tuples
                 .into_iter()
                 .filter_map(|tuple| {
                     let subject = tuple.get_by_name::<String, _>("subject");
                     let fn_oid = tuple.get_by_name::<pg_sys::Oid, _>("fn_oid");
-                    let callback = tuple.get_by_name::<String, _>("callback");
 
-                    match (subject, fn_oid, callback) {
-                        (Ok(Some(subject)), Ok(Some(fn_oid)), Ok(Some(callback))) => {
-                            Some((subject, fn_oid, callback))
-                        }
+                    match (subject, fn_oid) {
+                        (Ok(Some(subject)), Ok(Some(fn_oid))) => Some((subject, fn_oid)),
                         _ => None,
                     }
                 })
@@ -63,16 +60,11 @@ pub fn insert_subject_callback(
     table_name: &str,
     subject: &str,
     fn_oid: pg_sys::Oid,
-    callback: &str,
 ) -> anyhow::Result<()> {
     PgTryBuilder::new(|| {
         Spi::connect_mut(|client| {
-            let sql = format!("INSERT INTO {table_name} VALUES ($1, $2, $3)");
-            let _ = client.update(
-                &sql,
-                None,
-                &[subject.into(), fn_oid.into(), callback.into()],
-            )?;
+            let sql = format!("INSERT INTO {table_name} VALUES ($1, $2)");
+            let _ = client.update(&sql, None, &[subject.into(), fn_oid.into()])?;
 
             Ok(())
         })
@@ -92,13 +84,12 @@ pub fn insert_subject_callback(
 pub fn delete_subject_callback(
     table_name: &str,
     subject: &str,
-    _fn_oid: pg_sys::Oid,
-    callback: &str,
+    fn_oid: pg_sys::Oid,
 ) -> anyhow::Result<()> {
     PgTryBuilder::new(|| {
         Spi::connect_mut(|client| {
-            let sql = format!("DELETE FROM {table_name} WHERE subject = $1 AND callback = $2",);
-            let _ = client.update(&sql, None, &[subject.into(), callback.into()])?;
+            let sql = format!("DELETE FROM {table_name} WHERE subject = $1 AND fn_oid = $2",);
+            let _ = client.update(&sql, None, &[subject.into(), fn_oid.into()])?;
 
             Ok(())
         })
