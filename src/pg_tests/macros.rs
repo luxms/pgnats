@@ -68,7 +68,7 @@ macro_rules! generate_test_background_worker {
             pgrx::extension_sql!(
                 $sql,
                 name = $sql_ext_name,
-                requires = [[<pgnats_fdw_validator_test_ $n>]]
+                requires = [[<pgnats_fdw_validator_test_ $n>], [<test_ $n _fn>]]
             );
 
             #[pgrx::pg_extern]

@@ -35,8 +35,8 @@ mod tests_items {
         r#"
         CREATE TABLE test_subscription_table_1 (
             subject TEXT NOT NULL,
-            callback TEXT NOT NULL,
-            UNIQUE(subject, callback)
+            fn_oid OID NOT NULL,
+            UNIQUE(subject, fn_oid)
         );
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_1;
         CREATE SERVER test_background_worker_sub_call_unsub_call FOREIGN DATA WRAPPER pgnats_fdw_test_1 OPTIONS (host 'localhost', port '4222');
@@ -51,13 +51,12 @@ mod tests_items {
         r#"
         CREATE TABLE test_subscription_table_2 (
             subject TEXT NOT NULL,
-            callback TEXT NOT NULL,
-            UNIQUE(subject, callback)
+            fn_oid OID NOT NULL,
+            UNIQUE(subject, fn_oid)
         );
 
-        INSERT INTO test_subscription_table_2 (subject, callback) VALUES
-            ('test_background_worker_restore_after_restart', 'test_2_fn'),
-            ('test_background_worker_restore_after_restart', 'example_fn_2')
+        INSERT INTO test_subscription_table_2 (subject, fn_oid) VALUES
+            ('test_background_worker_restore_after_restart', 'public.test_2_fn'::regproc)
         ;
 
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_2;
@@ -73,8 +72,8 @@ mod tests_items {
         r#"
         CREATE TABLE test_subscription_table_3 (
             subject TEXT NOT NULL,
-            callback TEXT NOT NULL,
-            UNIQUE(subject, callback)
+            fn_oid OID NOT NULL,
+            UNIQUE(subject, fn_oid)
         );
 
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_3 VALIDATOR pgnats_fdw_validator_test_3;
@@ -90,8 +89,8 @@ mod tests_items {
         r#"
         CREATE TABLE test_subscription_table_4 (
             subject TEXT NOT NULL,
-            callback TEXT NOT NULL,
-            UNIQUE(subject, callback)
+            fn_oid OID NOT NULL,
+            UNIQUE(subject, fn_oid)
         );
 
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_4 VALIDATOR pgnats_fdw_validator_test_4;
@@ -107,8 +106,8 @@ mod tests_items {
         r#"
         CREATE TABLE test_subscription_table_5 (
             subject TEXT NOT NULL,
-            callback TEXT NOT NULL,
-            UNIQUE(subject, callback)
+            fn_oid OID NOT NULL,
+            UNIQUE(subject, fn_oid)
         );
 
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_5 VALIDATOR pgnats_fdw_validator_test_5;
@@ -124,8 +123,8 @@ mod tests_items {
         r#"
         CREATE TABLE test_subscription_table_6 (
             subject TEXT NOT NULL,
-            callback TEXT NOT NULL,
-            UNIQUE(subject, callback)
+            fn_oid OID NOT NULL,
+            UNIQUE(subject, fn_oid)
         );
 
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_6 VALIDATOR pgnats_fdw_validator_test_6;
@@ -151,7 +150,7 @@ pub(super) mod tests {
             subscriber::pg_api::PgInstanceStatus,
         },
         constants::EXTENSION_NAME,
-        pg_tests::bgw_tests::tests_items::*,
+        pg_tests::{bgw_tests::tests_items::*, get_function_oid},
     };
 
     #[pg_test]
@@ -176,8 +175,11 @@ pub(super) mod tests {
 
         std::thread::sleep(std::time::Duration::from_secs(3));
 
+        let fn_oid = get_function_oid(&format!("public.{fn_name}")).unwrap();
+
         pgnats_subscribe(
             subject.to_string(),
+            fn_oid,
             fn_name.to_string(),
             &LAUNCHER_MESSAGE_BUS1,
         );
@@ -192,6 +194,7 @@ pub(super) mod tests {
 
         pgnats_unsubscribe(
             subject.to_string(),
+            fn_oid,
             fn_name.to_string(),
             &LAUNCHER_MESSAGE_BUS1,
         );
@@ -259,8 +262,11 @@ pub(super) mod tests {
         let _ = worker.wait_for_startup().unwrap();
         std::thread::sleep(std::time::Duration::from_secs(3));
 
+        let fn_oid = get_function_oid(&format!("public.{fn_name}")).unwrap();
+
         pgnats_subscribe(
             subject.to_string(),
+            fn_oid,
             fn_name.to_string(),
             &LAUNCHER_MESSAGE_BUS3,
         );
@@ -404,8 +410,11 @@ pub(super) mod tests {
         let _ = worker.wait_for_startup().unwrap();
         std::thread::sleep(std::time::Duration::from_secs(3));
 
+        let fn_oid = get_function_oid(&format!("public.{fn_name}")).unwrap();
+
         pgnats_subscribe(
             subject.to_string(),
+            fn_oid,
             fn_name.to_string(),
             &LAUNCHER_MESSAGE_BUS5,
         );
@@ -453,8 +462,11 @@ pub(super) mod tests {
         let _ = worker.wait_for_startup().unwrap();
         std::thread::sleep(std::time::Duration::from_secs(3));
 
+        let fn_oid = get_function_oid(&format!("public.{fn_name}")).unwrap();
+
         pgnats_subscribe(
             subject.to_string(),
+            fn_oid,
             fn_name.to_string(),
             &LAUNCHER_MESSAGE_BUS6,
         );
@@ -493,6 +505,7 @@ pub(super) mod tests {
 
     fn pgnats_subscribe<const N: usize>(
         subject: String,
+        fn_oid: u32,
         fn_name: String,
         queue: &PgLwLock<RingQueue<N>>,
     ) {
@@ -501,7 +514,7 @@ pub(super) mod tests {
             crate::bgw::launcher::message::LauncherMessage::Subscribe {
                 db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
                 subject,
-                fn_oid: 1,
+                fn_oid,
                 fn_name,
             },
             5,
@@ -527,6 +540,7 @@ pub(super) mod tests {
 
     fn pgnats_unsubscribe<const N: usize>(
         subject: String,
+        fn_oid: u32,
         fn_name: String,
         queue: &PgLwLock<RingQueue<N>>,
     ) {
@@ -535,7 +549,7 @@ pub(super) mod tests {
             crate::bgw::launcher::message::LauncherMessage::Unsubscribe {
                 db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
                 subject,
-                fn_oid: 1,
+                fn_oid,
                 fn_name,
             },
             5,
