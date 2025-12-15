@@ -549,15 +549,15 @@ pub fn nats_get_file_list(
 ///
 /// # Arguments
 /// * `subject` - The NATS subject to subscribe to (e.g., "events.user.created")
-/// * `fn_name` - The name of the PostgreSQL function to invoke when a message is received
+/// * `fn_oid` - The OID of the PostgreSQL function to invoke when a message is received
 ///
 /// # Returns
 /// * `Ok(())` - If the subscription request was successfully sent
 ///
 /// # SQL Usage
 /// ```sql
-/// SELECT nats_subscribe('events.user.created', 'handle_user_created');
-/// SELECT nats_subscribe('events.user.created', 'log_user_created');
+/// SELECT nats_subscribe('events.user.created', 'schema.handle_user_created'::regproc);
+/// SELECT nats_subscribe('events.user.created', 'schema.log_user_created'::regproc);
 /// ```
 ///
 /// # Warning
@@ -593,14 +593,14 @@ pub fn nats_subscribe(subject: String, fn_oid: pg_sys::Oid) -> anyhow::Result<()
 ///
 /// # Arguments
 /// * `subject` - The NATS subject to unsubscribe from
-/// * `fn_name` - The name of the previously registered PostgreSQL function
+/// * `fn_oid` - The OID of the previously registered PostgreSQL function
 ///
 /// # Returns
 /// * `Ok(())` - If the unsubscription request was successfully sent
 ///
 /// # SQL Usage
 /// ```sql
-/// SELECT nats_unsubscribe('events.user.created', 'handle_user_created');
+/// SELECT nats_unsubscribe('events.user.created', 'schema.handle_user_created'::regproc);
 /// ```
 #[pg_extern]
 #[cfg(feature = "sub")]
