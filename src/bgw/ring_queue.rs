@@ -33,6 +33,7 @@ impl<const CAPACITY: usize> Default for RingQueue<CAPACITY> {
 }
 
 impl<const CAPACITY: usize> RingQueue<CAPACITY> {
+    #[allow(clippy::result_unit_err)]
     pub fn try_send(&mut self, msg: &[u8]) -> Result<(), ()> {
         if self.is_full {
             return Err(());
