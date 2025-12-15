@@ -7,7 +7,7 @@ use crate::{
         notification::PgInstanceNotification,
         subscriber::{
             InternalWorkerMessage, NatsConnectionState,
-            pg_api::{PgInstanceStatus, fetch_status, fetch_subject_with_callbacks},
+            pg_api::{CallError, PgInstanceStatus, fetch_status, fetch_subject_with_callbacks},
         },
     },
     config::Config,
@@ -85,10 +85,11 @@ impl SubscriberContext {
             fetch_subject_with_callbacks(subscriptions_table_name)
         })?;
 
-        for (subject, fn_name) in subs {
+        for (subject, fn_oid, fn_name) in subs {
             let _ = self.sender.send(InternalWorkerMessage::Subscribe {
                 register: false,
                 subject,
+                fn_oid,
                 fn_name,
             });
         }
@@ -117,8 +118,14 @@ impl SubscriberContext {
         self.nats.unsubscribe_subject(subject);
     }
 
-    pub fn handle_callback(&self, subject: &str, data: Arc<[u8]>, callback: impl Fn(&str, &[u8])) {
-        self.nats.run_callbacks(subject, data, callback);
+    pub fn handle_callback(
+        &mut self,
+        subject: &str,
+        data: Arc<[u8]>,
+        db_name: &str,
+        callback: impl Fn(&str, &[u8]) -> Result<(), CallError>,
+    ) {
+        self.nats.run_callbacks(subject, db_name, data, callback);
     }
 
     pub fn send_notification(&self) -> anyhow::Result<()> {

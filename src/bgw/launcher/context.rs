@@ -56,12 +56,17 @@ impl LauncherContext {
         &mut self,
         db_oid: u32,
         subject: String,
+        fn_oid: u32,
         fn_name: String,
     ) -> anyhow::Result<()> {
         if let Some(entry) = self.workers.get_mut(&db_oid) {
             send_subscriber_message(
                 &mut entry.sender,
-                SubscriberMessage::Subscribe { subject, fn_name },
+                SubscriberMessage::Subscribe {
+                    subject,
+                    fn_oid,
+                    fn_name,
+                },
             )?;
         }
 
@@ -72,12 +77,17 @@ impl LauncherContext {
         &mut self,
         db_oid: u32,
         subject: String,
+        fn_oid: u32,
         fn_name: String,
     ) -> anyhow::Result<()> {
         if let Some(entry) = self.workers.get_mut(&db_oid) {
             send_subscriber_message(
                 &mut entry.sender,
-                SubscriberMessage::Unsubscribe { subject, fn_name },
+                SubscriberMessage::Unsubscribe {
+                    subject,
+                    fn_oid,
+                    fn_name,
+                },
             )?;
         }
 

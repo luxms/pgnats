@@ -501,6 +501,7 @@ pub(super) mod tests {
             crate::bgw::launcher::message::LauncherMessage::Subscribe {
                 db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
                 subject,
+                fn_oid: 1,
                 fn_name,
             },
             5,
@@ -534,6 +535,7 @@ pub(super) mod tests {
             crate::bgw::launcher::message::LauncherMessage::Unsubscribe {
                 db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
                 subject,
+                fn_oid: 1,
                 fn_name,
             },
             5,

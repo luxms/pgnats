@@ -578,6 +578,7 @@ pub fn nats_subscribe(subject: String, fn_oid: pg_sys::Oid) -> anyhow::Result<()
         crate::bgw::launcher::message::LauncherMessage::Subscribe {
             db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
             subject,
+            fn_oid: fn_oid.to_u32(),
             fn_name,
         },
         5,
@@ -616,6 +617,7 @@ pub fn nats_unsubscribe(subject: String, fn_oid: pg_sys::Oid) -> anyhow::Result<
         crate::bgw::launcher::message::LauncherMessage::Unsubscribe {
             db_oid: unsafe { pgrx::pg_sys::MyDatabaseId }.to_u32(),
             subject,
+            fn_oid: fn_oid.to_u32(),
             fn_name,
         },
         5,

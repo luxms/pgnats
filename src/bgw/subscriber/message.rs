@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bincode::{Decode, Encode};
+use pgrx::pg_sys;
 
 use crate::config::Config;
 
@@ -11,10 +12,12 @@ pub enum SubscriberMessage {
     },
     Subscribe {
         subject: String,
+        fn_oid: u32,
         fn_name: String,
     },
     Unsubscribe {
         subject: String,
+        fn_oid: u32,
         fn_name: String,
     },
     #[cfg(any(test, feature = "pg_test"))]
@@ -27,10 +30,12 @@ pub(super) enum InternalWorkerMessage {
     Subscribe {
         register: bool,
         subject: String,
+        fn_oid: pg_sys::Oid,
         fn_name: String,
     },
     Unsubscribe {
         subject: Arc<str>,
+        fn_oid: pg_sys::Oid,
         fn_name: Arc<str>,
     },
     CallbackCall {

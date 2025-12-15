@@ -255,7 +255,11 @@ fn handle_message_from_shared_queue(
                 );
             }
         }
-        SubscriberMessage::Subscribe { subject, fn_name } => {
+        SubscriberMessage::Subscribe {
+            subject,
+            fn_oid,
+            fn_name,
+        } => {
             debug!(
                 context = db_name,
                 "Handling Subscribe for subject '{}', fn '{}'", subject, fn_name
@@ -264,10 +268,15 @@ fn handle_message_from_shared_queue(
             let _ = sender.send(InternalWorkerMessage::Subscribe {
                 register: true,
                 subject: subject.to_string(),
+                fn_oid: sys::Oid::from(fn_oid),
                 fn_name: fn_name.to_string(),
             });
         }
-        SubscriberMessage::Unsubscribe { subject, fn_name } => {
+        SubscriberMessage::Unsubscribe {
+            subject,
+            fn_oid,
+            fn_name,
+        } => {
             debug!(
                 context = db_name,
                 "Handling Unsubscribe for subject '{}', fn '{}'", subject, fn_name
@@ -275,6 +284,7 @@ fn handle_message_from_shared_queue(
 
             let _ = sender.send(InternalWorkerMessage::Unsubscribe {
                 subject: Arc::from(subject.as_str()),
+                fn_oid: sys::Oid::from(fn_oid),
                 fn_name: Arc::from(fn_name.as_str()),
             });
         }
@@ -299,6 +309,7 @@ fn handle_internal_message(
         InternalWorkerMessage::Subscribe {
             register,
             subject,
+            fn_oid,
             fn_name,
         } => {
             debug!(
@@ -308,7 +319,7 @@ fn handle_internal_message(
 
             if register {
                 if let Err(error) = BackgroundWorker::transaction(|| {
-                    insert_subject_callback(subscriptions_table_name, &subject, &fn_name)
+                    insert_subject_callback(subscriptions_table_name, &subject, fn_oid, &fn_name)
                 }) {
                     warn!(
                         context = db_name,
@@ -327,14 +338,18 @@ fn handle_internal_message(
 
             ctx.handle_subscribe(Arc::from(subject), Arc::from(fn_name));
         }
-        InternalWorkerMessage::Unsubscribe { subject, fn_name } => {
+        InternalWorkerMessage::Unsubscribe {
+            subject,
+            fn_oid,
+            fn_name,
+        } => {
             debug!(
                 context = db_name,
                 "Received unsubscription request: subject='{}', fn='{}'", subject, fn_name,
             );
 
             if let Err(error) = BackgroundWorker::transaction(|| {
-                delete_subject_callback(subscriptions_table_name, &subject, &fn_name)
+                delete_subject_callback(subscriptions_table_name, &subject, fn_oid, &fn_name)
             }) {
                 warn!(
                     context = db_name,
@@ -358,13 +373,8 @@ fn handle_internal_message(
                 "Dispatching callbacks for subject '{}'", subject
             );
 
-            ctx.handle_callback(&subject, data, |callback, data| {
-                if let Err(err) = BackgroundWorker::transaction(|| call_function(callback, data)) {
-                    warn!(
-                        context = db_name,
-                        "Error while calling subscriber function '{}': {:?}", callback, err
-                    );
-                }
+            ctx.handle_callback(&subject, data, db_name, |callback, data| {
+                BackgroundWorker::transaction(|| call_function(callback, data))
             });
         }
         InternalWorkerMessage::UnsubscribeSubject { subject, reason } => {

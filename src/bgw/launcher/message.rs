@@ -22,11 +22,13 @@ pub enum LauncherMessage {
     Subscribe {
         db_oid: u32,
         subject: String,
+        fn_oid: u32,
         fn_name: String,
     },
     Unsubscribe {
         db_oid: u32,
         subject: String,
+        fn_oid: u32,
         fn_name: String,
     },
     SubscriberExit {
