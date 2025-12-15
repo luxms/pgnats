@@ -61,7 +61,7 @@ mod tests {
         let mut recv = ShmMqReceiver::attach(&dsm).unwrap();
 
         let not_send = sender.try_send(CONTENT).unwrap();
-        assert_eq!(not_send, false);
+        assert!(!not_send);
 
         let content = recv.try_recv().unwrap();
 
