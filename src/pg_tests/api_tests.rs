@@ -9,11 +9,6 @@ mod tests {
     const NATS_PORT: u16 = 4222;
 
     #[pg_test]
-    fn test_pgnats_version() {
-        assert_eq!(api::pgnats_version(), env!("CARGO_PKG_VERSION"));
-    }
-
-    #[pg_test]
     fn test_pgnats_publish() {
         let subject = "test.test_nats_publish";
         let message = "Hello, World! 🦀".to_string();
@@ -255,7 +250,7 @@ mod tests {
         assert_eq!(None, value);
     }
 
-    #[cfg(feature = "object_value")]
+    #[cfg(feature = "object_store")]
     #[pg_test]
     fn test_pgnats_put_and_get_file() {
         let bucket = "test_file_io".to_string();
@@ -272,7 +267,7 @@ mod tests {
         assert_eq!(content, returned);
     }
 
-    #[cfg(feature = "object_value")]
+    #[cfg(feature = "object_store")]
     #[pg_test]
     fn test_pgnats_file_info() {
         let bucket = "test_file_info".to_string();
@@ -287,10 +282,10 @@ mod tests {
         let mut info = info_res.unwrap();
         let info = info.next().unwrap();
         assert_eq!(info.0, key);
-        assert_eq!(info.5 as usize, content.len());
+        assert_eq!(info.7 as usize, content.len());
     }
 
-    #[cfg(feature = "object_value")]
+    #[cfg(feature = "object_store")]
     #[pg_test]
     fn test_pgnats_file_list() {
         let bucket = "test_file_list".to_string();
@@ -314,7 +309,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "object_value")]
+    #[cfg(feature = "object_store")]
     #[pg_test]
     fn test_pgnats_delete_file() {
         let bucket = "test_file_delete".to_string();

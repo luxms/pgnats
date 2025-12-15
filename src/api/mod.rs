@@ -5,9 +5,11 @@ mod nats;
 mod macros;
 
 pub use nats::*;
-use pgrx::pg_extern;
+use pgrx::{name, pg_extern};
 
 use crate::{config::fetch_config, constants::FDW_EXTENSION_NAME, ctx::CTX};
+
+shadow_rs::shadow!(build);
 
 /// Reloads NATS connection if configuration has changed
 ///
@@ -53,14 +55,29 @@ pub fn pgnats_reload_conf_force() {
     })
 }
 
-/// Returns the current crate version as declared in Cargo.toml
+/// Returns the current crate version, commit date, short commit, branch, and last tag
 ///
 /// # SQL Usage
 /// ```sql
-/// -- Get the current extension version
-/// SELECT pgnats_version();
+/// -- Get info about the extension version
+/// SELECT * FROM pgnats_version();
 /// ```
 #[pg_extern]
-pub fn pgnats_version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
+pub fn pgnats_version() -> pgrx::iter::TableIterator<
+    'static,
+    (
+        name!(version, String),
+        name!(commit_date, String),
+        name!(short_commit, String),
+        name!(branch, String),
+        name!(last_tag, String),
+    ),
+> {
+    pgrx::iter::TableIterator::new([(
+        build::PKG_VERSION.to_string(),
+        build::COMMIT_DATE.to_string(),
+        build::SHORT_COMMIT.to_string(),
+        build::BRANCH.to_string(),
+        build::LAST_TAG.to_string(),
+    )])
 }

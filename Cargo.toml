@@ -48,23 +48,18 @@ reqwest = { optional = true, version = "0.12.22", default-features = false, feat
     "blocking",
 ] }
 
+shadow-rs = { version = "1.4.0", default-features = false }
+
 # dev-dependencies
 warp = { optional = true, version = "0.3.7", default-features = false }
 
 [dev-dependencies]
 pgrx-tests = { git = "https://github.com/luxms/pgrx", version = "0.15.0" }
-testcontainers = { version = "0.23.1", features = ["blocking"] }
+testcontainers = { version = "0.26.0", features = ["blocking"] }
 
 [build-dependencies]
 cargo_toml = "0.21.0"
-
-[lints.rust]
-unexpected_cfgs = { level = "allow", check-cfg = ['cfg(pgrx_embed)'] }
-unused_results = { level = "warn" }
-
-[lints.clippy]
-redundant_field_names = "allow"
-result_unit_err = "allow"
+shadow-rs = "1.4.0"
 
 [profile.dev]
 panic = "unwind"
