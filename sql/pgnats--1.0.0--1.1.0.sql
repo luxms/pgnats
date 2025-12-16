@@ -1,33 +1,16 @@
-ALTER TABLE pgnats.subscriptions RENAME TO subscriptions_old_v1_0_0;
-
-CREATE TABLE pgnats.subscriptions (
-    subject TEXT NOT NULL,
-    fn_oid OID NOT NULL,
-    UNIQUE(subject, fn_oid)
-);
-
-INSERT INTO pgnats.subscriptions (subject, fn_oid)
-SELECT
-    subject,
-    to_regproc(callback) AS fn_oid
-FROM
-    pgnats.subscriptions_old_v1_0_0
-WHERE
-    to_regproc(callback) <> 0;
-
-DROP TABLE pgnats.subscriptions_old_v1_0_0;
-
 CREATE OR REPLACE FUNCTION pgnats.cleanup_subscriptions_on_drop()
 RETURNS event_trigger AS $$
 DECLARE
     obj record;
+    clean_name TEXT;
 BEGIN
     FOR obj IN
         SELECT * FROM pg_event_trigger_dropped_objects()
     LOOP
         IF obj.object_type = 'function' THEN
+            clean_name := split_part(obj.object_identity, '(', 1);
             DELETE FROM pgnats.subscriptions
-            WHERE fn_oid = obj.objid;
+            WHERE callback = clean_name;
         END IF;
     END LOOP;
 END;

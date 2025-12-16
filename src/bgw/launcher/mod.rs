@@ -153,10 +153,9 @@ pub fn process_launcher_bus<const N: usize>(
             LauncherMessage::Subscribe {
                 db_oid,
                 subject,
-                fn_oid,
                 fn_name,
             } => {
-                if let Err(err) = ctx.handle_subscribe_message(db_oid, subject, fn_oid, fn_name) {
+                if let Err(err) = ctx.handle_subscribe_message(db_oid, subject, fn_name) {
                     warn!(
                         context = LAUNCHER_CTX,
                         "Failed to process subscription (db_oid: {}): {}", db_oid, err
@@ -171,10 +170,9 @@ pub fn process_launcher_bus<const N: usize>(
             LauncherMessage::Unsubscribe {
                 db_oid,
                 subject,
-                fn_oid,
                 fn_name,
             } => {
-                if let Err(err) = ctx.handle_unsubscribe_message(db_oid, subject, fn_oid, fn_name) {
+                if let Err(err) = ctx.handle_unsubscribe_message(db_oid, subject, fn_name) {
                     warn!(
                         context = LAUNCHER_CTX,
                         "Failed to process unsubscription (db_oid: {}): {}", db_oid, err

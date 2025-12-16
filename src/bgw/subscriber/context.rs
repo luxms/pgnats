@@ -11,8 +11,6 @@ use crate::{
         },
     },
     config::Config,
-    utils::resolve_bytea_name,
-    warn,
 };
 
 pub struct SubscriberContext {
@@ -87,24 +85,12 @@ impl SubscriberContext {
             fetch_subject_with_callbacks(subscriptions_table_name)
         })?;
 
-        for (subject, fn_oid) in subs {
-            let resolved_name = BackgroundWorker::transaction(|| resolve_bytea_name(fn_oid));
-            match resolved_name {
-                Ok(Some(fn_name)) => {
-                    let _ = self.sender.send(InternalWorkerMessage::Subscribe {
-                        register: false,
-                        subject,
-                        fn_oid,
-                        fn_name,
-                    });
-                }
-                Ok(None) => {
-                    warn!("Function with OID {fn_oid} hasn't name");
-                }
-                Err(err) => {
-                    warn!("Failed to resolve function name for OID {fn_oid}: {err}");
-                }
-            }
+        for (subject, fn_name) in subs {
+            let _ = self.sender.send(InternalWorkerMessage::Subscribe {
+                register: false,
+                subject,
+                fn_name,
+            });
         }
 
         Ok(())

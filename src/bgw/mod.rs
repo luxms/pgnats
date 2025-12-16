@@ -27,8 +27,8 @@ extension_sql!(
 
     CREATE TABLE IF NOT EXISTS pgnats.subscriptions (
         subject TEXT NOT NULL,
-        fn_oid OID NOT NULL,
-        UNIQUE(subject, fn_oid)
+        callback TEXT NOT NULL,
+        UNIQUE(subject, callback)
     );
     "#,
     name = "create_subscriptions_table",
@@ -40,13 +40,15 @@ extension_sql!(
     RETURNS event_trigger AS $$
     DECLARE
         obj record;
+        clean_name TEXT;
     BEGIN
         FOR obj IN
             SELECT * FROM pg_event_trigger_dropped_objects()
         LOOP
             IF obj.object_type = 'function' THEN
+                clean_name := split_part(obj.object_identity, '(', 1);
                 DELETE FROM pgnats.subscriptions
-                WHERE fn_oid = obj.objid;
+                WHERE callback = clean_name;
             END IF;
         END LOOP;
     END;
