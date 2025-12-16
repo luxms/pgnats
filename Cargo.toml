@@ -2,7 +2,7 @@
 name = "pgnats"
 version = "1.0.0"
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.85.0"
 
 [lib]
 crate-type = ["cdylib", "lib"]
