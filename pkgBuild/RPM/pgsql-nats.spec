@@ -17,7 +17,7 @@ Release:        %{release}%{?dist}
 Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
-SOURCE0:		%{name}-v%{version}.tar.gz
+SOURCE0:		pgsql-nats-v%{version}.tar.gz
 
 BuildRequires:  rust rustfmt cargo cargo-pgrx openssl
 
