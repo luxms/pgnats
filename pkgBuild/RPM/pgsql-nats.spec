@@ -17,6 +17,7 @@ Release:        %{release}%{?dist}
 Vendor:         YASP Ltd, Luxms Group
 URL:            https://github.com/luxms/pgnats
 License:        CorpGPL
+SOURCE0:		%{name}-v%{version}.tar.gz
 
 BuildRequires:  rust rustfmt cargo cargo-pgrx openssl
 
@@ -65,8 +66,18 @@ Provides:       pgpro%{pg_ver}ent-nats
 NATS connect for PostgresPRO-ent
 %endif
 
+%prep
+%{__mkdir_p} %{_builddir}/%{name}-%{version}
+if [[ ! -f %{_builddir}/%{name}-%{version}/Cargo.toml ]]; then
+  %{__tar} -zxf %{SOURCE0} -C %{_builddir}/%{name}-%{version} --strip-components 1
+fi
 
 %install
+
+cargo --version
+rustc --version
+
+cd %{_builddir}/%{name}-%{version}
 
 %if 0%{?el8} || 0%{?el9}
 
@@ -80,7 +91,6 @@ cargo pgrx package --pg-config /usr/pgsql-%{pg_ver}/bin/pg_config
 
 %{__mv} target/release/pgnats-pg%{pg_ver}/* %{buildroot}/
 %endif
-
 
 %if 0%{?redos}
 cargo pgrx init --pg%{pg_ver} /usr/pgsql-%{pg_ver}/bin/pg_config
