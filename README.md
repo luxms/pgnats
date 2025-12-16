@@ -288,13 +288,13 @@ SELECT nats_publish_jsonb_stream(
 
 ```sql
 -- Subscribe a PostgreSQL function to a NATS subject
-SELECT nats_subscribe('events.user.created', 'handle_user_created');
+SELECT nats_subscribe('events.user.created', 'schema.handle_user_created'::regproc);
 
 -- Multiple functions can be subscribed to the same subject
-SELECT nats_subscribe('events.user.created', 'log_user_created');
+SELECT nats_subscribe('events.user.created', 'schema.log_user_created'::regproc);
 
 -- Unsubscribe a specific PostgreSQL function from a NATS subject
-SELECT nats_unsubscribe('events.user.created', 'handle_user_created');
+SELECT nats_unsubscribe('events.user.created', 'schema.handle_user_created'::regproc);
 ```
 
 ### 📥 Request
@@ -366,7 +366,7 @@ SELECT * FROM nats_get_file_list('store');
 ### 🛠️ Utils
 
 ```sql
--- Get the current extension version
+-- Get the current extension information about version
 SELECT pgnats_version();
 
 -- Retrieves information about the NATS server connection.

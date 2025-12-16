@@ -56,8 +56,7 @@ mod tests_items {
         );
 
         INSERT INTO test_subscription_table_2 (subject, callback) VALUES
-            ('test_background_worker_restore_after_restart', 'test_2_fn'),
-            ('test_background_worker_restore_after_restart', 'example_fn_2')
+            ('test_background_worker_restore_after_restart', 'public.test_2_fn')
         ;
 
         CREATE FOREIGN DATA WRAPPER pgnats_fdw_test_2;
@@ -327,7 +326,7 @@ pub(super) mod tests {
         ));
 
         #[cfg(feature = "pg_test")]
-        let _ = start_server_recv
+        start_server_recv
             .recv_timeout(std::time::Duration::from_secs(5))
             .expect("Failed to start server");
 
@@ -356,7 +355,7 @@ pub(super) mod tests {
 
             assert_eq!(message.status, PgInstanceStatus::Master);
 
-            assert!(message.listen_addresses.len() > 0);
+            assert!(!message.listen_addresses.is_empty());
             assert_eq!(message.listen_addresses[0], "localhost");
 
             #[cfg(feature = "pg13")]

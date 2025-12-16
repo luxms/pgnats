@@ -1,12 +1,12 @@
 use std::{collections::HashMap, io::Cursor, time::Duration};
 
 use async_nats::{
-    Client, Request,
     jetstream::{
-        Context,
         kv::Store,
         object_store::{ObjectInfo, ObjectStore},
+        Context,
     },
+    Client, Request,
 };
 
 use futures::StreamExt;
@@ -14,7 +14,7 @@ use tokio::io::{AsyncReadExt, BufReader};
 
 use crate::{
     config::{Config, NatsTlsOptions},
-    utils::{FromBytes, ToBytes, extract_headers},
+    utils::{extract_headers, FromBytes, ToBytes},
 };
 
 pub struct NatsClient {
@@ -337,18 +337,18 @@ impl NatsClient {
 
         let mut opts = async_nats::ConnectOptions::new().client_capacity(config.nats_opt.capacity);
 
-        if let Some(tls) = &config.nats_opt.tls
-            && let Ok(root) = std::env::current_dir()
-        {
-            match tls {
-                NatsTlsOptions::Tls { ca } => {
-                    opts = opts.require_tls(true).add_root_certificates(root.join(ca))
-                }
-                NatsTlsOptions::MutualTls { ca, cert, key } => {
-                    opts = opts
-                        .require_tls(true)
-                        .add_root_certificates(root.join(ca))
-                        .add_client_certificate(root.join(cert), root.join(key));
+        if let Some(tls) = &config.nats_opt.tls {
+            if let Ok(root) = std::env::current_dir() {
+                match tls {
+                    NatsTlsOptions::Tls { ca } => {
+                        opts = opts.require_tls(true).add_root_certificates(root.join(ca))
+                    }
+                    NatsTlsOptions::MutualTls { ca, cert, key } => {
+                        opts = opts
+                            .require_tls(true)
+                            .add_root_certificates(root.join(ca))
+                            .add_client_certificate(root.join(cert), root.join(key));
+                    }
                 }
             }
         }

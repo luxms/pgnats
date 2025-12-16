@@ -1,19 +1,6 @@
 use std::{collections::BTreeSet, path::PathBuf};
 
 fn main() {
-    #[cfg(all(target_family = "unix", feature = "pg_test"))]
-    if !std::path::Path::new("tests/certs/server.key").exists()
-        || !std::path::Path::new("tests/certs/server.crt").exists()
-        || !std::path::Path::new("tests/certs/ca.crt").exists()
-    {
-        println!("Generating test certificates...");
-        let status = std::process::Command::new("sh")
-            .arg("generate_test_certs.sh")
-            .status()
-            .expect("failed to run generate_test_certs.sh");
-        assert!(status.success(), "generate_test_certs.sh failed");
-    }
-
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let cargo_toml_path = PathBuf::from(&manifest_dir).join("Cargo.toml");
 

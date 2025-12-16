@@ -358,13 +358,8 @@ fn handle_internal_message(
                 "Dispatching callbacks for subject '{}'", subject
             );
 
-            ctx.handle_callback(&subject, data, |callback, data| {
-                if let Err(err) = BackgroundWorker::transaction(|| call_function(callback, data)) {
-                    warn!(
-                        context = db_name,
-                        "Error while calling subscriber function '{}': {:?}", callback, err
-                    );
-                }
+            ctx.handle_callback(&subject, data, db_name, |callback, data| {
+                BackgroundWorker::transaction(|| call_function(callback, data))
             });
         }
         InternalWorkerMessage::UnsubscribeSubject { subject, reason } => {

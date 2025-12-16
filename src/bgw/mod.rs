@@ -34,6 +34,35 @@ extension_sql!(
     name = "create_subscriptions_table",
 );
 
+extension_sql!(
+    r#"
+    CREATE OR REPLACE FUNCTION pgnats.cleanup_subscriptions_on_drop()
+    RETURNS event_trigger AS $$
+    DECLARE
+        obj record;
+        clean_name TEXT;
+    BEGIN
+        FOR obj IN
+            SELECT * FROM pg_event_trigger_dropped_objects()
+        LOOP
+            IF obj.object_type = 'function' THEN
+                clean_name := split_part(obj.object_identity, '(', 1);
+                DELETE FROM pgnats.subscriptions
+                WHERE callback = clean_name;
+            END IF;
+        END LOOP;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE EVENT TRIGGER pgnats_on_drop_function
+    ON sql_drop
+    WHEN TAG IN ('DROP FUNCTION')
+    EXECUTE FUNCTION pgnats.cleanup_subscriptions_on_drop();
+    "#,
+    name = "delete_function_from_subscriptions_table",
+    requires = ["create_subscriptions_table"]
+);
+
 pub static LAUNCHER_MESSAGE_BUS: PgLwLock<RingQueue<MESSAGE_BUS_SIZE>> =
     PgLwLock::new(c"pgnats_launcher_message_bus");
 
