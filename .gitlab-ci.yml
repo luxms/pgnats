@@ -40,8 +40,10 @@ include:
 
 linter:
   stage: test
+  before_script:
+    - dnf config-manager --add-repo https://devrepo.spb.luxms.com/luxms-thirdparty/el/9/x86_64/
   script:
-    - dnf -y install cargo clippy readline-devel bison flex zlib-devel openssl-devel
+    - dnf -y install cargo cargo-pgrx clippy readline-devel bison flex zlib-devel openssl-devel
     - cargo pgrx init --pg14 download
     - cargo clippy -- -D warnings
 
