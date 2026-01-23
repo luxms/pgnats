@@ -1,0 +1,4 @@
+[book]
+title = "pgnats - PostgreSQL extension for NATS messaging"
+authors = ["luxms"]
+language = "en"
