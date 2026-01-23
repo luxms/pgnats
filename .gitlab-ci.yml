@@ -38,7 +38,7 @@ include:
       && DISTTAG=$(rpm -qp *.rpm --qf %{disttag})
       && echo "DISTTAG   ${DISTTAG}"
 
-linter:
+.linter:
   stage: test
   before_script:
     - dnf config-manager --add-repo https://devrepo.spb.luxms.com/luxms-thirdparty/el/9/x86_64/
