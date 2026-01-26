@@ -158,6 +158,7 @@ pub fn is_extension_installed(name: &str) -> bool {
     })
 }
 
+#[allow(trivial_numeric_casts)]
 pub fn resolve_bytea_name(func_oid: sys::Oid) -> anyhow::Result<Option<String>> {
     // SAFETY:
     // 1. All Postgres FFI calls follow documented lifetimes.

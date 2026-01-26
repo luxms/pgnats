@@ -1,4 +1,4 @@
-use std::sync::{Arc, mpsc::Sender};
+use std::sync::{mpsc::Sender, Arc};
 
 use pgrx::bgworkers::BackgroundWorker;
 
@@ -6,8 +6,8 @@ use crate::{
     bgw::{
         notification::PgInstanceNotification,
         subscriber::{
+            pg_api::{fetch_status, fetch_subject_with_callbacks, CallError, PgInstanceStatus},
             InternalWorkerMessage, NatsConnectionState,
-            pg_api::{CallError, PgInstanceStatus, fetch_status, fetch_subject_with_callbacks},
         },
     },
     config::Config,
@@ -136,16 +136,15 @@ impl SubscriberContext {
         })
         .ok_or_else(|| anyhow::anyhow!("Failed to construct PgInstanceNotification: missing or invalid listen_addresses or port GUC"))?;
 
-        let notification = serde_json::to_vec(&notification).map_err(|err| {
-            anyhow::anyhow!("Failed to serialize PgInstanceNotification: {}", err)
-        })?;
+        let notification = serde_json::to_vec(&notification)
+            .map_err(|err| anyhow::anyhow!("Failed to serialize PgInstanceNotification: {err}"))?;
 
         self.rt
             .block_on(
                 self.nats
                     .publish(config.notify_subject.clone(), notification),
             )
-            .map_err(|err| anyhow::anyhow!("Failed to publish notification to NATS: {}", err))
+            .map_err(|err| anyhow::anyhow!("Failed to publish notification to NATS: {err}"))
     }
 }
 

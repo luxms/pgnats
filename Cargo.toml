@@ -80,6 +80,7 @@ unused-lifetimes = 'warn'
 unused-macro-rules = 'warn'
 
 [lints.clippy]
+unnecessary_cast = 'allow'
 unwrap_used = 'deny'
 expect_used = 'deny'
 panic = 'deny'

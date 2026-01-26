@@ -52,7 +52,7 @@ pub fn fetch_subject_with_callbacks(table_name: &str) -> anyhow::Result<Vec<(Str
             err.message(),
             err.hint()
         )),
-        _ => Err(anyhow::anyhow!("{:?}", e)),
+        _ => Err(anyhow::anyhow!("{e:?}")),
     })
     .execute()
 }
@@ -77,7 +77,7 @@ pub fn insert_subject_callback(
             err.message(),
             err.hint()
         )),
-        _ => Err(anyhow::anyhow!("{:?}", e)),
+        _ => Err(anyhow::anyhow!("{e:?}")),
     })
     .execute()
 }
@@ -102,7 +102,7 @@ pub fn delete_subject_callback(
             err.message(),
             err.hint()
         )),
-        _ => Err(anyhow::anyhow!("{:?}", e)),
+        _ => Err(anyhow::anyhow!("{e:?}")),
     })
     .execute()
 }
@@ -139,7 +139,7 @@ pub fn call_function(callback: &str, data: &[u8]) -> Result<(), CallError> {
                 )))
             }
         }
-        _ => Err(CallError::Other(anyhow::anyhow!("{:?}", e))),
+        _ => Err(CallError::Other(anyhow::anyhow!("{e:?}"))),
     })
     .execute()
 }

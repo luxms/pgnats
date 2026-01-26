@@ -86,10 +86,7 @@ pub fn background_worker_subscriber_main<const N: usize>(
     }
 
     let db_name = BackgroundWorker::transaction(|| get_database_name(db_oid)).ok_or_else(|| {
-        anyhow::anyhow!(
-            "Subscriber: failed to resolve database name for OID {}",
-            db_oid
-        )
+        anyhow::anyhow!("Subscriber: failed to resolve database name for OID {db_oid}",)
     })?;
 
     let result = background_worker_subscriber_main_internal(
@@ -141,7 +138,7 @@ fn background_worker_subscriber_main_internal<const N: usize>(
         .enable_all()
         .build()
         .map_err(|err| {
-            anyhow::anyhow!("Failed to initialize Tokio runtime in subscriber: {}", err)
+            anyhow::anyhow!("Failed to initialize Tokio runtime in subscriber: {err}")
         })?;
 
     let (msg_sender, msg_receiver) = channel();

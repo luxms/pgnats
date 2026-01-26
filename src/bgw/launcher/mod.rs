@@ -248,8 +248,7 @@ pub fn send_message_to_launcher_with_retry<const N: usize>(
     }
 
     Err(anyhow::anyhow!(
-        "Failed to send launcher message after {} tries",
-        tries
+        "Failed to send launcher message after {tries} tries",
     ))
 }
 

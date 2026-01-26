@@ -52,8 +52,7 @@ impl WorkerEntry<RunningState> {
 
         let sender = ShmMqSender::new(&dsm, size).map_err(|e| {
             anyhow::anyhow!(
-                "Failed to initialize shared memory message queue sender (size: {}). Reason: {e}",
-                size
+                "Failed to initialize shared memory message queue sender (size: {size}). Reason: {e}"
             )
         })?;
 
@@ -71,10 +70,8 @@ impl WorkerEntry<RunningState> {
             .load_dynamic()
             .map_err(|err| {
                 anyhow::anyhow!(
-                    "Failed to launch background worker '{}'. Entry point: '{}', database: '{}'. Error: {err:?}",
-                    name,
-                    entrypoint,
-                    db_name
+                    "Failed to launch background worker '{name}'. Entry point: '{entrypoint}', database: '{db_name}'. Error: {err:?}"
+
                 )
             })?;
 
