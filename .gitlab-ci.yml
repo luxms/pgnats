@@ -19,6 +19,10 @@ stages:
 include:
   - component: $CI_SERVER_FQDN/devops/cicd/defVersion@main
   - component: $CI_SERVER_FQDN/devops/cicd/sast@main
+    inputs:
+      scan_tool: semgrep
+      scan_lang: 
+        - rust
   - component: $CI_SERVER_FQDN/devops/cicd/sbom@main
     inputs:
       atack_surface: "indirect"
