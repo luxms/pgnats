@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5eb97b4b.js";
+            window.path_to_searchindex_js = "searchindex-0ca935cf.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-4cff11ce.js"></script>
@@ -473,6 +473,8 @@ SELECT nats_subscribe('events.user.created', 'schema.log_user_created'::regproc)
 -- Unsubscribe a specific PostgreSQL function from a NATS subject
 SELECT nats_unsubscribe('events.user.created', 'schema.handle_user_created'::regproc);
 </code></pre>
+<h1 id="subscription-architecture"><a class="header" href="#subscription-architecture">Subscription Architecture</a></h1>
+<p><a href="bgw_sub.svg">Subscription Architecture</a></p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="request"><a class="header" href="#request">Request</a></h1>
 <pre><code class="language-sql">-- Request binary data from NATS (wait for response with timeout in ms)
