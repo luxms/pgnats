@@ -296,6 +296,10 @@ SELECT nats_subscribe('events.user.created', 'schema.log_user_created'::regproc)
 SELECT nats_unsubscribe('events.user.created', 'schema.handle_user_created'::regproc);
 ```
 
+#### Subscription Architecture
+
+![Subscription Architecture](./docs/bgw_sub.svg)
+
 ### 📥 Request
 
 ```sql

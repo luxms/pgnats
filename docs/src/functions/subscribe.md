@@ -13,3 +13,7 @@ SELECT nats_subscribe('events.user.created', 'schema.log_user_created'::regproc)
 -- Unsubscribe a specific PostgreSQL function from a NATS subject
 SELECT nats_unsubscribe('events.user.created', 'schema.handle_user_created'::regproc);
 ```
+
+# Subscription Architecture
+
+[Subscription Architecture](../bgw_sub.svg)
