@@ -4,7 +4,7 @@
 %define         debug_package  %{nil}
 
 %{!?version:    %define version %{VERSION}}
-%{!?release:    %define release 1}
+%{!?release:    %define release %(date +%%Y%%m%%d)}
 %define         dist alt10
 
 Name:           pgpro15-nats
