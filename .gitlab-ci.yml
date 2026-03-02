@@ -74,6 +74,9 @@ buildRpm:
                     dnf -y module enable postgresql:${PG_VERSION};
                   fi;
                   dnf config-manager --add-repo https://devrepo.spb.luxms.com/luxms-thirdparty/el/9/x86_64/;;
+        "rocky10") dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm;
+                   dnf -qy --enablerepo=crb install perl-IPC-Run
+                   dnf config-manager --add-repo https://devrepo.spb.luxms.com/luxms-thirdparty/el/10/x86_64/;;
       esac
   script:
     - tar -zcf ../pgsql-nats-v${VERSION}.tar.gz ./*
@@ -93,13 +96,10 @@ buildRpm:
       - "*.rpm"
   parallel:
     matrix:
-      - OS_VER:
-          - "rocky9"
-          - "redos7"
-          - "redos8"
-        PG_VERSION:
-          - "15"
-          - "17"
+      - OS_VER: [ "redos7","redos8","rocky9","rocky10" ]
+        PG_VERSION: [ "17" ]
+      - OS_VER: [ "rocky9","redos8","redos7" ]
+        PG_VERSION: [ "15" ]
 
 buildALSE:
   stage: build
@@ -213,12 +213,12 @@ deployToStand:
   variables:
     HOST1: pgnats-cluster-pg01.spb.luxms.com
     HOST2: pgnats-cluster-pg02.spb.luxms.com
-    PKG_DEPLOY: pgsql15-nats-${VERSION}-1.el9.x86_64.rpm
   before_script:
     - eval $(ssh-agent -s)
     - echo "${SSH_RUNNER_KEY}" | tr -d '\r' | ssh-add -
     - ssh-keyscan -t ecdsa ${HOST1}  >> ~/.ssh/known_hosts
     - ssh-keyscan -t ecdsa ${HOST2}  >> ~/.ssh/known_hosts
+    - PKG_DEPLOY=$(ls pgsql15-nats-${VERSION}-*.el9.x86_64.rpm | head -1)
   script:
     - scp ${PKG_DEPLOY} root@${HOST1}:/root/
     - scp ${PKG_DEPLOY} root@${HOST2}:/root/
