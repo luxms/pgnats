@@ -27,10 +27,11 @@ include:
     inputs:
       atack_surface: "indirect"
       security_function: "yes"
-  - component: $CI_SERVER_FQDN/devops/cicd/uploadToDevrepo@main
-    inputs:
-      repo: "luxms-thirdparty"
-      repo_path: "devrepo.spb.luxms.com"
+  # need var BI_REPO
+  # stage: deploy
+  - project: 'devops/gitlab-ci'
+    ref: master
+    file: 'ci/include/upload-to-devrepo.yml'
     rules:
       - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/'
 
