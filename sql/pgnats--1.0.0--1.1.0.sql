@@ -21,6 +21,34 @@ ON sql_drop
 WHEN TAG IN ('DROP FUNCTION')
 EXECUTE FUNCTION pgnats.cleanup_subscriptions_on_drop();
 
+DROP FUNCTION "nats_subscribe"(TEXT, TEXT);
+
+/* <begin connected objects> */
+-- src/api/nats.rs:566
+-- pgnats::api::nats::nats_subscribe
+CREATE  FUNCTION "nats_subscribe"(
+	"subject" TEXT, /* alloc::string::String */
+	"fn_oid" oid /* pgrx_pg_sys::submodules::oids::Oid */
+) RETURNS VOID /* core::result::Result<(), anyhow::Error> */
+STRICT
+LANGUAGE c /* Rust */
+AS 'MODULE_PATHNAME', 'nats_subscribe_wrapper';
+/* </end connected objects> */
+
+DROP FUNCTION "nats_unsubscribe"(TEXT, TEXT);
+
+/* <begin connected objects> */
+-- src/api/nats.rs:612
+-- pgnats::api::nats::nats_unsubscribe
+CREATE  FUNCTION "nats_unsubscribe"(
+	"subject" TEXT, /* alloc::string::String */
+	"fn_oid" oid /* pgrx_pg_sys::submodules::oids::Oid */
+) RETURNS VOID /* core::result::Result<(), anyhow::Error> */
+STRICT
+LANGUAGE c /* Rust */
+AS 'MODULE_PATHNAME', 'nats_unsubscribe_wrapper';
+/* </end connected objects> */
+
 DROP FUNCTION "pgnats_version"();
 
 /* <begin connected objects> */

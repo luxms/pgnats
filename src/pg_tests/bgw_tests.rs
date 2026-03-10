@@ -1,6 +1,6 @@
 #[cfg(any(test, feature = "pg_test"))]
 pub fn init_test_shared_memory() {
-    use pgrx::{PgSharedMemoryInitialization, pg_guard, pg_shmem_init, pg_sys};
+    use pgrx::{pg_guard, pg_shmem_init, pg_sys, PgSharedMemoryInitialization};
 
     use crate::pg_tests::bgw_tests::tests_items::*;
 
@@ -141,7 +141,7 @@ pub(super) mod tests {
         sync::mpsc::Sender,
     };
 
-    use pgrx::{PgLwLock, Spi, bgworkers::BackgroundWorkerBuilder, pg_test};
+    use pgrx::{bgworkers::BackgroundWorkerBuilder, pg_test, PgLwLock, Spi};
 
     use crate::{
         api,
@@ -358,8 +358,6 @@ pub(super) mod tests {
             assert!(!message.listen_addresses.is_empty());
             assert_eq!(message.listen_addresses[0], "localhost");
 
-            #[cfg(feature = "pg13")]
-            assert_eq!(message.port, 32213);
             #[cfg(feature = "pg14")]
             assert_eq!(message.port, 32214);
             #[cfg(feature = "pg15")]
