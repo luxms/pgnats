@@ -570,25 +570,25 @@ pub(super) mod tests {
     #[cfg(feature = "pg_test")]
     async fn start_mock_patroni(name: String, start_sdr: Sender<()>, patroni_addr: &str) {
         use tokio::net::TcpListener;
-        use tokio_stream::wrappers::TcpListenerStream;
         use warp::Filter;
 
-        let patroin_route = warp::path("patroni").and(warp::get()).map(move || {
-            let response = serde_json::json!({
-                "patroni": {
-                    "name": name
-                }
-            });
+        let patroin_route = warp::path("patroni")
+            .and(warp::get())
+            .map(move || {
+                let response = serde_json::json!({
+                    "patroni": {
+                        "name": name
+                    }
+                });
 
-            warp::reply::json(&response)
-        });
+                warp::reply::json(&response)
+            })
+            .boxed();
 
         let listener = TcpListener::bind(patroni_addr).await.unwrap();
 
         start_sdr.send(()).unwrap();
 
-        warp::serve(patroin_route)
-            .run_incoming(TcpListenerStream::new(listener))
-            .await;
+        warp::serve(patroin_route).incoming(listener).run().await;
     }
 }

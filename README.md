@@ -66,7 +66,7 @@ cargo pgrx test
 
 ## 🦀 Minimum supported Rust version
 
-- `Rust 1.82.0`
+- `Rust 1.88.0`
 
 ## 📚 Documentation
 

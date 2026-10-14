@@ -1,0 +1,1 @@
+-- Security dependency updates only; no SQL schema changes are required.

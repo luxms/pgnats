@@ -1,8 +1,8 @@
 [package]
 name = "pgnats"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
-rust-version = "1.82.0"
+rust-version = "1.88.0"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -30,7 +30,7 @@ sub = ["postcard", "reqwest"]
 
 [dependencies]
 anyhow = { version = "1.0", default-features = false }
-async-nats = { version = "0.45.0" }
+async-nats = { version = "0.47.0" }
 futures = "0.3.31"
 pastey = "0.2.1"
 pgrx = { git = "https://github.com/luxms/pgrx", version = "0.15.0", features = [
@@ -50,7 +50,7 @@ reqwest = { optional = true, version = "0.12.22", default-features = false, feat
 shadow-rs = { version = "1.0.0", default-features = false }
 
 # dev-dependencies
-warp = { optional = true, version = "0.3.7", default-features = false }
+warp = { optional = true, version = "0.4.3", default-features = false, features = ["server"] }
 
 [dev-dependencies]
 pgrx-tests = { git = "https://github.com/luxms/pgrx", version = "0.15.0" }
@@ -58,7 +58,8 @@ pgrx-tests = { git = "https://github.com/luxms/pgrx", version = "0.15.0" }
 [build-dependencies]
 anyhow = { version = "1.0", default-features = false }
 cargo_toml = "0.21.0"
-shadow-rs = "=0.38.1"
+# Use the git CLI backend to avoid the vulnerable optional git2 dependency.
+shadow-rs = { version = "=0.38.1", default-features = false, features = ["tzdb"] }
 
 [profile.dev]
 panic = "unwind"
